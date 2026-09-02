@@ -1,3 +1,29 @@
+# FileSetGo Project Governance
+
+## Product Identity
+
+- Public brand: **File. Set. Go.**
+- Operational/product name: **FileSetGo**
+- Domain: `filesetgo.com`
+- Core package: `@filesetgo/core`
+- Milestone prefix: `FSG-`
+- GitHub repository: `SilvestrLee/filesetgo`
+
+## Authority Order
+
+Before implementation, read the applicable governing documents in this order:
+
+1. `docs/governance/MASTER-BLUEPRINT.md`
+2. `docs/governance/DECISIONS.md`
+3. `docs/governance/ROADMAP.md`
+4. the current directive in `docs/directives/`
+5. architecture, security, and testing documentation
+6. implementation
+
+If lower-level implementation conflicts with a higher-level governing document, stop implementation until the conflict is resolved in the governing layer. The current product milestone is FSG-001 — Core Client Runtime & Safety Foundation, governed by `docs/directives/FSG-001.md`.
+
+`SPRINT_REPORT.md` is the canonical current sprint or checkpoint report. Do not overwrite it except when a governed sprint or checkpoint is formally reported.
+
 <laravel-boost-guidelines>
 === foundation rules ===
 
