@@ -14,9 +14,11 @@ FSG-001B — Worker Runtime & Local Decode Foundation
 
 `fsg-001-core-runtime`
 
-## HEAD
+## Base HEAD Before FSG-001B Closeout
 
-`de275f0ab847716159b72a44c91dbafa7676454b` (FSG-001A — this sprint's work is implemented on top of this commit and has not been committed yet; see Commit Reference).
+`de275f0ab847716159b72a44c91dbafa7676454b`
+
+This was the committed FSG-001A HEAD on which FSG-001B was implemented. This is not the final FSG-001B HEAD; see Commit Reference.
 
 ## Objective
 
@@ -266,4 +268,8 @@ Per `docs/directives/FSG-001B.md` §88–89 (as amended by ADR-013), FSG-001B it
 
 ## Commit Reference
 
-Not yet committed. Per this session's operating rules, commits are made only on explicit instruction — implementation, tests, and this report are complete and verified in the working tree, awaiting the user's go-ahead to stage and commit.
+This report is included in the FSG-001B closeout commit:
+
+`feat(core): add worker image processing runtime`
+
+The authoritative commit SHA is recorded in Git history and in the closeout response produced immediately after the commit.
