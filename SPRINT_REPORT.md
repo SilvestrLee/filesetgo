@@ -42,6 +42,9 @@ Modified:
 - `packages/core/tests/preflight/fixtures.ts`, `preflight-image.test.ts` (HEIC fixtures/tests)
 - `resources/css/app.css`, `resources/views/welcome.blade.php`, `vite.config.js` (proof UI)
 - `resources/js/app.js` → replaced by `resources/js/app.ts`
+- `AGENTS.md` (pointer to the new verification-responsibility policy)
+- `docs/governance/DECISIONS.md` (new ADR-013 — agent-owned routine verification; FSG-006 owns compatibility certification)
+- `docs/testing/TESTING.md` (new "Verification Responsibility" policy section; "Actual Browser and Device Evidence" rewritten as "Runtime and Browser Evidence")
 
 New:
 - `packages/core/src/runtime/{protocol,worker-client,capabilities,job-id,constants}.ts`
@@ -51,7 +54,7 @@ New:
 - `packages/core/src/processing/{contracts,errors,validate-request}.ts`
 - `packages/core/src/preflight/formats/heic.ts`
 - `packages/core/tests/runtime/*.ts`, `packages/core/tests/workers/*.ts`, `packages/core/tests/normalize/*.ts`, `packages/core/tests/transforms/*.ts`, `packages/core/tests/processing/*.ts`
-- `docs/directives/FSG-001B.md`
+- `docs/directives/FSG-001B.md` (including its own verification-policy amendment note and §70/71/87/89 edits)
 
 ## Public Core API
 
