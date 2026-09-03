@@ -73,3 +73,13 @@ Keryon consumes `@filesetgo/core` in the browser and uploads only user-approved 
 **Status:** Accepted
 
 The repository-root `SPRINT_REPORT.md` is the canonical current sprint or checkpoint report. It is overwritten only for a formally governed report; prior versions remain in Git history. Parallel current sprint-report files are not created.
+
+## ADR-013 — Agent-owned routine verification; FSG-006 owns compatibility certification
+
+**Status:** Accepted
+
+Routine sprint verification is the coding agent's responsibility, not the user's. Agents must not ask a human to perform manual QA that the agent can reasonably perform itself — opening DevTools, inspecting network requests, clicking through an engineering proof interface, running browser test cases, verifying image outputs, testing cancellation, or inspecting console errors. Agents instead run the strongest verification available in their environment: unit/integration tests, TypeScript checking, Laravel/PHPUnit tests, production builds, lint/static analysis, and automated browser tooling (Playwright, Claude in Chrome, or equivalent) when usable.
+
+Inability to obtain a manually operated physical browser/device session does not, by itself, block a sprint from closing. Comprehensive real-device and cross-browser compatibility certification (iOS Safari, Android Chrome, Safari desktop, Chrome, Firefox, Edge, memory-pressure and repeated-processing testing) remains assigned to **FSG-006 — Hardening, Mobile QA & Compatibility** and is not a closure requirement for earlier milestones. Earlier milestones should still use browser automation wherever the environment supports it.
+
+None of the above weakens the standing accuracy rule: an agent must never report verification — automated or manual — that did not actually run. This ADR amends the browser/device verification expectations previously stated for FSG-001 in `docs/directives/FSG-001B.md` and `docs/testing/TESTING.md`; it does not restructure the `docs/governance/ROADMAP.md` milestone sequence.

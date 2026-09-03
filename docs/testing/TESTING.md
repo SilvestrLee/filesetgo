@@ -4,6 +4,20 @@
 
 Tests cover observable behavior, safety boundaries, protocol contracts, and failure modes. Passing automated tests must not be reported as proof of browser or device behavior that was not actually exercised.
 
+## Verification Responsibility
+
+Routine verification is the coding agent's responsibility, not the user's. Agents must not ask a human to manually open DevTools, inspect network requests, click through an engineering proof interface, run browser test cases, verify image outputs, test cancellation, inspect console errors, or perform other routine QA that the agent can reasonably perform itself.
+
+For each sprint, the agent runs the strongest verification actually available in its environment, which may include: unit and integration tests; TypeScript checking; Laravel/PHPUnit tests; production builds; lint/static analysis; automated browser tests or browser automation (Playwright, Claude in Chrome, or equivalent) when that tooling is usable; worker-runtime tests; network interception/assertions inside automated browser tests; output-signature validation; failure-path tests; and resource-lifecycle tests.
+
+Agents must never claim verification — automated or manual — that did not actually run.
+
+Inability to obtain a manually operated physical browser/device session does not, by itself, block a sprint from closing. If browser automation is unavailable because of environment or tooling constraints, the agent records that limitation honestly and defers the broader runtime-compatibility proof to FSG-006 rather than asking the user to perform the test manually.
+
+Comprehensive real-device and cross-browser compatibility certification — iOS Safari, Android Chrome, Safari desktop, Chrome, Firefox, Edge, memory-pressure testing, repeated processing, large-image behavior under real runtime conditions — is the responsibility of **FSG-006 — Hardening, Mobile QA & Compatibility**, not of earlier milestones. Earlier milestones should still use browser automation wherever it is available in the environment, but a missing physical-device/cross-browser certification is not a closure blocker before FSG-006.
+
+See `docs/governance/DECISIONS.md` ADR-013.
+
 ## Unit Tests
 
 Unit coverage includes:
@@ -50,8 +64,10 @@ git diff --check
 
 Each result must be reported accurately. A command that was not run must not be marked as passing.
 
-## Actual Browser and Device Evidence
+## Runtime and Browser Evidence
 
-FSG-001 requires an actual browser proof of the local decode → normalize → resize → encode → validate → download path. Browser and device coverage must name the browser, version, device or operating system, input formats exercised, relevant dimensions, cancellation behavior, and observed result.
+The local decode → normalize → resize → encode → validate → download path should be proven with the strongest automated evidence available in the environment: unit/integration tests that exercise the real worker-side logic (using browser API fakes where the test runtime lacks them, as `packages/core/tests/workers/process-image.test.ts` does), plus automated browser tooling (Playwright, Claude in Chrome, or equivalent) whenever that tooling is actually usable.
 
-Automated DOM tests, typechecking, a production build, or a mocked worker do not count as real-device evidence. Unverified browsers and devices must be listed as unverified rather than inferred to pass.
+Per "Verification Responsibility" above, a missing manually operated physical-device/browser session is not treated as missing evidence to be chased down before closing a sprint — it is recorded honestly and deferred to FSG-006, which owns the comprehensive real-device and cross-browser compatibility matrix (iOS Safari, Android Chrome, Safari desktop, Chrome, Firefox, Edge, memory pressure, repeated processing).
+
+Whatever was actually run — automated tests, browser automation, or (historically) a manual session — must be reported with enough specificity to be checked: browser/engine and version where applicable, input formats exercised, relevant dimensions, cancellation behavior, and observed result. Unverified browsers and devices must be listed as unverified rather than inferred to pass; a command, test, or browser session that did not run must not be marked as passing.

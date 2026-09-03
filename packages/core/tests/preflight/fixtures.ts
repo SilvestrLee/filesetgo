@@ -242,6 +242,57 @@ export function createVp8ExtendedWebp(
   );
 }
 
+function isoBox(type: string, ...body: readonly Uint8Array[]): Uint8Array {
+  const content = concatenate(...body);
+  const size = 8 + content.byteLength;
+
+  return concatenate(uint32BigEndian(size), ascii(type), content);
+}
+
+function fullBoxHeader(): Uint8Array {
+  return Uint8Array.of(0, 0, 0, 0);
+}
+
+export function createHeic(
+  width: number,
+  height: number,
+  majorBrand = 'heic',
+): Uint8Array {
+  const ftyp = isoBox(
+    'ftyp',
+    ascii(majorBrand),
+    uint32BigEndian(0),
+    ascii(majorBrand),
+    ascii('mif1'),
+  );
+  const ispe = isoBox(
+    'ispe',
+    fullBoxHeader(),
+    uint32BigEndian(width),
+    uint32BigEndian(height),
+  );
+  const ipco = isoBox('ipco', ispe);
+  const iprp = isoBox('iprp', ipco);
+  const meta = isoBox('meta', fullBoxHeader(), iprp);
+
+  return concatenate(ftyp, meta);
+}
+
+export function createHeicWithoutIspe(): Uint8Array {
+  const ftyp = isoBox(
+    'ftyp',
+    ascii('heic'),
+    uint32BigEndian(0),
+    ascii('heic'),
+    ascii('mif1'),
+  );
+  const ipco = isoBox('ipco');
+  const iprp = isoBox('iprp', ipco);
+  const meta = isoBox('meta', fullBoxHeader(), iprp);
+
+  return concatenate(ftyp, meta);
+}
+
 export function createImageSource(
   bytes: Uint8Array,
   reportedSize = bytes.byteLength,

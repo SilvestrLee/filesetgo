@@ -10,6 +10,7 @@ import {
 } from './contracts';
 import { detectImageFormat } from './detect-format';
 import { createPreflightError, ImageParserError } from './errors';
+import { parseHeicMetadata } from './formats/heic';
 import { parseJpegMetadata } from './formats/jpeg';
 import { parsePngMetadata } from './formats/png';
 import { parseWebpMetadata } from './formats/webp';
@@ -32,6 +33,10 @@ async function parseMetadata(
 
   if (format === 'png') {
     return parsePngMetadata(source);
+  }
+
+  if (format === 'heic') {
+    return parseHeicMetadata(source);
   }
 
   return parseWebpMetadata(source);
@@ -101,6 +106,17 @@ export async function preflightImage(
         error: createPreflightError(
           IMAGE_PREFLIGHT_ERROR_CODES.AnimatedImageUnsupported,
           'Animated WebP images are not supported.',
+        ),
+        result: { ...result, safeToDecode: false },
+      };
+    }
+
+    if (format === 'heic') {
+      return {
+        status: 'rejected',
+        error: createPreflightError(
+          IMAGE_PREFLIGHT_ERROR_CODES.HeicDecoderUnavailable,
+          'HEIC/HEIF was identified and its dimensions were read, but no approved browser-side decoder is integrated yet.',
         ),
         result: { ...result, safeToDecode: false },
       };

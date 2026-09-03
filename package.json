@@ -9,7 +9,7 @@
         "build": "vite build",
         "dev": "vite",
         "test:core": "vitest run packages/core/tests",
-        "typecheck": "tsc -p packages/core/tsconfig.json && tsc -p packages/core/tsconfig.worker.json"
+        "typecheck": "tsc -p tsconfig.json && tsc -p packages/core/tsconfig.json && tsc -p packages/core/tsconfig.worker.json"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

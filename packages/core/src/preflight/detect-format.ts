@@ -3,6 +3,23 @@ import { invalidSignature } from './errors';
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
+// ISOBMFF major brands that identify a HEIC/HEIF still image container.
+// AVIF ('avif', 'avis') and other ISOBMFF brands (e.g. plain MP4) are
+// deliberately excluded: AVIF is a separate, conditional V1 format
+// (docs/architecture/FORMAT-SUPPORT.md) and must not be misreported as HEIC.
+const HEIC_MAJOR_BRANDS = new Set([
+  'heic',
+  'heix',
+  'heim',
+  'heis',
+  'hevc',
+  'hevx',
+  'hevm',
+  'hevs',
+  'mif1',
+  'msf1',
+]);
+
 function matches(bytes: Uint8Array, expected: readonly number[]): boolean {
   return (
     bytes.byteLength >= expected.length &&
@@ -47,6 +64,21 @@ export function detectImageFormat(bytes: Uint8Array): ImageFormat | undefined {
     }
 
     return 'webp';
+  }
+
+  if (matchesAscii(bytes, 4, 'ftyp')) {
+    if (bytes.byteLength < 12) {
+      throw invalidSignature('The HEIC ftyp box is truncated.');
+    }
+
+    const majorBrand = String.fromCharCode(
+      bytes[8],
+      bytes[9],
+      bytes[10],
+      bytes[11],
+    );
+
+    return HEIC_MAJOR_BRANDS.has(majorBrand) ? 'heic' : undefined;
   }
 
   return undefined;

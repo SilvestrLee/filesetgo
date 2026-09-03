@@ -24,6 +24,10 @@ If lower-level implementation conflicts with a higher-level governing document, 
 
 `SPRINT_REPORT.md` is the canonical current sprint or checkpoint report. Do not overwrite it except when a governed sprint or checkpoint is formally reported.
 
+## Verification Responsibility
+
+Routine sprint verification (tests, typecheck, build, and browser automation where usable) is the agent's job, not the user's. Do not ask the user to manually open DevTools, click through a proof interface, or otherwise perform routine QA the agent can do itself. A missing manually operated physical-device/cross-browser session does not block a sprint from closing — that certification belongs to FSG-006. See `docs/testing/TESTING.md` ("Verification Responsibility") and `docs/governance/DECISIONS.md` ADR-013 for the full policy.
+
 <laravel-boost-guidelines>
 === foundation rules ===
 

@@ -9,6 +9,8 @@ import {
   type ImageSource,
 } from '../../src';
 import {
+  createHeic,
+  createHeicWithoutIspe,
   createImageSource,
   createJpeg,
   createJpegTruncatedAfterDimensions,
@@ -298,6 +300,66 @@ describe('preflightImage JPEG orientation', () => {
       expect(result.orientation).toBe(orientation);
     },
   );
+});
+
+describe('preflightImage HEIC/HEIF identification', () => {
+  it('identifies a HEIC container and reads its dimensions, but reports the decoder as unavailable', async () => {
+    const outcome = await preflightImage(
+      createImageSource(createHeic(4032, 3024)),
+    );
+    const rejection = expectRejected(
+      outcome,
+      IMAGE_PREFLIGHT_ERROR_CODES.HeicDecoderUnavailable,
+    );
+
+    expect(rejection.result).toMatchObject({
+      format: 'heic',
+      width: 4032,
+      height: 3024,
+      safeToDecode: false,
+    });
+  });
+
+  it.each(['heix', 'mif1', 'msf1', 'hevc'])(
+    "identifies the '%s' HEIC-family major brand",
+    async (majorBrand) => {
+      const outcome = await preflightImage(
+        createImageSource(createHeic(320, 240, majorBrand)),
+      );
+
+      expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.HeicDecoderUnavailable);
+    },
+  );
+
+  it('does not misreport an AVIF ftyp brand as HEIC', async () => {
+    const outcome = await preflightImage(
+      createImageSource(createHeic(320, 240, 'avif')),
+    );
+
+    expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.UnsupportedFormat);
+  });
+
+  it('rejects an oversized HEIC image before reporting the decoder as unavailable', async () => {
+    const outcome = await preflightImage(createImageSource(createHeic(6001, 4000)));
+
+    expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.DimensionsTooLarge);
+  });
+
+  it('rejects a truncated HEIC ftyp box', async () => {
+    const outcome = await preflightImage(
+      createImageSource(Uint8Array.of(0, 0, 0, 0x0c, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65)),
+    );
+
+    expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.InvalidSignature);
+  });
+
+  it('rejects a HEIC container missing an ispe property box', async () => {
+    const outcome = await preflightImage(
+      createImageSource(createHeicWithoutIspe()),
+    );
+
+    expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.CorruptImage);
+  });
 });
 
 describe('preflightImage animation handling', () => {
