@@ -25,3 +25,15 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+# Third-party agent skills — reproducible from skills-lock.json
+.agents/skills/
+.claude/skills/21st-ai
+.claude/skills/21st-cli-use
+.claude/skills/21st-design-sync
+.claude/skills/21st-registry
+.claude/skills/21st-ui-build
+.claude/skills/21st-ui-explore
+.claude/skills/21st-ui-review
+.claude/skills/design-taste-frontend
+.claude/skills/impeccable
+.claude/skills/ui-ux-pro-max

@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "skills": {
+    "21st-ai": {
+      "source": "21st-dev/skill",
+      "sourceType": "github",
+      "skillPath": "skills/21st-ai/SKILL.md",
+      "computedHash": "bdebc2372f7543ff9211d9b0b212e482d77690554920e0b13ded15a2bfcebe77"
+    },
+    "21st-cli-use": {
+      "source": "21st-dev/skill",
+      "sourceType": "github",
+      "skillPath": "skills/21st-cli-use/SKILL.md",
+      "computedHash": "e1d77560de0a62c984f07fa7f933c7e50ee18803c98c2773ff9d34dbe93f0e88"
+    },
+    "21st-design-sync": {
+      "source": "21st-dev/skill",
+      "sourceType": "github",
+      "skillPath": "skills/21st-design-sync/SKILL.md",
+      "computedHash": "668dee53bbf315073de60504ff0c74b8fc2bb3a41dc55e3a128d19351dbeb842"
+    },
+    "21st-registry": {
+      "source": "21st-dev/skill",
+      "sourceType": "github",
+      "skillPath": "skills/21st-registry/SKILL.md",
+      "computedHash": "1f88727b9bfc2e21ec4caee87e8978cdf2368138ddf2c74de1631fe483bc7de4"
+    },
+    "21st-ui-build": {
+      "source": "21st-dev/skill",
+      "sourceType": "github",
+      "skillPath": "skills/21st-ui-build/SKILL.md",
+      "computedHash": "cf957e1d2a2bf7732bf528cae2f6d7ef0270f86fc25e0f7aa17b7ce5a7e3f338"
+    },
+    "21st-ui-explore": {
+      "source": "21st-dev/skill",
+      "sourceType": "github",
+      "skillPath": "skills/21st-ui-explore/SKILL.md",
+      "computedHash": "939a0a0036dd8f6ea43d56a1ce51ba29763348a2de9d25bdbc15c02ba265fc73"
+    },
+    "21st-ui-review": {
+      "source": "21st-dev/skill",
+      "sourceType": "github",
+      "skillPath": "skills/21st-ui-review/SKILL.md",
+      "computedHash": "5ef243e99a7c2a97eba56434e6a66cc93b4fe5687b6ef215238b13e6bb9c0f2b"
+    },
+    "design-taste-frontend": {
+      "source": "Leonxlnx/taste-skill",
+      "sourceType": "github",
+      "skillPath": "skills/taste-skill/SKILL.md",
+      "computedHash": "6d838b246d0e35d0b53f4f23f98ba7a1dd561937e64f7d0c7553b0928e376c3e"
+    },
+    "impeccable": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/impeccable/SKILL.md",
+      "computedHash": "dc4a5d25fd7fb5c5d29d67161549af07e820b109fff62f66ce8dbbbaa79085c9"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "computedHash": "be1e5177bdfd6707abe2caf6c499b4afe6991140078affa8ac1e915d8806a59d"
+    }
+  }
+}
