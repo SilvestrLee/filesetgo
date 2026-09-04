@@ -26,14 +26,14 @@ See "FSG-005 Parent Acceptance Audit" and "FSG-005 Closure Recommendation" below
 
 ## Current Branch / History Note
 
-Current `HEAD`: **`f49ae9ee74646b656da76176848c22435c1cb183`** on `fsg-005b-website-logo-pack`. Two commits landed directly on top of the FSG-005A base above, both authored by the project owner (`SilvestrLee <scodilu@gmail.com>`), independently verified via `git log`/`git show --stat`/`git show <sha> -- <file>` rather than taken on claim:
+Pre-FSG-005B closeout HEAD: **`f49ae9ee74646b656da76176848c22435c1cb183`** on `fsg-005b-website-logo-pack`. Two commits landed directly on top of the FSG-005A base above, both authored by the project owner (`SilvestrLee <scodilu@gmail.com>`), independently verified via `git log`/`git show --stat`/`git show <sha> -- <file>` rather than taken on claim:
 
 | Commit | Summary | What actually changed |
 |---|---|---|
 | `4ddb1c7` — `chore: register frontend design agent skills` | Commits the third-party skill lockfile; gitignores the skill payload directories | `.gitignore` (+12 lines: ignores `.agents/skills/` and each individual `.claude/skills/<name>/` directory, with the comment "Third-party agent skills — reproducible from skills-lock.json"); `skills-lock.json` (new file, +65 lines, committed and tracked) |
 | `f49ae9e` — `chore: define frontend design skill routing` | Adds governed frontend design-review skill sequencing | `AGENTS.md` and `CLAUDE.md` (identical +18-line "### Frontend Design Skill Routing" subsection under "## Skills Activation" in both files, recommending `ui-ux-pro-max` → `design-taste-frontend` → `21st-*` → `impeccable` for significant new frontend surfaces) |
 
-Neither commit touches any FSG-005B implementation file. This sprint's own FSG-005B changes remain exactly as they were: unstaged, uncommitted, sitting on top of the new `HEAD` (git tracks working-tree diffs against whatever the current branch tip is — nothing was reset, rebased, or replayed to produce this). See "Existing Working Tree Preservation" below.
+Neither commit touches any FSG-005B implementation file. This sprint's own FSG-005B changes landed directly on top of this HEAD, unmodified, as the `feat(web): add Website Logo Pack` closeout commit (see "Commit Reference") — nothing was reset, rebased, or replayed to produce it. See "Existing Working Tree Preservation" below.
 
 ## Existing Working Tree Preservation
 
@@ -289,15 +289,15 @@ Per the governance the project owner committed directly to `AGENTS.md`/`CLAUDE.m
 | 39 | Existing core tests remain green | Met (304/304, no pre-existing behavior regressed) |
 | 40 | Existing UI tests remain green | Met (217/217) |
 | 41 | New core/Logo Pack tests pass | Met (39 new core [34 original + 5 floor-rounding evidence] + 46 new UI) |
-| 47 | Governed design-skill review completed (`ui-ux-pro-max`, `design-taste-frontend`, `21st-ui-review`, `impeccable`) | Met — see "Design Skill Review"; no defects found, no changes required |
-| 48 | Primary ZIP CTA downloads the archive Blob returned by `processImageSet()` directly, not a UI-rebuilt ZIP | Met (tested — object-identity assertions; see "Primary ZIP Experience") |
 | 42 | Laravel tests pass | Met (10/10) |
 | 43 | Typecheck passes | Met |
 | 44 | Production build passes | Met |
 | 45 | FSG-005 parent acceptance audit is completed | Met — see below |
 | 46 | No project-owner manual QA is required | Met |
+| 47 | Governed design-skill review completed (`ui-ux-pro-max`, `design-taste-frontend`, `21st-ui-review`, `impeccable`) | Met — see "Design Skill Review"; no defects found, no changes required |
+| 48 | Primary ZIP CTA downloads the archive Blob returned by `processImageSet()` directly, not a UI-rebuilt ZIP | Met (tested — object-identity assertions; see "Primary ZIP Experience") |
 
-Items 3 (mode-tab keyboard cycling) and responsive stacking are implemented to spec but not independently confirmed by browser automation this sprint — recorded honestly in Known Limitations rather than claimed as verified.
+Mode-tab keyboard cycling and responsive stacking are implemented to spec but were not independently confirmed by browser automation this sprint — recorded honestly in Known Limitations rather than claimed as verified.
 
 ## FSG-005 Parent Acceptance Audit (directive §73)
 
