@@ -17,6 +17,24 @@ Before relying on a package's API, confirm its installed version:
 
 This project has domain-specific skills available in `**/skills/**`. You MUST activate the relevant skill whenever you work in that domain—don't wait until you're stuck.
 
+### Frontend Design Skill Routing
+
+Use frontend design skills deliberately. Do not activate every design skill for every UI task.
+
+- `ui-ux-pro-max`: Use for UX architecture, usability, accessibility, information hierarchy, interaction patterns, and design-system reasoning.
+- `design-taste-frontend`: Use for visual direction, typography, composition, hierarchy, aesthetic judgment, and avoiding generic AI-looking interfaces.
+- `21st-*`: Use for component discovery, exploration, generation, adaptation, implementation support, and design synchronization. Reuse existing FileSetGo components before introducing new patterns.
+- `impeccable`: Use as the final UI quality gate for refinement, responsive behavior, accessibility, consistency, interaction quality, and polish.
+
+For significant new frontend surfaces, prefer this sequence:
+
+1. UX reasoning — `ui-ux-pro-max`
+2. Visual direction — `design-taste-frontend`
+3. Component exploration and implementation — relevant `21st-*` skill
+4. Final review and polish — `impeccable`
+
+For small or narrowly scoped changes, activate only the skill directly relevant to the task.
+
 ## Conventions
 
 - You must follow all existing code conventions used in this application. When creating or editing a file, check sibling files for the correct structure, approach, and naming.
