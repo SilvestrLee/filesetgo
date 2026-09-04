@@ -13,9 +13,15 @@ export interface FileSetGoRuntimeCapabilities {
   pngEncode: boolean;
   webpEncode: boolean;
   /**
-   * HEIC/HEIF preflight identification is available (see preflight/formats/heic.ts),
-   * but no approved browser-side HEIC decoder is wired into the worker yet
-   * (FSG-001B §45-50). This is always false until that follow-up lands.
+   * True when the runtime prerequisites for lazily loading the HEIC
+   * decoder (worker processing plus WebAssembly support) are present.
+   * This is a feature-detected *prerequisite* check, not a guarantee: the
+   * decoder module and its ~1 MB WASM payload (see ADR-014) are only
+   * actually fetched, compiled, and initialized on the first HEIC job
+   * (workers/heic-decode.ts), so a runtime that reports true here could
+   * still fail at that point (e.g. a network failure loading the lazy
+   * chunk). This deliberately avoids paying the lazy-load cost just to
+   * answer a capability query.
    */
   heicDecoderAvailable: boolean;
 }
@@ -64,14 +70,18 @@ export async function getRuntimeCapabilities(): Promise<FileSetGoRuntimeCapabili
     canEncode('webp'),
   ]);
 
+  const workerProcessing = webWorker && offscreenCanvas && createImageBitmap;
+  const webAssembly =
+    typeof WebAssembly !== 'undefined' && typeof WebAssembly.compile === 'function';
+
   return {
     webWorker,
     offscreenCanvas,
     createImageBitmap,
-    workerProcessing: webWorker && offscreenCanvas && createImageBitmap,
+    workerProcessing,
     jpegEncode,
     pngEncode,
     webpEncode,
-    heicDecoderAvailable: false,
+    heicDecoderAvailable: workerProcessing && webAssembly,
   };
 }

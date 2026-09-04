@@ -4,6 +4,8 @@ This eight-milestone roadmap replaces the earlier fourteen-milestone concept. Mi
 
 ## FSG-001 — Core Client Runtime & Safety Foundation
 
+**Status: ✅ CLOSED** (sub-sprints FSG-001A ✅ CLOSED, FSG-001B ✅ CLOSED, FSG-001C ✅ CLOSED). See `docs/directives/FSG-001.md`, `FSG-001B.md`, `FSG-001C.md`, and `SPRINT_REPORT.md` for the delivery record and closure audit.
+
 Deliver:
 
 - Laravel product shell;
@@ -23,6 +25,8 @@ Deliver:
 - development proof interface.
 
 ## FSG-002 — Target File Size Engine & Guardrails
+
+**Status: ⏭ NEXT** (not yet started).
 
 Deliver:
 

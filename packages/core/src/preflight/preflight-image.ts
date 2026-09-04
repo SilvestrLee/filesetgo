@@ -111,17 +111,6 @@ export async function preflightImage(
       };
     }
 
-    if (format === 'heic') {
-      return {
-        status: 'rejected',
-        error: createPreflightError(
-          IMAGE_PREFLIGHT_ERROR_CODES.HeicDecoderUnavailable,
-          'HEIC/HEIF was identified and its dimensions were read, but no approved browser-side decoder is integrated yet.',
-        ),
-        result: { ...result, safeToDecode: false },
-      };
-    }
-
     return { status: 'ready', result };
   } catch (error) {
     if (error instanceof ImageParserError) {

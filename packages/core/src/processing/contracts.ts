@@ -11,6 +11,10 @@ export const IMAGE_PROCESSING_ERROR_CODES = {
   WorkerFailed: 'WORKER_FAILED',
   InvalidRequest: 'INVALID_PROCESSING_REQUEST',
   OutputValidationFailed: 'OUTPUT_VALIDATION_FAILED',
+  /** The HEIC decoder module could not be lazily loaded (dynamic import failed). */
+  HeicDecoderUnavailable: 'HEIC_DECODER_UNAVAILABLE',
+  /** The HEIC decoder module loaded but its WASM runtime failed to initialize. */
+  HeicInitializationFailed: 'HEIC_INITIALIZATION_FAILED',
 } as const;
 
 export const OUTPUT_IMAGE_MIME_TYPES = {

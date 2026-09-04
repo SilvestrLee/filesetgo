@@ -11,6 +11,29 @@ import {
 } from '../../src/workers/process-image';
 import { createJpeg, createPng, createVp8ExtendedWebp } from '../preflight/fixtures';
 
+// processImageInWorker only ever reaches the real HEIC adapter through a
+// dynamic `import('./heic-decode')`, so it can be mocked here to test the
+// worker pipeline's HEIC branch in isolation from the real WASM codec
+// (which is exercised for real in heic-decode.test.ts). Mocking this
+// module also lets tests prove JPEG/PNG/WebP jobs never touch it at all —
+// the lazy-loading guarantee FSG-001C requires.
+class MockHeicDecodeError extends Error {
+  public constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'HeicDecodeError';
+  }
+}
+
+const heicDecodeMock = vi.hoisted(() => ({ decodeHeic: vi.fn() }));
+
+vi.mock('../../src/workers/heic-decode', () => ({
+  decodeHeic: heicDecodeMock.decodeHeic,
+  HeicDecodeError: MockHeicDecodeError,
+}));
+
 // Node's test environment has no OffscreenCanvas/createImageBitmap. These
 // fakes stand in for the browser APIs so processImageInWorker's own logic
 // (decode -> normalize -> resize -> encode -> validate -> cleanup) can be
@@ -162,16 +185,39 @@ async function expectProcessingFailure(
   return processingError;
 }
 
+class FakeImageData {
+  public constructor(
+    public readonly data: Uint8ClampedArray,
+    public readonly width: number,
+    public readonly height: number,
+  ) {}
+}
+
+let createdBitmaps: FakeImageBitmap[];
+
 beforeEach(() => {
   encodeHandler = encodeValidBytes;
   encodeCalls = [];
   bitmapCallCount = 0;
   bitmapHandler = async () => new FakeImageBitmap(800, 600);
+  createdBitmaps = [];
+  heicDecodeMock.decodeHeic.mockReset();
 
   vi.stubGlobal('OffscreenCanvas', FakeOffscreenCanvas);
-  vi.stubGlobal('createImageBitmap', (..._args: unknown[]) => {
+  vi.stubGlobal('ImageData', FakeImageData);
+  vi.stubGlobal('createImageBitmap', async (source: unknown, ..._rest: unknown[]) => {
     bitmapCallCount += 1;
-    return bitmapHandler();
+
+    // The HEIC path calls createImageBitmap(imageData) — respect its
+    // width/height so dimension-mismatch tests are meaningful. The
+    // JPEG/PNG/WebP path calls createImageBitmap(blob, options), which
+    // carries no dimension info, so it falls back to bitmapHandler().
+    const bitmap = source instanceof FakeImageData
+      ? new FakeImageBitmap(source.width, source.height)
+      : await bitmapHandler();
+
+    createdBitmaps.push(bitmap);
+    return bitmap;
   });
 });
 
@@ -388,5 +434,133 @@ describe('processImageInWorker safety and cancellation', () => {
     expect(bitmapCallCount).toBe(1);
     expect(bitmaps[0]?.closed).toBe(true);
     expect(encodeCalls).toHaveLength(0);
+  });
+});
+
+describe('processImageInWorker HEIC pipeline', () => {
+  function heicRequest(overrides: Partial<SafeImageProcessingRequest> = {}) {
+    return testRequest({
+      preflight: testPreflight({ format: 'heic', width: 800, height: 600 }),
+      ...overrides,
+    });
+  }
+
+  it('decodes HEIC through the adapter and converges onto the standard pipeline (HEIC -> JPEG)', async () => {
+    heicDecodeMock.decodeHeic.mockResolvedValue({
+      data: new Uint8ClampedArray(800 * 600 * 4),
+      width: 800,
+      height: 600,
+    });
+
+    const { hooks, stages } = testHooks();
+    const result = await processImageInWorker(
+      heicRequest({
+        resize: { maxWidth: 400, maxHeight: 400, allowUpscale: false },
+        output: { format: 'jpeg', quality: 0.8 },
+      }),
+      hooks,
+    );
+
+    expect(result).toMatchObject({ width: 400, height: 300, format: 'jpeg' });
+    expect(stages).toEqual(['decoding', 'normalizing', 'resizing', 'encoding', 'finalizing']);
+    expect(heicDecodeMock.decodeHeic).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['png', 'webp'] as const)('decodes HEIC to %s output', async (format) => {
+    heicDecodeMock.decodeHeic.mockResolvedValue({
+      data: new Uint8ClampedArray(800 * 600 * 4),
+      width: 800,
+      height: 600,
+    });
+
+    const result = await processImageInWorker(
+      heicRequest({ output: { format } }),
+      testHooks().hooks,
+    );
+
+    expect(result.format).toBe(format);
+  });
+
+  it('never invokes the HEIC adapter for a JPEG job (lazy-loading isolation)', async () => {
+    await processImageInWorker(testRequest(), testHooks().hooks);
+
+    expect(heicDecodeMock.decodeHeic).not.toHaveBeenCalled();
+  });
+
+  it('never invokes the HEIC adapter for PNG or WebP jobs either', async () => {
+    await processImageInWorker(
+      testRequest({ preflight: testPreflight({ format: 'png' }), output: { format: 'png' } }),
+      testHooks().hooks,
+    );
+    await processImageInWorker(
+      testRequest({ preflight: testPreflight({ format: 'webp' }), output: { format: 'webp' } }),
+      testHooks().hooks,
+    );
+
+    expect(heicDecodeMock.decodeHeic).not.toHaveBeenCalled();
+  });
+
+  it('maps a HeicDecodeError from the adapter to the matching processing error code', async () => {
+    heicDecodeMock.decodeHeic.mockRejectedValue(
+      new MockHeicDecodeError('HEIC_DECODER_UNAVAILABLE', 'The HEIC decoder module could not be loaded.'),
+    );
+
+    await expectProcessingFailure(
+      processImageInWorker(heicRequest(), testHooks().hooks),
+      IMAGE_PROCESSING_ERROR_CODES.HeicDecoderUnavailable,
+    );
+  });
+
+  it('maps a generic adapter throw to DECODE_FAILED without leaking the raw error', async () => {
+    heicDecodeMock.decodeHeic.mockRejectedValue(new Error('unexpected native failure'));
+
+    const error = await expectProcessingFailure(
+      processImageInWorker(heicRequest(), testHooks().hooks),
+      IMAGE_PROCESSING_ERROR_CODES.DecodeFailed,
+    );
+
+    expect(error.message).not.toContain('unexpected native failure');
+  });
+
+  it('respects cancellation checks threaded through the HEIC adapter call', async () => {
+    heicDecodeMock.decodeHeic.mockImplementation(
+      async (_file: Blob, checkCancelled: () => void) => {
+        checkCancelled();
+
+        return { data: new Uint8ClampedArray(800 * 600 * 4), width: 800, height: 600 };
+      },
+    );
+    const { hooks } = testHooks({ isCancelled: () => true });
+
+    await expectProcessingFailure(
+      processImageInWorker(heicRequest(), hooks),
+      IMAGE_PROCESSING_ERROR_CODES.ProcessingCancelled,
+    );
+  });
+
+  it('rejects when the decoded HEIC raster does not match the expected dimensions', async () => {
+    heicDecodeMock.decodeHeic.mockResolvedValue({
+      data: new Uint8ClampedArray(801 * 600 * 4),
+      width: 801,
+      height: 600,
+    });
+
+    await expectProcessingFailure(
+      processImageInWorker(heicRequest(), testHooks().hooks),
+      IMAGE_PROCESSING_ERROR_CODES.DecodeFailed,
+    );
+  });
+
+  it('closes the wrapped bitmap on cleanup for a HEIC job like any other format', async () => {
+    heicDecodeMock.decodeHeic.mockResolvedValue({
+      data: new Uint8ClampedArray(800 * 600 * 4),
+      width: 800,
+      height: 600,
+    });
+
+    await processImageInWorker(heicRequest(), testHooks().hooks);
+
+    expect(createdBitmaps).toHaveLength(1);
+    expect(createdBitmaps[0]?.closed).toBe(true);
   });
 });

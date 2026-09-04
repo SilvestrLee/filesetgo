@@ -8,7 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@discourse/heic": "^1.0.0"
+    "@discourse/heic": "1.0.0"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

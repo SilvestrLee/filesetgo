@@ -249,48 +249,193 @@ function isoBox(type: string, ...body: readonly Uint8Array[]): Uint8Array {
   return concatenate(uint32BigEndian(size), ascii(type), content);
 }
 
-function fullBoxHeader(): Uint8Array {
-  return Uint8Array.of(0, 0, 0, 0);
+function fullBoxHeader(version = 0, flags = 0): Uint8Array {
+  return Uint8Array.of(version, (flags >>> 16) & 0xff, (flags >>> 8) & 0xff, flags & 0xff);
 }
 
+function heicIspeBox(width: number, height: number): Uint8Array {
+  return isoBox('ispe', fullBoxHeader(), uint32BigEndian(width), uint32BigEndian(height));
+}
+
+function heicIrotBox(angle: number): Uint8Array {
+  return isoBox('irot', Uint8Array.of(angle & 0x03));
+}
+
+/** An unrelated item property FileSetGo's parser does not care about, used to
+ * prove primary-item resolution follows ipma indices rather than box order. */
+function heicDummyPropertyBox(type = 'pixi'): Uint8Array {
+  return isoBox(type, Uint8Array.of(8, 8, 8));
+}
+
+function heicPitmBox(itemId: number): Uint8Array {
+  return isoBox('pitm', fullBoxHeader(), uint16BigEndian(itemId));
+}
+
+/** version 0, flags 0: 2-byte item IDs, 1-byte (7-bit) property indices. */
+function heicIpmaBox(entries: readonly { itemId: number; indices: readonly number[] }[]): Uint8Array {
+  const body = [fullBoxHeader(0, 0), uint32BigEndian(entries.length)];
+
+  for (const entry of entries) {
+    body.push(uint16BigEndian(entry.itemId));
+    body.push(Uint8Array.of(entry.indices.length));
+
+    for (const index of entry.indices) {
+      body.push(Uint8Array.of(index & 0x7f));
+    }
+  }
+
+  return isoBox('ipma', ...body);
+}
+
+interface BuildHeicOptions {
+  majorBrand?: string;
+  primaryItemId?: number;
+  /** Property boxes in the order they appear under ipco. */
+  properties?: readonly Uint8Array[];
+  /** 1-based indices into `properties` associated with the primary item. */
+  primaryPropertyIndices?: readonly number[];
+  omitPitm?: boolean;
+  omitIpma?: boolean;
+  /** Associate a different item ID than the primary one (primary gets no association). */
+  associateOtherItemId?: number;
+}
+
+function buildHeic(options: BuildHeicOptions): Uint8Array {
+  const majorBrand = options.majorBrand ?? 'heic';
+  const primaryItemId = options.primaryItemId ?? 1;
+  const properties = options.properties ?? [];
+  const primaryPropertyIndices = options.primaryPropertyIndices ?? [];
+
+  const ftyp = isoBox(
+    'ftyp',
+    ascii(majorBrand),
+    uint32BigEndian(0),
+    ascii(majorBrand),
+    ascii('mif1'),
+  );
+  const ipco = isoBox('ipco', ...properties);
+  const ipmaEntries = options.omitIpma
+    ? []
+    : [
+        {
+          itemId: options.associateOtherItemId ?? primaryItemId,
+          indices: primaryPropertyIndices,
+        },
+      ];
+  const ipma = heicIpmaBox(ipmaEntries);
+  const iprp = isoBox('iprp', ipco, ipma);
+  const metaChildren = options.omitPitm
+    ? [iprp]
+    : [heicPitmBox(primaryItemId), iprp];
+  const meta = isoBox('meta', fullBoxHeader(), ...metaChildren);
+
+  return concatenate(ftyp, meta);
+}
+
+/** A single-property HEIC: ipco = [ispe], primary item associated with it directly. */
 export function createHeic(
   width: number,
   height: number,
   majorBrand = 'heic',
 ): Uint8Array {
+  return buildHeic({
+    majorBrand,
+    properties: [heicIspeBox(width, height)],
+    primaryPropertyIndices: [1],
+  });
+}
+
+/** ispe + irot, so the reported dimensions should reflect the rotation. */
+export function createHeicRotated(
+  width: number,
+  height: number,
+  quarterTurns: number,
+): Uint8Array {
+  return buildHeic({
+    properties: [heicIspeBox(width, height), heicIrotBox(quarterTurns)],
+    primaryPropertyIndices: [1, 2],
+  });
+}
+
+/** ispe is NOT the first property under ipco, proving resolution follows
+ * ipma indices rather than "the first ispe found". */
+export function createHeicWithReorderedProperties(
+  width: number,
+  height: number,
+): Uint8Array {
+  return buildHeic({
+    properties: [heicDummyPropertyBox('pixi'), heicIspeBox(width, height)],
+    primaryPropertyIndices: [2, 1],
+  });
+}
+
+/** ipco/ipma/pitm all present, but no ispe among the primary item's properties. */
+export function createHeicWithoutIspe(): Uint8Array {
+  return buildHeic({
+    properties: [heicDummyPropertyBox('pixi')],
+    primaryPropertyIndices: [1],
+  });
+}
+
+/** No primary item box at all. */
+export function createHeicMissingPitm(width: number, height: number): Uint8Array {
+  return buildHeic({
+    omitPitm: true,
+    properties: [heicIspeBox(width, height)],
+    primaryPropertyIndices: [1],
+  });
+}
+
+/** ipma has no association entry for the primary item ID. */
+export function createHeicMissingItemAssociation(
+  width: number,
+  height: number,
+): Uint8Array {
+  return buildHeic({
+    primaryItemId: 1,
+    associateOtherItemId: 2,
+    properties: [heicIspeBox(width, height)],
+    primaryPropertyIndices: [1],
+  });
+}
+
+/** ipma references a property index beyond ipco's actual child count. */
+export function createHeicOutOfRangePropertyIndex(
+  width: number,
+  height: number,
+): Uint8Array {
+  return buildHeic({
+    properties: [heicIspeBox(width, height)],
+    primaryPropertyIndices: [5],
+  });
+}
+
+/** ipma declares more association entries than its box actually contains bytes for. */
+export function createHeicMalformedIpma(width: number, height: number): Uint8Array {
   const ftyp = isoBox(
     'ftyp',
-    ascii(majorBrand),
+    ascii('heic'),
     uint32BigEndian(0),
-    ascii(majorBrand),
+    ascii('heic'),
     ascii('mif1'),
   );
-  const ispe = isoBox(
-    'ispe',
-    fullBoxHeader(),
-    uint32BigEndian(width),
-    uint32BigEndian(height),
-  );
-  const ipco = isoBox('ipco', ispe);
-  const iprp = isoBox('iprp', ipco);
-  const meta = isoBox('meta', fullBoxHeader(), iprp);
+  const ipco = isoBox('ipco', heicIspeBox(width, height));
+  // Declares entryCount = 5 but provides zero entries.
+  const ipma = isoBox('ipma', fullBoxHeader(0, 0), uint32BigEndian(5));
+  const iprp = isoBox('iprp', ipco, ipma);
+  const meta = isoBox('meta', fullBoxHeader(), heicPitmBox(1), iprp);
 
   return concatenate(ftyp, meta);
 }
 
-export function createHeicWithoutIspe(): Uint8Array {
-  const ftyp = isoBox(
-    'ftyp',
-    ascii('heic'),
-    uint32BigEndian(0),
-    ascii('heic'),
-    ascii('mif1'),
-  );
-  const ipco = isoBox('ipco');
-  const iprp = isoBox('iprp', ipco);
-  const meta = isoBox('meta', fullBoxHeader(), iprp);
+/** More ipco properties than MAX_HEIC_BOXES_SCANNED, to prove box traversal is bounded. */
+export function createHeicTooManyProperties(width: number, height: number): Uint8Array {
+  const dummyProperties = Array.from({ length: 600 }, () => heicDummyPropertyBox('pixi'));
 
-  return concatenate(ftyp, meta);
+  return buildHeic({
+    properties: [...dummyProperties, heicIspeBox(width, height)],
+    primaryPropertyIndices: [dummyProperties.length + 1],
+  });
 }
 
 export function createImageSource(

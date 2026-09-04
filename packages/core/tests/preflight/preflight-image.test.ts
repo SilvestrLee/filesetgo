@@ -10,7 +10,14 @@ import {
 } from '../../src';
 import {
   createHeic,
+  createHeicMalformedIpma,
+  createHeicMissingItemAssociation,
+  createHeicMissingPitm,
+  createHeicOutOfRangePropertyIndex,
+  createHeicRotated,
+  createHeicTooManyProperties,
   createHeicWithoutIspe,
+  createHeicWithReorderedProperties,
   createImageSource,
   createJpeg,
   createJpegTruncatedAfterDimensions,
@@ -303,31 +310,28 @@ describe('preflightImage JPEG orientation', () => {
 });
 
 describe('preflightImage HEIC/HEIF identification', () => {
-  it('identifies a HEIC container and reads its dimensions, but reports the decoder as unavailable', async () => {
+  it('identifies a HEIC container, resolves the primary item, and passes preflight as ready', async () => {
     const outcome = await preflightImage(
       createImageSource(createHeic(4032, 3024)),
     );
-    const rejection = expectRejected(
-      outcome,
-      IMAGE_PREFLIGHT_ERROR_CODES.HeicDecoderUnavailable,
-    );
+    const result = expectReady(outcome);
 
-    expect(rejection.result).toMatchObject({
+    expect(result).toMatchObject({
       format: 'heic',
       width: 4032,
       height: 3024,
-      safeToDecode: false,
+      safeToDecode: true,
     });
   });
 
   it.each(['heix', 'mif1', 'msf1', 'hevc'])(
-    "identifies the '%s' HEIC-family major brand",
+    "identifies the '%s' HEIC-family major brand as ready",
     async (majorBrand) => {
       const outcome = await preflightImage(
         createImageSource(createHeic(320, 240, majorBrand)),
       );
 
-      expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.HeicDecoderUnavailable);
+      expectReady(outcome);
     },
   );
 
@@ -339,10 +343,26 @@ describe('preflightImage HEIC/HEIF identification', () => {
     expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.UnsupportedFormat);
   });
 
-  it('rejects an oversized HEIC image before reporting the decoder as unavailable', async () => {
+  it('accepts a HEIC image exactly at the 24 MP boundary', async () => {
+    const outcome = await preflightImage(createImageSource(createHeic(6000, 4000)));
+    const result = expectReady(outcome);
+
+    expect(result.megapixels).toBe(24);
+  });
+
+  it('rejects a HEIC image above the 24 MP boundary before any decoder concern', async () => {
     const outcome = await preflightImage(createImageSource(createHeic(6001, 4000)));
 
     expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.DimensionsTooLarge);
+  });
+
+  it('rejects an oversized HEIC source by byte size before reading any bytes', async () => {
+    const source = createImageSource(
+      createHeic(320, 240),
+      DEFAULT_SAFETY_LIMITS.maxInputBytes + 1,
+    );
+
+    expectRejected(await preflightImage(source), IMAGE_PREFLIGHT_ERROR_CODES.FileTooLarge);
   });
 
   it('rejects a truncated HEIC ftyp box', async () => {
@@ -353,13 +373,92 @@ describe('preflightImage HEIC/HEIF identification', () => {
     expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.InvalidSignature);
   });
 
-  it('rejects a HEIC container missing an ispe property box', async () => {
+  it('rejects a HEIC container missing an ispe property on the primary item', async () => {
     const outcome = await preflightImage(
       createImageSource(createHeicWithoutIspe()),
     );
 
     expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.CorruptImage);
   });
+
+  it('rejects a HEIC container with no primary item box (pitm)', async () => {
+    const outcome = await preflightImage(
+      createImageSource(createHeicMissingPitm(320, 240)),
+    );
+
+    expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.CorruptImage);
+  });
+
+  it('rejects a HEIC container whose ipma has no association for the primary item', async () => {
+    const outcome = await preflightImage(
+      createImageSource(createHeicMissingItemAssociation(320, 240)),
+    );
+
+    expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.CorruptImage);
+  });
+
+  it('rejects a HEIC container whose ipma references an out-of-range property index', async () => {
+    const outcome = await preflightImage(
+      createImageSource(createHeicOutOfRangePropertyIndex(320, 240)),
+    );
+
+    expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.CorruptImage);
+  });
+
+  it('rejects a HEIC container with a malformed (truncated) ipma association', async () => {
+    const outcome = await preflightImage(
+      createImageSource(createHeicMalformedIpma(320, 240)),
+    );
+
+    expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.CorruptImage);
+  });
+
+  it('rejects a HEIC container whose ipco has more properties than the bounded scan limit', async () => {
+    const outcome = await preflightImage(
+      createImageSource(createHeicTooManyProperties(320, 240)),
+    );
+
+    expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.CorruptImage);
+  });
+
+  it('resolves the primary item correctly when ispe is not the first ipco property', async () => {
+    const outcome = await preflightImage(
+      createImageSource(createHeicWithReorderedProperties(500, 400)),
+    );
+    const result = expectReady(outcome);
+
+    expect(result).toMatchObject({ width: 500, height: 400 });
+  });
+
+  it.each([
+    [0, 800, 600],
+    [2, 800, 600],
+  ])(
+    'reports unswapped dimensions for a %i-quarter-turn rotation',
+    async (quarterTurns, width, height) => {
+      const outcome = await preflightImage(
+        createImageSource(createHeicRotated(width, height, quarterTurns)),
+      );
+      const result = expectReady(outcome);
+
+      expect(result).toMatchObject({ width, height });
+    },
+  );
+
+  it.each([
+    [1, 800, 600, 600, 800],
+    [3, 800, 600, 600, 800],
+  ])(
+    'swaps reported dimensions for a %i-quarter-turn (90/270) rotation',
+    async (quarterTurns, width, height, expectedWidth, expectedHeight) => {
+      const outcome = await preflightImage(
+        createImageSource(createHeicRotated(width, height, quarterTurns)),
+      );
+      const result = expectReady(outcome);
+
+      expect(result).toMatchObject({ width: expectedWidth, height: expectedHeight });
+    },
+  );
 });
 
 describe('preflightImage animation handling', () => {

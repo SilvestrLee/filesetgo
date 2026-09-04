@@ -5,7 +5,6 @@ export const IMAGE_PREFLIGHT_ERROR_CODES = {
   FileTooLarge: 'FILE_TOO_LARGE',
   DimensionsTooLarge: 'DIMENSIONS_TOO_LARGE',
   AnimatedImageUnsupported: 'ANIMATED_IMAGE_UNSUPPORTED',
-  HeicDecoderUnavailable: 'HEIC_DECODER_UNAVAILABLE',
 } as const;
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp' | 'heic';

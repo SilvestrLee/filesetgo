@@ -82,4 +82,44 @@ Routine sprint verification is the coding agent's responsibility, not the user's
 
 Inability to obtain a manually operated physical browser/device session does not, by itself, block a sprint from closing. Comprehensive real-device and cross-browser compatibility certification (iOS Safari, Android Chrome, Safari desktop, Chrome, Firefox, Edge, memory-pressure and repeated-processing testing) remains assigned to **FSG-006 — Hardening, Mobile QA & Compatibility** and is not a closure requirement for earlier milestones. Earlier milestones should still use browser automation wherever the environment supports it.
 
+## ADR-014 — HEIC/HEIF decoder: `@discourse/heic`
+
+**Status:** Accepted
+
+**Supersedes:** the FSG-001B sprint report's provisional recommendation of `heic-to`. `heic-to` is not technically defective; it was simply not selected. It was never installed in the working tree at any point covered by this decision — its FSG-001B "recommended candidate" status is superseded before any implementation was built against it.
+
+**Chosen decoder:** `@discourse/heic` (npm), pinned at exact version **`1.0.0`** in `packages/core/package.json` (no caret range, to prevent an unreviewed upgrade — `@discourse/heic` has published only this one version, so there is currently nothing to float to, but the declaration is pinned on principle).
+
+**License:** Apache-2.0. No copyleft/LGPL compliance obligations, unlike `heic-to` or `libheif-js`.
+
+**Upstream/provenance:** `@discourse/heic` is Discourse's own npm-scoped publish of the HEIC decoder from `jamsinclair/jSquash` pull request [#101](https://github.com/jamsinclair/jSquash/pull/101) ("HEIC decoder"), opened 2026-03-30 and, as of this decision, still **open and unmerged** upstream (last upstream activity 2026-04-28). Discourse published their fork as `@discourse/heic@1.0.0` on 2026-05-07 — a single release, no patches since. Despite the unmerged upstream status, the package has substantial real-world usage: 33,720 weekly downloads (npm, week of 2026-08-23). Wraps `libheif` + `libde265`, the same codec lineage as `heic-to` and `libheif-js`. Repository: `github.com/discourse/jSquash`. This is a genuine maintenance-continuity risk (single-org fork of an unmerged PR) and is explicitly not dismissed — see Maintenance-Risk Mitigation below.
+
+**Real decode evidence:** the actual installed package was executed directly in Node (via its documented "manual WASM initialization" path — `init(wasmModule)` with a pre-compiled `WebAssembly.Module`, which sidesteps the package's browser/worker environment auto-detection, itself written for classic `importScripts`-style workers rather than the `{ type: 'module' }` worker this project uses):
+
+```
+Real synthetic 64×48 HEIC (self-generated, not copyrighted) → SUCCESS
+  width=64 height=48 dataLength=12288 (exact 64*48*4 RGBA match), 69ms
+Truncated/corrupt HEIC payload (valid header, cut body)      → clean catchable "Decoding error", 1ms
+Random garbage bytes                                          → clean catchable "Decoding error", 1ms
+Empty buffer                                                   → clean catchable "Decoding error", 0ms
+```
+
+No crash, no hang, no uncaught exception in any case — decode failures surface as a plain catchable `Error`.
+
+**Measured bundle/WASM evidence (not speculative):** `codec/dec/heic_dec.wasm` = 959,554 bytes; `codec/dec/heic_dec.js` (Emscripten glue) = 60,964 bytes; total installed package = ~1.0 MB. This must be lazy-loaded so JPEG/PNG/WebP users never pay it — see FSG-001C implementation.
+
+**Output shape:** `decode(buffer: ArrayBuffer): Promise<ImageData>` — a standard, worker-native `ImageData`-shaped result with no DOM dependency, mapping directly onto the existing raster → normalize → resize → canvas → encode → validate pipeline without an intermediate re-encode step.
+
+**Rationale for choosing `@discourse/heic` over `heic-to` in FSG-001C:** `@discourse/heic` was already declared in the workspace (predating this decision), carries a materially more favorable license (Apache-2.0 vs. LGPL-3.0), produced concrete measured bundle-size evidence rather than an estimate, and — critically — was actually executed against real and malformed input with clean, verifiable results. `heic-to` was never executed; only its npm registry metadata was confirmed before its provisional approval was withdrawn. The maintenance/provenance risk of `@discourse/heic` (single-org fork, unmerged upstream PR, one release) is real and is not outweighed by convenience — it is outweighed by the combination of verified technical fit, the license advantage, and the adapter-isolation strategy below, which keeps the specific dependency choice replaceable.
+
+**Maintenance-risk mitigation (binding for FSG-001C implementation):**
+1. `@discourse/heic` is accessed only through a narrow FileSetGo-owned adapter (`decodeHeic()`); no other module imports it directly.
+2. The adapter is covered by tests exercising success, malformed/truncated/garbage/empty input, decoder-unavailable, and cancellation paths.
+3. Test fixtures are self-generated (not third-party photographs) with known pixel dimensions.
+4. The package is lazy-loaded — never in the initial application bundle.
+5. No undocumented internal API of the package is used; only its public `decode`/`init` exports.
+6. If `@discourse/heic` becomes unsuitable later (e.g., the package is abandoned, or the upstream `jSquash` PR merges and supersedes it), replacing it is intended to be a contained change behind the adapter boundary, not a FileSetGo architecture change.
+
+**Governance effect:** `docs/architecture/FORMAT-SUPPORT.md` is updated to reflect `@discourse/heic` as the selected V1 HEIC/HEIF decoder. `ADR-005`'s requirement that "no specific decoder library is locked until maintenance, security, license, and memory characteristics are evaluated" is satisfied by this ADR and the FSG-001C sprint report's dependency audit.
+
 None of the above weakens the standing accuracy rule: an agent must never report verification — automated or manual — that did not actually run. This ADR amends the browser/device verification expectations previously stated for FSG-001 in `docs/directives/FSG-001B.md` and `docs/testing/TESTING.md`; it does not restructure the `docs/governance/ROADMAP.md` milestone sequence.

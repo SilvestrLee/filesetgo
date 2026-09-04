@@ -88,6 +88,65 @@ function scaledTransform(
   ];
 }
 
+/**
+ * Decodes a HEIC/HEIF source to an ImageBitmap via the lazily-imported HEIC
+ * adapter (see workers/heic-decode.ts and ADR-014). The dynamic `import()`
+ * below is the only reference to that module anywhere in the standard
+ * JPEG/PNG/WebP path, so it — and its ~1 MB WASM dependency — is never part
+ * of the initial bundle those users load.
+ */
+async function decodeHeicToBitmap(
+  file: Blob,
+  checkCancelled: () => void,
+): Promise<ImageBitmap> {
+  checkCancelled();
+
+  let heicModule: typeof import('./heic-decode');
+
+  try {
+    heicModule = await import('./heic-decode');
+  } catch {
+    fail(
+      IMAGE_PROCESSING_ERROR_CODES.HeicDecoderUnavailable,
+      'The HEIC decoder module could not be loaded.',
+    );
+  }
+
+  let raster: { data: Uint8ClampedArray; width: number; height: number };
+
+  try {
+    raster = await heicModule.decodeHeic(file, checkCancelled);
+  } catch (error) {
+    if (error instanceof WorkerProcessingFailure) {
+      throw error;
+    }
+
+    if (error instanceof heicModule.HeicDecodeError) {
+      fail(error.code, error.message);
+    }
+
+    fail(
+      IMAGE_PROCESSING_ERROR_CODES.DecodeFailed,
+      'The HEIC image could not be decoded.',
+    );
+  }
+
+  try {
+    return await createImageBitmap(
+      new ImageData(
+        Uint8ClampedArray.from(raster.data),
+        raster.width,
+        raster.height,
+      ),
+    );
+  } catch {
+    fail(
+      IMAGE_PROCESSING_ERROR_CODES.DecodeFailed,
+      'The decoded HEIC raster could not be converted to a bitmap.',
+    );
+  }
+}
+
 async function validateOutput(
   result: ProcessedImageResult,
 ): Promise<void> {
@@ -186,19 +245,23 @@ export async function processImageInWorker(
   try {
     emitStage(hooks, 'decoding');
 
-    try {
-      const decodeSource = request.preflight.format === 'jpeg'
-        ? await createOrientationNeutralJpeg(request.file)
-        : request.file;
+    if (request.preflight.format === 'heic') {
+      bitmap = await decodeHeicToBitmap(request.file, () => assertNotCancelled(hooks));
+    } else {
+      try {
+        const decodeSource = request.preflight.format === 'jpeg'
+          ? await createOrientationNeutralJpeg(request.file)
+          : request.file;
 
-      bitmap = await createImageBitmap(decodeSource, {
-        imageOrientation: 'none',
-      });
-    } catch {
-      fail(
-        IMAGE_PROCESSING_ERROR_CODES.DecodeFailed,
-        'The compressed image payload could not be decoded.',
-      );
+        bitmap = await createImageBitmap(decodeSource, {
+          imageOrientation: 'none',
+        });
+      } catch {
+        fail(
+          IMAGE_PROCESSING_ERROR_CODES.DecodeFailed,
+          'The compressed image payload could not be decoded.',
+        );
+      }
     }
 
     assertNotCancelled(hooks);
