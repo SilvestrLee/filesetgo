@@ -26,7 +26,7 @@ Deliver:
 
 ## FSG-002 — Target File Size Engine & Guardrails
 
-**Status: ⏭ NEXT** (not yet started).
+**Status: ✅ CLOSED.** See `docs/directives/FSG-002.md`, `docs/governance/DECISIONS.md` ADR-015, and `SPRINT_REPORT.md` for the delivery record and closure audit.
 
 Deliver:
 
@@ -39,6 +39,8 @@ Deliver:
 - impossible-target handling.
 
 ## FSG-003 — Quick Fit Workflow & Public Shell
+
+**Status: ⏭ NEXT** (not yet started).
 
 Deliver the complete public workflow:
 

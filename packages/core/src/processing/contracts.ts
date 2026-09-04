@@ -34,6 +34,8 @@ export type ImageProcessingStage =
   | 'accepted'
   | 'decoding'
   | 'normalizing'
+  /** Target-size search only (FSG-002): covers the whole bounded dimension-tier/quality-probe search as one coarse, non-noisy stage. */
+  | 'optimizing'
   | 'resizing'
   | 'encoding'
   | 'finalizing'

@@ -82,6 +82,8 @@ The web application owns interaction orchestration:
 
 The package exposes processing capabilities, not host-product concepts. Presets orchestrate these primitives without duplicating them.
 
+`processImageToTarget()` (FSG-002) is a bounded orchestration on top of these same primitives, not a second processing architecture: it reuses preflight, the safety gate, decode, orientation normalization, resize, encode, and output validation, adding only a deterministically bounded dimension-tier × quality-probe search loop. It shares the same single active-job runtime slot as `processImage()` — starting either kind of job cancels whichever job (of either kind) is currently active. See `docs/governance/DECISIONS.md` ADR-015 for the search's bounded parameters.
+
 ## Architectural Constraints
 
 - Supported V1 processing is browser-first and requires zero server ingestion.
@@ -91,3 +93,4 @@ The package exposes processing capabilities, not host-product concepts. Presets 
 - Every job is identified, cancellable, and protected against stale results.
 - Every terminal path releases resources that are no longer needed.
 - Export occurs only after output validation succeeds.
+- Any repeated-attempt processing (e.g. target-size search) must have an explicit, deterministic upper bound on total work — no unbounded or open-ended loops.

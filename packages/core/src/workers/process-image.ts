@@ -6,6 +6,7 @@ import {
   IMAGE_PROCESSING_ERROR_CODES,
   OUTPUT_IMAGE_MIME_TYPES,
   type FileSetGoProcessingError,
+  type ImageDimensions,
   type ImageProcessingStage,
   type ProcessedImageResult,
   type SafeImageProcessingRequest,
@@ -24,14 +25,14 @@ export interface WorkerProcessingHooks {
   onProgress(stage: WorkerStage): void;
 }
 
-class WorkerProcessingFailure extends Error {
+export class WorkerProcessingFailure extends Error {
   public constructor(public readonly processingError: FileSetGoProcessingError) {
     super(processingError.message);
     this.name = 'WorkerProcessingFailure';
   }
 }
 
-function fail(
+export function fail(
   code: FileSetGoProcessingError['code'],
   message: string,
   details?: FileSetGoProcessingError['details'],
@@ -41,7 +42,7 @@ function fail(
   );
 }
 
-function assertNotCancelled(hooks: WorkerProcessingHooks): void {
+export function assertNotCancelled(hooks: WorkerProcessingHooks): void {
   if (hooks.isCancelled()) {
     fail(
       IMAGE_PROCESSING_ERROR_CODES.ProcessingCancelled,
@@ -58,7 +59,7 @@ function emitStage(
   hooks.onProgress(stage);
 }
 
-function scaledTransform(
+export function scaledTransform(
   orientation: ExifOrientation,
   sourceWidth: number,
   sourceHeight: number,
@@ -147,7 +148,126 @@ async function decodeHeicToBitmap(
   }
 }
 
-async function validateOutput(
+/** Throws RUNTIME_UNSUPPORTED unless the worker has the browser APIs every processing path needs. */
+export function checkRuntimeSupport(): void {
+  if (
+    typeof OffscreenCanvas === 'undefined' ||
+    typeof globalThis.createImageBitmap !== 'function'
+  ) {
+    fail(
+      IMAGE_PROCESSING_ERROR_CODES.RuntimeUnsupported,
+      'This worker cannot decode and render images with the required browser APIs.',
+    );
+  }
+}
+
+/**
+ * Decodes a source Blob to an ImageBitmap, dispatching to the lazily
+ * loaded HEIC adapter or the native `createImageBitmap()` path exactly as
+ * `processImageInWorker` does. Shared with the target-size engine
+ * (workers/process-image-to-target.ts) so both paths decode identically.
+ *
+ * Deliberately does *not* perform the post-decode cancellation or
+ * decoded-dimension check itself (see `assertDecodedDimensionsMatch`
+ * below) — the caller must assign the returned bitmap to a variable it
+ * owns *before* running those checks, so a `finally` cleanup block can
+ * always reach and close a bitmap that was actually acquired, even when
+ * one of those checks then throws.
+ */
+export async function decodeSourceToBitmap(
+  format: SafeImageProcessingRequest['preflight']['format'],
+  file: Blob,
+  hooks: WorkerProcessingHooks,
+): Promise<ImageBitmap> {
+  if (format === 'heic') {
+    return decodeHeicToBitmap(file, () => assertNotCancelled(hooks));
+  }
+
+  try {
+    const decodeSource = format === 'jpeg'
+      ? await createOrientationNeutralJpeg(file)
+      : file;
+
+    return await createImageBitmap(decodeSource, {
+      imageOrientation: 'none',
+    });
+  } catch {
+    fail(
+      IMAGE_PROCESSING_ERROR_CODES.DecodeFailed,
+      'The compressed image payload could not be decoded.',
+    );
+  }
+}
+
+/** Call only after assigning the decoded bitmap to a variable the caller's `finally` block can clean up. */
+export function assertDecodedDimensionsMatch(
+  bitmap: ImageBitmap,
+  sourceDimensions: ImageDimensions,
+): void {
+  if (
+    bitmap.width !== sourceDimensions.width ||
+    bitmap.height !== sourceDimensions.height
+  ) {
+    fail(
+      IMAGE_PROCESSING_ERROR_CODES.DecodeFailed,
+      'The browser decoder did not preserve the stored source dimensions.',
+      {
+        expectedWidth: sourceDimensions.width,
+        expectedHeight: sourceDimensions.height,
+        decodedWidth: bitmap.width,
+        decodedHeight: bitmap.height,
+      },
+    );
+  }
+}
+
+/**
+ * Split from drawing (rather than one combined function) so a caller can
+ * assign the canvas to a variable it controls *before* drawing can throw —
+ * that ordering is what guarantees cleanup (`finally { canvas.width = 0 }`)
+ * always reaches a canvas that was actually constructed, including when
+ * `getContext()` fails. It also lets the target-size engine draw once per
+ * dimension tier and reuse the same canvas across multiple quality-probe
+ * encodes at that tier (FSG-002 directive §27 — reuse canvas resources
+ * where feasible), since quality only affects encoding, not the drawn
+ * pixels.
+ */
+export function createRenderCanvas(dimensions: ImageDimensions): OffscreenCanvas {
+  return new OffscreenCanvas(dimensions.width, dimensions.height);
+}
+
+/** Draws a decoded bitmap onto `canvas` at its own dimensions, applying the EXIF/HEIF orientation transform. */
+export function drawBitmapToCanvas(
+  canvas: OffscreenCanvas,
+  bitmap: ImageBitmap,
+  orientation: ExifOrientation,
+  sourceDimensions: ImageDimensions,
+): void {
+  const context = canvas.getContext('2d', { alpha: true });
+
+  if (context === null) {
+    fail(
+      IMAGE_PROCESSING_ERROR_CODES.RuntimeUnsupported,
+      'The worker could not create a 2D rendering context.',
+    );
+  }
+
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
+  context.setTransform(
+    ...scaledTransform(
+      orientation,
+      sourceDimensions.width,
+      sourceDimensions.height,
+      canvas.width,
+      canvas.height,
+    ),
+  );
+  context.drawImage(bitmap, 0, 0);
+  context.resetTransform();
+}
+
+export async function validateOutput(
   result: ProcessedImageResult,
 ): Promise<void> {
   if (
@@ -198,15 +318,7 @@ export async function processImageInWorker(
   request: SafeImageProcessingRequest,
   hooks: WorkerProcessingHooks,
 ): Promise<ProcessedImageResult> {
-  if (
-    typeof OffscreenCanvas === 'undefined' ||
-    typeof globalThis.createImageBitmap !== 'function'
-  ) {
-    fail(
-      IMAGE_PROCESSING_ERROR_CODES.RuntimeUnsupported,
-      'This worker cannot decode and render images with the required browser APIs.',
-    );
-  }
+  checkRuntimeSupport();
 
   const sourceDimensions = {
     width: request.preflight.width,
@@ -244,69 +356,14 @@ export async function processImageInWorker(
 
   try {
     emitStage(hooks, 'decoding');
-
-    if (request.preflight.format === 'heic') {
-      bitmap = await decodeHeicToBitmap(request.file, () => assertNotCancelled(hooks));
-    } else {
-      try {
-        const decodeSource = request.preflight.format === 'jpeg'
-          ? await createOrientationNeutralJpeg(request.file)
-          : request.file;
-
-        bitmap = await createImageBitmap(decodeSource, {
-          imageOrientation: 'none',
-        });
-      } catch {
-        fail(
-          IMAGE_PROCESSING_ERROR_CODES.DecodeFailed,
-          'The compressed image payload could not be decoded.',
-        );
-      }
-    }
-
+    bitmap = await decodeSourceToBitmap(request.preflight.format, request.file, hooks);
     assertNotCancelled(hooks);
-
-    if (
-      bitmap.width !== sourceDimensions.width ||
-      bitmap.height !== sourceDimensions.height
-    ) {
-      fail(
-        IMAGE_PROCESSING_ERROR_CODES.DecodeFailed,
-        'The browser decoder did not preserve the stored source dimensions.',
-        {
-          expectedWidth: sourceDimensions.width,
-          expectedHeight: sourceDimensions.height,
-          decodedWidth: bitmap.width,
-          decodedHeight: bitmap.height,
-        },
-      );
-    }
+    assertDecodedDimensionsMatch(bitmap, sourceDimensions);
 
     emitStage(hooks, 'normalizing');
-    canvas = new OffscreenCanvas(resizePlan.width, resizePlan.height);
-    const context = canvas.getContext('2d', { alpha: true });
-
-    if (context === null) {
-      fail(
-        IMAGE_PROCESSING_ERROR_CODES.RuntimeUnsupported,
-        'The worker could not create a 2D rendering context.',
-      );
-    }
-
+    canvas = createRenderCanvas(resizePlan);
     emitStage(hooks, 'resizing');
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = 'high';
-    context.setTransform(
-      ...scaledTransform(
-        orientation,
-        sourceDimensions.width,
-        sourceDimensions.height,
-        resizePlan.width,
-        resizePlan.height,
-      ),
-    );
-    context.drawImage(bitmap, 0, 0);
-    context.resetTransform();
+    drawBitmapToCanvas(canvas, bitmap, orientation, sourceDimensions);
 
     assertNotCancelled(hooks);
     emitStage(hooks, 'encoding');

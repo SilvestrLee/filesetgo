@@ -48,7 +48,7 @@ A decoder, encoder, or transform may crash or terminate the worker.
 
 Repeated jobs, parallel work, object URLs, canvases, image bitmaps, or retained buffers may consume excessive memory or CPU.
 
-**Controls:** `MAX_ACTIVE_HEAVY_JOBS = 1`; bounded stages and future attempt budgets; cancellation; deterministic terminal states; explicit resource cleanup.
+**Controls:** `MAX_ACTIVE_HEAVY_JOBS = 1` (shared across `processImage()` and `processImageToTarget()` — starting either cancels whichever job is active); bounded stages; cancellation; deterministic terminal states; explicit resource cleanup. The FSG-002 target-size engine's repeated-encode search is itself bounded — at most `MAX_DIMENSION_TIERS + 1` dimension candidates × `MAX_QUALITY_PROBES_PER_TIER` quality probes per job, never an open-ended loop (see `docs/governance/DECISIONS.md` ADR-015).
 
 ### Malicious metadata
 

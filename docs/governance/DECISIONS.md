@@ -122,4 +122,22 @@ No crash, no hang, no uncaught exception in any case — decode failures surface
 
 **Governance effect:** `docs/architecture/FORMAT-SUPPORT.md` is updated to reflect `@discourse/heic` as the selected V1 HEIC/HEIF decoder. `ADR-005`'s requirement that "no specific decoder library is locked until maintenance, security, license, and memory characteristics are evaluated" is satisfied by this ADR and the FSG-001C sprint report's dependency audit.
 
+## ADR-015 — FSG-002 target-size engine: bounded search parameters
+
+**Status:** Accepted
+
+FSG-002's directive left several concrete numeric/design choices to implementation judgment ("choose a conservative bound... document the chosen number and rationale"; "define a sensible initial minimum target size... document chosen target validation limits"; "you may choose better names [for unreachable outcomes], but preserve the semantic distinction"). This ADR records those choices as the FileSetGo-specific bounded-search contract, since they materially affect product behavior (how aggressively dimensions shrink, how small a target is honored, how failures are explained) and should not be re-derived or silently changed by a future sprint without a governance update.
+
+**Quality search:** `minQuality = 0.60`, `maxQuality = 0.95` by default (directive-specified). At most **5** encodes per dimension tier. Strategy: try `maxQuality` first (1 probe, exits immediately if it already fits — the best possible outcome); if not, try `minQuality` (2nd probe, exits immediately if even that doesn't fit — no viable quality at this tier); otherwise binary-search the remaining budget between them. This means most real jobs use far fewer than 5 encodes, while 5 remains the hard ceiling.
+
+**Dimension tiers:** each tier scales both dimensions by **0.85** (directive-specified), preserving aspect ratio. **`MAX_DIMENSION_TIERS = 6`** beyond the initial candidate (7 candidates total including tier 0). Rationale: `0.85^6 ≈ 0.377`, so the smallest tier retains ~38% of the original edge length — a 2000px source steps down to ~754px, still a broadly useful web image size. Combined with a **`MIN_DIMENSION_PX = 64`** floor (neither width nor height may drop below this), dimension reduction stops well before an image becomes practically useless, independent of the tier count alone.
+
+**Deterministic maximum encodes per job** (directive §26, with the parameters above): JPEG/WebP HARD = 5; JPEG/WebP FLEXIBLE = 35 (7 tiers × 5 probes); PNG HARD = 1; PNG FLEXIBLE = 7 (1 encode per tier, no quality search).
+
+**Target byte bounds:** `MIN_TARGET_BYTES = 1024` (1 KB) — no real encoded raster image is meaningfully smaller; a smaller request cannot be a genuine target. `MAX_TARGET_BYTES = 15 MB` — exactly the existing FSG-001 source-file safety cap (`DEFAULT_SAFETY_LIMITS.maxInputBytes`); there is no product reason for a target to exceed the largest file the runtime will ever accept as input.
+
+**Structured unreachable outcomes:** two codes are used, not three. `TARGET_UNREACHABLE_HARD_DIMENSIONS` when `dimensionPolicy: 'hard'` and no quality within range meets the target at the one fixed dimension set. `TARGET_UNREACHABLE_MIN_DIMENSIONS` when `dimensionPolicy: 'flexible'` and the full bounded dimension-tier sequence is exhausted (down to the `MIN_DIMENSION_PX` floor or `MAX_DIMENSION_TIERS` limit) without a fitting candidate. A third code, `TARGET_UNREACHABLE_MIN_QUALITY`, is defined in the public contract for API completeness and potential future use, but the current algorithm has no scenario that produces it distinctly from the two above — a smaller dimension tier essentially always makes minQuality's byte size smaller too, so "quality bottomed out" and "ran out of dimension tiers" collapse into the same terminal failure mode in practice. This is a deliberate simplification, not an oversight.
+
+**Governance effect:** these are the authoritative bounds for the target-size engine; changing any of them (e.g., raising `MAX_DIMENSION_TIERS`, lowering `MIN_TARGET_BYTES`) is a product/algorithm change requiring a governing decision, not a routine code change.
+
 None of the above weakens the standing accuracy rule: an agent must never report verification — automated or manual — that did not actually run. This ADR amends the browser/device verification expectations previously stated for FSG-001 in `docs/directives/FSG-001B.md` and `docs/testing/TESTING.md`; it does not restructure the `docs/governance/ROADMAP.md` milestone sequence.

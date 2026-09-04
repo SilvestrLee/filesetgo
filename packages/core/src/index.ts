@@ -46,5 +46,34 @@ export {
 export {
   cancelImageJob,
   processImage,
+  processImageToTarget,
 } from './runtime/worker-client';
 export { MAX_ACTIVE_HEAVY_JOBS } from './runtime/constants';
+export {
+  TARGET_SIZE_ERROR_CODES,
+  type DimensionPolicy,
+  type DimensionTier,
+  type ImageProcessingTargetCancelled,
+  type ImageProcessingTargetComplete,
+  type ImageProcessingTargetFailed,
+  type ImageProcessingTargetJob,
+  type ImageProcessingTargetOutcome,
+  type ImageProcessingTargetUnreachable,
+  type ProcessImageToTargetOptions,
+  type SafeImageProcessingTargetRequest,
+  type TargetDimensions,
+  type TargetSizeQualityRange,
+  type TargetSizeResult,
+  type TargetSizeUnreachable,
+  type TargetSizeUnreachableCode,
+} from './processing/target-size-contracts';
+export {
+  ABSOLUTE_QUALITY_BOUNDS,
+  DEFAULT_QUALITY_RANGE,
+  DIMENSION_TIER_SCALE,
+  MAX_DIMENSION_TIERS,
+  MAX_QUALITY_PROBES_PER_TIER,
+  MAX_TARGET_BYTES,
+  MIN_DIMENSION_PX,
+  MIN_TARGET_BYTES,
+} from './processing/target-size-limits';

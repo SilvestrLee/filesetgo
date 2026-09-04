@@ -11,7 +11,16 @@ import {
   fromPreflightError,
   processingCancelled,
 } from '../processing/errors';
+import type {
+  ImageProcessingTargetJob,
+  ImageProcessingTargetOutcome,
+  ProcessImageToTargetOptions,
+} from '../processing/target-size-contracts';
 import { validateProcessImageOptions } from '../processing/validate-request';
+import {
+  validateProcessImageToTargetOptions,
+  type ResolvedTargetOptions,
+} from '../processing/validate-target-request';
 import { createImageJobId } from './job-id';
 import {
   isImageWorkerEvent,
@@ -29,11 +38,28 @@ export interface ImageWorkerLike {
 
 export type ImageWorkerFactory = () => ImageWorkerLike;
 
+/**
+ * The two job kinds (`processImage` and `processImageToTarget`) share this
+ * single-slot runtime so `MAX_ACTIVE_HEAVY_JOBS = 1` holds across both —
+ * starting either kind cancels whichever job (of either kind) is currently
+ * active (FSG-002 directive §15).
+ */
+type JobVariant =
+  | {
+      kind: 'standard';
+      options: ProcessImageOptions;
+      resolve: (outcome: ImageProcessingOutcome) => void;
+    }
+  | {
+      kind: 'target';
+      options: ProcessImageToTargetOptions;
+      resolve: (outcome: ImageProcessingTargetOutcome) => void;
+    };
+
 interface ActiveJob {
   id: string;
   file: Blob;
-  options: ProcessImageOptions;
-  resolve: (outcome: ImageProcessingOutcome) => void;
+  variant: JobVariant;
   settled: boolean;
   worker?: ImageWorkerLike;
 }
@@ -56,20 +82,67 @@ export class ImageProcessingRuntime {
   }
 
   public processImage(file: Blob, options: ProcessImageOptions): ImageProcessingJob {
+    const job = this.beginJob<ImageProcessingOutcome>(file, {
+      kind: 'standard',
+      options,
+      resolve: () => {},
+    });
+
+    return {
+      jobId: job.id,
+      result: job.result,
+      cancel: () => {
+        this.cancelImageJob(job.id);
+      },
+    };
+  }
+
+  public processImageToTarget(
+    file: Blob,
+    options: ProcessImageToTargetOptions,
+  ): ImageProcessingTargetJob {
+    const job = this.beginJob<ImageProcessingTargetOutcome>(file, {
+      kind: 'target',
+      options,
+      resolve: () => {},
+    });
+
+    return {
+      jobId: job.id,
+      result: job.result,
+      cancel: () => {
+        this.cancelImageJob(job.id);
+      },
+    };
+  }
+
+  private beginJob<TOutcome extends ImageProcessingOutcome | ImageProcessingTargetOutcome>(
+    file: Blob,
+    variant: JobVariant,
+  ): { id: string; result: Promise<TOutcome> } {
     if (this.activeJob !== undefined) {
       this.cancelImageJob(this.activeJob.id);
     }
 
     const jobId = createImageJobId();
-    let resolveResult: (outcome: ImageProcessingOutcome) => void = () => {};
-    const result = new Promise<ImageProcessingOutcome>((resolve) => {
+    let resolveResult: (outcome: TOutcome) => void = () => {};
+    const result = new Promise<TOutcome>((resolve) => {
       resolveResult = resolve;
     });
+    // `variant.resolve` is a no-op placeholder passed in by the caller
+    // (processImage/processImageToTarget); it is replaced here with the
+    // real settle function for this specific job's result Promise. The
+    // cast is safe because `beginJob`'s TOutcome is always instantiated by
+    // the caller to match `variant.kind` (see the two public methods
+    // above), which is also what `finish()` relies on when resolving.
+    const resolvedVariant: JobVariant =
+      variant.kind === 'standard'
+        ? { ...variant, resolve: resolveResult as unknown as (outcome: ImageProcessingOutcome) => void }
+        : { ...variant, resolve: resolveResult as unknown as (outcome: ImageProcessingTargetOutcome) => void };
     const activeJob: ActiveJob = {
       id: jobId,
       file,
-      options,
-      resolve: resolveResult,
+      variant: resolvedVariant,
       settled: false,
     };
 
@@ -77,13 +150,7 @@ export class ImageProcessingRuntime {
     this.reportProgress(activeJob, 'preflighting');
     void this.start(activeJob);
 
-    return {
-      jobId,
-      result,
-      cancel: () => {
-        this.cancelImageJob(jobId);
-      },
-    };
+    return { id: jobId, result };
   }
 
   public cancelImageJob(jobId: string): boolean {
@@ -110,11 +177,24 @@ export class ImageProcessingRuntime {
   }
 
   private async start(job: ActiveJob): Promise<void> {
-    const validationError = validateProcessImageOptions(job.options);
+    let resolvedTargetOptions: ResolvedTargetOptions | undefined;
 
-    if (validationError !== undefined) {
-      this.finish(job, { status: 'failed', error: validationError });
-      return;
+    if (job.variant.kind === 'standard') {
+      const validationError = validateProcessImageOptions(job.variant.options);
+
+      if (validationError !== undefined) {
+        this.finish(job, { status: 'failed', error: validationError });
+        return;
+      }
+    } else {
+      const validation = validateProcessImageToTargetOptions(job.variant.options);
+
+      if (validation.error !== undefined) {
+        this.finish(job, { status: 'failed', error: validation.error });
+        return;
+      }
+
+      resolvedTargetOptions = validation.resolved;
     }
 
     let preflight;
@@ -195,18 +275,39 @@ export class ImageProcessingRuntime {
     };
 
     try {
-      worker.postMessage({
-        type: 'PROCESS_IMAGE',
-        jobId: job.id,
-        request: {
-          file: job.file,
-          preflight: preflight.result,
-          ...(job.options.resize === undefined
-            ? {}
-            : { resize: job.options.resize }),
-          output: job.options.output,
-        },
-      });
+      if (job.variant.kind === 'standard') {
+        worker.postMessage({
+          type: 'PROCESS_IMAGE',
+          jobId: job.id,
+          request: {
+            file: job.file,
+            preflight: preflight.result,
+            ...(job.variant.options.resize === undefined
+              ? {}
+              : { resize: job.variant.options.resize }),
+            output: job.variant.options.output,
+          },
+        });
+      } else {
+        // resolvedTargetOptions is always defined on this branch: the
+        // 'target' variant either returned above on validation failure or
+        // reaches here with `resolvedTargetOptions` set.
+        const resolved = resolvedTargetOptions!;
+
+        worker.postMessage({
+          type: 'PROCESS_IMAGE_TO_TARGET',
+          jobId: job.id,
+          request: {
+            file: job.file,
+            preflight: preflight.result,
+            targetBytes: resolved.targetBytes,
+            output: resolved.output,
+            ...(resolved.dimensions === undefined ? {} : { dimensions: resolved.dimensions }),
+            dimensionPolicy: resolved.dimensionPolicy,
+            qualityRange: resolved.qualityRange,
+          },
+        });
+      }
     } catch {
       this.failWorker(job);
     }
@@ -235,6 +336,16 @@ export class ImageProcessingRuntime {
         this.reportProgress(job, 'complete');
         this.finish(job, { status: 'complete', result: event.result });
         break;
+      case 'JOB_COMPLETE_TARGET':
+        this.reportProgress(job, 'complete');
+
+        if (event.outcome.status === 'met') {
+          this.finish(job, { status: 'complete', result: event.outcome.result });
+        } else {
+          this.finish(job, { status: 'unreachable', outcome: event.outcome.outcome });
+        }
+
+        break;
       case 'JOB_FAILED':
         this.finish(job, { status: 'failed', error: event.error });
         break;
@@ -262,13 +373,16 @@ export class ImageProcessingRuntime {
     stage: ImageProcessingProgress['stage'],
   ): void {
     try {
-      job.options.onProgress?.({ jobId: job.id, stage });
+      job.variant.options.onProgress?.({ jobId: job.id, stage });
     } catch {
       // Consumer callbacks cannot interrupt or corrupt the processing lifecycle.
     }
   }
 
-  private finish(job: ActiveJob, outcome: ImageProcessingOutcome): void {
+  private finish(
+    job: ActiveJob,
+    outcome: ImageProcessingOutcome | ImageProcessingTargetOutcome,
+  ): void {
     if (job.settled) {
       return;
     }
@@ -287,7 +401,11 @@ export class ImageProcessingRuntime {
       this.activeJob = undefined;
     }
 
-    job.resolve(outcome);
+    if (job.variant.kind === 'standard') {
+      job.variant.resolve(outcome as ImageProcessingOutcome);
+    } else {
+      job.variant.resolve(outcome as ImageProcessingTargetOutcome);
+    }
   }
 }
 
@@ -298,6 +416,13 @@ export function processImage(
   options: ProcessImageOptions,
 ): ImageProcessingJob {
   return defaultRuntime.processImage(file, options);
+}
+
+export function processImageToTarget(
+  file: Blob,
+  options: ProcessImageToTargetOptions,
+): ImageProcessingTargetJob {
+  return defaultRuntime.processImageToTarget(file, options);
 }
 
 export function cancelImageJob(jobId: string): boolean {
