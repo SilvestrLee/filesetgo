@@ -1,237 +1,223 @@
-# FileSetGo Sprint Report
+# FSG-003 Sprint Report — Quick Fit Workflow & Public Shell
 
 ## Milestone
 
-FSG-002 — Target File Size Engine & Guardrails
+FSG-003 — Quick Fit Workflow & Public Shell (see `docs/directives/FSG-003.md`).
 
 ## Status
 
-**FSG-002: Complete.** Approved by the project owner.
+FSG-003: Complete.
 
-## Base Commit
+## Base Commit Before FSG-003
 
-`84969a867e095deae84c270654d72c5915e01301` (FSG-001 closeout).
+`6bc4feced6fb38a2f2150cb41a300b4155646508` — the FSG-002 closeout commit (`feat(core): add bounded target-size engine`). This is the commit the working tree was branched from; it is not a claim about FSG-003's own commit state.
 
 ## Branch
 
-`fsg-002-target-size-engine`.
+`fsg-003-quick-fit-shell`, created from the commit above.
 
 ## Objective
 
-A deterministic, bounded target-file-size engine: given an input image, an output format, a target maximum byte size, and a dimension policy, produce either a validated local `Blob` whose encoded size is within the target, or a structured explanation of why it could not be met — never an unbounded search, never a silent violation of the requested constraint.
+Replace the FSG-001 engineering-proof interface with the first real public FileSetGo experience: a Quick Fit workflow where a non-technical user selects an image, states a plain-language requirement (target file size, optional maximum dimensions, output format, dimension-flexibility), runs local browser processing via the existing `@filesetgo/core` APIs, and downloads the ready file — with no upload, no account, and no scope beyond what FSG-003 defines (no presets, packaging, accounts, billing, analytics, or SEO surfaces).
 
-## Architecture
+## Public Shell
 
-`processImageToTarget()` is an orchestration on top of the existing FSG-001 primitives, not a second processing pipeline:
+`resources/views/welcome.blade.php` was fully replaced. Structure: minimal header (brand + Quick Fit/How it works navigation), a compact hero (`File. Set. Go.` / `Get your file ready for where it needs to go.`), the Quick Fit workspace as the visually dominant surface, a 3-step "How it works" section, a privacy-reassurance panel, and a restrained footer. No presets, no monetization UI, no cross-promotion, no fake navigation destinations.
 
-```
-Input
- → Preflight + safety gate           (reused, unchanged)
- → Worker: decodeSourceToBitmap()    (reused — same HEIC adapter / native createImageBitmap path)
- → For each dimension tier (HARD: 1 tier; FLEXIBLE: up to 7):
-     → drawBitmapToCanvas()          (reused — draw once per tier, canvas reused across quality probes)
-     → PNG: one deterministic encode
-     → JPEG/WebP: boundedQualitySearch() — at most 5 encodes
-     → first candidate <= targetBytes wins; else move to the next tier
- → validateOutput()                  (reused, unchanged — real preflightImage() re-check)
- → Local Blob, or a structured TargetSizeUnreachable outcome
-```
+## Quick Fit User Flow
 
-`decodeSourceToBitmap`, `createRenderCanvas`, `drawBitmapToCanvas`, `checkRuntimeSupport`, and `validateOutput` were extracted from `processImageInWorker` (`workers/process-image.ts`) into shared, independently exported functions specifically so the target-size engine (`workers/process-image-to-target.ts`) could reuse them rather than duplicate the pipeline. `processImageInWorker` itself was refactored to call these same functions — its behavior is unchanged (see Regression Results), but a real cleanup-ordering bug was found and fixed during that refactor (see Known Limitations Found & Fixed).
+Drop/choose file → inspect (preflight) → set requirements (target size, dimensions, format, dimension-flexibility) → **Get file ready** → processing (with Cancel) → success (summary + download) or unreachable (plain-language explanation + suggestion) or failed (mapped error message) or cancelled → **Start again** returns to idle without a page reload. Selecting a replacement file at any point cancels any active job, invalidates any prior result, and re-inspects the new file.
 
-Both `processImage()` and `processImageToTarget()` are served by the same `ImageProcessingRuntime` class and share its single active-job slot (`runtime/worker-client.ts`) — starting either kind of job cancels whichever job, of either kind, is currently active, so `MAX_ACTIVE_HEAVY_JOBS = 1` holds across both (directive §15).
+## UI Architecture
 
-## Public API
+`resources/js/quick-fit/`:
 
-```ts
-import { processImageToTarget } from '@filesetgo/core';
+- **Pure logic** (no DOM, no `@filesetgo/core` runtime calls): `state.ts` (typed state model), `format-bytes.ts` (KB/MB↔byte conversion, size formatting, reduction percentage), `filename.ts` (output filename generation), `errors.ts` (error/unreachable-code → human message), `request-plan.ts` (output-format resolution, no-op detection, `processImage`/`processImageToTarget` routing), `summary.ts` (success summary text), `capabilities.ts` (runtime-support translation), `validate-form.ts` (client-side form validation).
+- **Orchestration**, DOM-free: `workflow.ts` (`QuickFitWorkflow`) — manages file selection/preflight, routes a requirement set to the correct core API, tracks the active job, and produces `QuickFitState`. Takes its core bindings via constructor injection (`QuickFitCoreClient`), mirroring the existing `ImageWorkerFactory` DI pattern in `runtime/worker-client.ts`.
+- **DOM binding**: `controller.ts` — the only module touching `document`; wires form/drop-zone/button events to `QuickFitWorkflow` and renders `QuickFitState` back into the page. `core-client.ts` supplies the real `@filesetgo/core` bindings for production use.
+- `resources/js/app.ts` now just bootstraps `./quick-fit/controller`.
 
-const job = processImageToTarget(file, {
-  targetBytes: 200_000,
-  output: { format: 'webp' },
-  dimensions: { maxWidth: 1600, maxHeight: 1600 },
-  dimensionPolicy: 'flexible',        // default; 'hard' also supported
-  qualityRange: { minQuality: 0.6, maxQuality: 0.95 },  // default
-  onProgress: ({ stage }) => { /* 'preflighting' | 'decoding' | 'normalizing' | 'optimizing' | 'finalizing' | 'complete' */ },
-});
+See `docs/governance/DECISIONS.md` ADR-016 for the rationale (avoiding a new `jsdom`/DOM-emulation dependency by keeping orchestration logic DOM-free and independently testable).
 
-const outcome = await job.result; // 'complete' | 'unreachable' | 'failed' | 'cancelled'
-job.cancel();
+## TypeScript Project Boundary
+
+Adding `resources/js/quick-fit/tests/**` under the root production `tsconfig.json` (whose `include` already matched all of `resources/js/**/*.ts`) would have pulled Vitest's own type-declaration graph into the same TypeScript project as shipped browser code. That is fixed with an explicit boundary, not a blanket lib-check exemption:
+
+- **`tsconfig.json`** (root, production/browser) — unchanged compiler options (`types: ["vite/client"]`, no `"node"`), plus `"exclude": ["resources/js/quick-fit/tests/**"]`. No `skipLibCheck`.
+- **`tsconfig.ui-tests.json`** (new) — a dedicated project for the Quick Fit test environment: `include: ["resources/js/quick-fit/**/*.ts"]` (source + tests together, so it's self-contained), `types: ["node"]`. No `skipLibCheck`.
+- **`@types/node`** — added as a devDependency, used only by `tsconfig.ui-tests.json`. Node globals never reach the production root project.
+- `npm run typecheck` now chains all four projects (root, `packages/core/tsconfig.json`, `packages/core/tsconfig.worker.json`, `tsconfig.ui-tests.json`); `npm run typecheck:ui` runs the UI-test project alone.
+
+With that boundary correctly built, full declaration checking then surfaced a second, independent problem: **Vitest 3.2.7** (the installed version; confirmed the latest published 3.x patch) bundles its own `dist/chunks/global.d.ts` declaring `Chai.Assert.containSubset` as a property, while Vitest's own `package.json` requires `"@types/chai": "^5.2.2"`, and `@types/chai` 5.2.x declares that same member as a method — an unmergeable, genuinely upstream conflict that fires for any project importing `vitest` 3.2.7 without `skipLibCheck`. This is very likely why `packages/core/tsconfig.json`'s pre-existing `skipLibCheck: true` (untouched by this sprint) has silently absorbed this exact conflict since FSG-001, not only the `node:` built-ins it was originally documented for.
+
+**Resolution:** a root `package.json` override pins the transitive `@types/chai` to `5.0.1` (the last version before it gained `containSubset` typings), removing the conflicting declaration:
+
+```json
+"overrides": { "@types/chai": "5.0.1" }
 ```
 
-`@filesetgo/core` has no knowledge of Laravel, Blade, Keryon, or CMS/preset concepts anywhere in this new code (directive §32) — confirmed by the scope grep in Privacy/Scope Audit below.
+Verified via `npm ls vitest @types/chai`:
 
-## Target-Size Contract
-
-New types in `processing/target-size-contracts.ts`: `ProcessImageToTargetOptions`, `SafeImageProcessingTargetRequest` (validated/defaulted, worker-facing), `TargetSizeResult` (extends `ProcessedImageResult` with `targetBytes`, `targetMet: true`, `quality?`, `dimensionsReduced`, `qualityProbeCount`, `dimensionTierCount`), `TargetSizeUnreachable`, and the four-way `ImageProcessingTargetOutcome` union (`complete` / `unreachable` / `failed` / `cancelled`) — `unreachable` is a distinct status, not folded into `failed`, so a caller cannot mistake a valid bounded-search conclusion for a runtime error (directive §19).
-
-Validation (`processing/validate-target-request.ts`) rejects malformed `targetBytes` (non-finite, ≤0, outside `[1024, 15 MB]`), malformed quality bounds (outside `[0,1]`, `minQuality > maxQuality`), an invalid `dimensionPolicy`, and dimensions exceeding the 24 MP safety limit — and resolves all defaults in one place so downstream code never re-derives them.
-
-## Quality-Search Algorithm
-
-`transforms/quality-search.ts`, `boundedQualitySearch()`. Strategy (never more than **5** encodes): probe `maxQuality` first — if it fits, done (1 probe, best possible outcome). Otherwise probe `minQuality` — if even that doesn't fit, no viable quality exists at this tier (2 probes). Otherwise binary-search the remaining budget between them. `best` is always selected from actually-measured probe results by highest fitting quality, never assumed from a theoretical monotonic ordering (directive §25) — verified by a dedicated non-monotonic-encoder test.
-
-## Dimension-Tier Bound (Chosen Parameters)
-
-`transforms/dimension-tiers.ts`, `calculateDimensionTiers()`. Each tier scales both dimensions by **0.85**, preserving aspect ratio. **`MAX_DIMENSION_TIERS = 6`** beyond the initial candidate (7 total, including tier 0): `0.85^6 ≈ 0.377`, so the smallest tier retains ~38% of the original edge length — a 2000px source steps down to ~754px, still broadly useful. **`MIN_DIMENSION_PX = 64`**: neither dimension may drop below this regardless of tier count. Full rationale recorded in `docs/governance/DECISIONS.md` ADR-015.
-
-## HARD Behavior
-
-Dimensions are authoritative — exactly one tier is ever tried. Only quality (JPEG/WebP) or a single deterministic encode (PNG) is varied. If no candidate meets `targetBytes`, the result is `TARGET_UNREACHABLE_HARD_DIMENSIONS` — dimensions are never silently reduced.
-
-## FLEXIBLE Behavior
-
-The requested (or safety-resize-planned) dimensions are the starting candidate. Quality search is tried at that tier first; only if no quality within range meets the target does the engine step down to the next bounded tier and retry. If every tier is exhausted, the result is `TARGET_UNREACHABLE_MIN_DIMENSIONS`. Never upscales (reuses the existing `calculateResizePlan` with `allowUpscale: false` for the starting candidate, then only ever shrinks further).
-
-## PNG Behavior
-
-No fake quality search. Exactly one deterministic encode per dimension tier attempted (verified: `encodeCalls[i].quality === undefined` for every PNG test). HARD = 1 possible encode total; FLEXIBLE = at most 7.
-
-## Deterministic Maximum Encode Counts
-
-```
-JPEG/WebP HARD:      5   (1 dimension tier x up to 5 quality probes)
-JPEG/WebP FLEXIBLE:  35  (7 dimension tiers x up to 5 quality probes each)
-PNG HARD:            1   (1 dimension tier x 1 deterministic encode)
-PNG FLEXIBLE:         7  (7 dimension tiers x 1 deterministic encode each)
+```text
+filesetgo@ /Users/silvestr/filesetgo
+├─┬ @filesetgo/core@0.1.0 -> ./packages/core
+│ └── vitest@3.2.7 deduped
+└─┬ vitest@3.2.7
+  ├── @types/chai@5.0.1 overridden
+  └─┬ @vitest/expect@3.2.7
+    └── @types/chai@5.0.1 overridden
 ```
 
-## Structured Unreachable Outcomes
+This is types-only (resolves to a nested `vitest/node_modules/@types/chai`); FileSetGo code never imports `chai` directly or uses `containSubset` (confirmed by repository-wide search), so there is no runtime behavior change. `npm ci` followed by `npm run typecheck` reproduces a clean, zero-error, zero-`skipLibCheck` result from the lockfile alone.
 
-Two codes are actually reachable: `TARGET_UNREACHABLE_HARD_DIMENSIONS` and `TARGET_UNREACHABLE_MIN_DIMENSIONS`. A third, `TARGET_UNREACHABLE_MIN_QUALITY`, exists in the public contract for API completeness but has no distinct producing scenario in the current algorithm (a smaller dimension tier essentially always makes `minQuality`'s byte size smaller too, so "quality bottomed out" and "ran out of tiers" collapse into the same terminal case). This is a deliberate, documented simplification (ADR-015), not an oversight. Every unreachable outcome carries `bestAttempt` (the closest-measured candidate across the whole search, tracked independent of tier/probe success) when at least one candidate was ever encoded, plus `qualityProbeCount`/`dimensionTierCount` for FSG-003's future UX.
+This override is a **temporary, governed toolchain-compatibility pin**, not a permanent dependency decision — it sits outside Vitest's own declared `@types/chai` range. Removal trigger: the next Vitest major-version upgrade should first try removing this override; if the newer bundled declarations no longer conflict, remove it. See `docs/governance/DECISIONS.md` ADR-016 for the full record.
 
-## HEIC Behavior
+## State Model
 
-HEIC remains input-only (no HEIC output added). A HEIC source reaches the target-size engine through the exact same `decodeSourceToBitmap()` used by the standard pipeline — no duplicated HEIC decode logic. Verified for HEIC → JPEG, HEIC → PNG, and HEIC → WebP target-size requests, each confirming the lazily-imported HEIC adapter (`workers/heic-decode.ts`) is invoked exactly once regardless of how many dimension tiers/quality probes the subsequent search performs (decode happens once; only rendering/encoding repeats).
+`QuickFitState` (`state.ts`) is a discriminated union: `idle`, `inspecting`, `file-rejected`, `ready`, `processing`, `success`, `unreachable`, `failed`, `cancelled`. Each variant only carries the fields valid in that state (e.g. a download URL can't exist without a real result). A selection-sequence counter guards against stale preflight/job resolutions being applied after a newer file selection or reset has already superseded them — the same pattern as the FSG-001B proof UI's `selectionSequence`, generalized into the workflow class.
 
-## Cancellation
+## Core API Orchestration
 
-Checked at every point the directive requires (§16): before decode, after decode, before/after each quality probe (inside `boundedQualitySearch`'s `probe()` helper), before each dimension-tier transition, after resize (before encoding begins), and before final result publication. Hard worker termination remains the backstop (unchanged from FSG-001). A cancelled search resolves through the same `WorkerProcessingFailure` / `PROCESSING_CANCELLED` path as the standard pipeline — verified it never produces a stale `met`/`unreachable` result after cancellation, and that the decoded bitmap is still closed even when cancellation interrupts mid-search.
+`request-plan.ts` routes every requirement set: `processImageToTarget()` whenever a target file size is given (with or without dimensions), `processImage()` for resize/convert-only requests, and no core call at all for a no-op request (same format, no target, no dimension limit — the primary action is disabled with an inline hint in that case). HEIC sources always resolve "Keep original" to WebP output (HEIC cannot be produced as output), whether routed through `processImage()` or `processImageToTarget()`.
 
-## Resource Cleanup
+## Requirement Inputs
 
-The canvas is created once per dimension tier and reused across that tier's quality probes (quality only affects encoding, not the drawn pixels) rather than recreated per probe — an explicit memory-discipline choice (directive §27). Superseded canvases are zeroed before the next tier's canvas is created. The decoded bitmap is closed in a `finally` block covering the whole search, matching FSG-001's existing guarantee. Losing candidate `Blob`s are not explicitly retained beyond their tier's loop iteration — only the current `best` and `closestMiss` candidates are held across iterations.
+- **Target file size**: optional KB/MB input, converted via `unitValueToBytes()` (1 KB = 1024 B, 1 MB = 1,048,576 B) and validated client-side against the core's `MIN_TARGET_BYTES`/`MAX_TARGET_BYTES`.
+- **Maximum width/height**: optional, independent, aspect ratio preserved by core (no crop/stretch controls).
+- **Output format**: Keep original / JPEG / PNG / WebP. HEIC sources hide "Keep original" and default to WebP with an inline note. A transparency warning appears when an alpha-capable source (PNG/WebP) is converted to JPEG.
+- **Dimension flexibility**: a plain-language toggle ("Allow FileSetGo to reduce dimensions if needed") mapped to `dimensionPolicy: 'flexible' | 'hard'`; hidden until a target size is entered, defaulting to on. No quality slider or numeric compression controls are exposed anywhere.
 
-## Known Limitation Found & Fixed During This Sprint
+## HEIC Handling
 
-Extracting `decodeSourceToBitmap`/canvas helpers out of `processImageInWorker` initially introduced a real regression: performing the post-decode cancellation and dimension-mismatch checks *inside* the extracted function meant a bitmap acquired successfully could be leaked (never `.close()`d) if either check then threw, because the caller's own `bitmap` variable was only ever assigned *after* the function returned — so a throw from inside never reached the outer `finally` cleanup. Caught immediately by the existing FSG-001B regression suite (one test failed: "cancels after decode and still releases the decoded bitmap"). Fixed by moving those checks back out to the caller, run immediately after assigning the caller's own variable — restoring the exact ordering the original code already relied on, and now shared correctly by both `processImageInWorker` and `processImageToTargetInWorker`. Full regression suite confirmed clean afterward.
+Unchanged from FSG-001C/FSG-002 at the core level. The public shell accepts HEIC via the file picker (`accept="image/jpeg,image/png,image/webp,image/heic,image/heif"`) and the drop zone; preflight remains authoritative over the accept attribute. Output is always resolved to WebP for HEIC sources (§15).
 
-## Tests
+## Error / Unreachable UX
 
+`errors.ts` maps every `ImageProcessingErrorCode` (preflight ∪ processing) to a plain-language message (no raw codes surfaced) and every `TargetSizeUnreachableCode` to a message plus a concrete suggested next step (allow dimension adjustment; try a larger target; PNG-is-lossless hint for PNG targets). Unreachable is presented as a distinct, non-alarming outcome, separate from the `failed` (system error) panel.
+
+## Success & Download
+
+The success panel is built entirely from the actual returned result metadata (`buildSuccessSummary()` in `summary.ts`) — dimensions, format, byte size, and (for target jobs) whether dimensions had to be reduced, all read from the real `ProcessedImageResult`/`TargetSizeResult`, never assumed. A reduction percentage is shown only when the output is genuinely smaller. Download uses a local Blob object URL and a generated filename (`<original-basename>-filesetgo.<ext>`); no server round-trip. Object URLs are created only on success and revoked before a new result replaces an old one, on reset, and on `pagehide`.
+
+## Accessibility
+
+Skip link to the Quick Fit section; the drop zone is a keyboard-reachable, labeled control (Enter/Space opens the file picker) in addition to supporting drag-and-drop; all form fields have associated labels; a dedicated `aria-live="polite"` announcer reports file-rejection, success, unreachable, error, and cancellation transitions without echoing every internal processing stage; result/error panels use `role="alert"`; status is never conveyed by color alone (text messages accompany every state).
+
+## Responsive Behavior
+
+Layout uses Tailwind's responsive utilities (stacked single-column below `lg`, two-column workspace at `lg` and above); all interactive controls (drop zone, buttons, download link) use `min-h-11` (~44px) for touch-target sizing; the drop zone does not require drag-and-drop (click-to-choose always works). Not verified against a real mobile device or browser automation this sprint — see Known Limitations.
+
+## Privacy
+
+The shell states: "Your image stays on your device while FileSetGo prepares it. It isn't uploaded to FileSetGo." No claim of "no network requests" is made, consistent with the HEIC decoder's legitimate same-origin lazy WASM fetch.
+
+## Runtime Capability Handling
+
+`controller.ts` calls `getRuntimeCapabilities()` once at bootstrap; `capabilities.ts` translates the result to a single plain-language outcome ("FileSetGo is ready in this browser." / "This browser doesn't support the processing features FileSetGo needs.") gated on `workerProcessing`. No capability matrix is shown to users.
+
+## Automated Tests
+
+**Core package regression** (`npm run test:core`): **202/202 passing**, unchanged from the FSG-002 baseline — no core behavior was modified this sprint.
+
+**Quick Fit UI** (`npm run test:ui`, new script added this sprint): **91/91 passing** across 9 files:
+
+| File | Tests | Covers |
+|---|---|---|
+| `format-bytes.test.ts` | 10 | KB/MB↔byte conversion, size formatting, reduction percentage |
+| `filename.test.ts` | 6 | Output filename generation, edge cases |
+| `request-plan.test.ts` | 18 | Output-format resolution, transparency warning, no-op detection, `processImage`/`processImageToTarget` routing |
+| `errors.test.ts` | 8 | Error-code and unreachable-code → message mapping |
+| `summary.test.ts` | 9 | Success summary text, target vs. standard results, reduction label |
+| `capabilities.test.ts` | 2 | Runtime-support translation |
+| `validate-form.test.ts` | 10 | Client-side form validation, no-op rejection |
+| `state.test.ts` | 6 | State-model helpers (`sourceOf`, `isRunnable`, `isProcessing`, `canDownload`) |
+| `workflow.test.ts` | 22 | Orchestration: routing (JPEG/PNG/WebP/HEIC, standard vs. target, no-op), cancellation, stale-result prevention on file replacement, error/unreachable propagation, retry after failure, object-URL lifecycle, reset |
+
+Workflow tests use a constructor-injected fake `@filesetgo/core` client (no module mocking, no DOM emulation) per ADR-016.
+
+## Laravel Tests
+
+`php artisan test --compact`: **6/6 passing, 9 assertions.** New `tests/Feature/WelcomeShellTest.php` (4 tests) confirms `GET /` returns 200, the FileSetGo brand and Quick Fit workspace are present in the response, and no upload/conversion/process route has been registered. The pre-existing `ExampleTest.php` (200-status check) is unchanged.
+
+## Production Build
+
+`npm run build` succeeds. Output includes `app-*.js` (38.31 kB), `app-*.css` (24.08 kB), a lean `image.worker-*.js` (25.16 kB), and a separate lazy `heic-decode-*.js` (32.54 kB) + `heic_dec-*.wasm` (959.55 kB) chunk pair.
+
+## HEIC Lazy-Load Regression
+
+Re-verified after this sprint's rebuild: `image.worker-*.js` and `app-*.js` contain only the `HEIC_DECODER_UNAVAILABLE`/`HEIC_INITIALIZATION_FAILED` error-code *strings* (expected — they're part of the shared error-message plumbing), with zero occurrences of the actual decoder glue markers (`libde265`, `wasmBinaryFile`, `instantiateWasm`). Those markers appear only inside the separate `heic-decode-*.js` chunk. The Quick Fit page does not eagerly import the HEIC decoder.
+
+## Network / Privacy Audit
+
+`grep` across `resources/js/quick-fit/`, `resources/js/app.ts`, and `resources/views/welcome.blade.php` for `fetch(`, `XMLHttpRequest`, `sendBeacon`, `axios`, `FormData`, `multipart` — zero matches. The requirements form has no `action`/`method` and its submit handler calls `preventDefault()`, so no native form submission is possible. `routes/web.php` still defines only `GET /`.
+
+## Verification Commands Run
+
+```text
+npm run typecheck    → clean
+npm run test:core    → 202/202 passing
+npm run test:ui      → 91/91 passing
+npm run build        → succeeded
+php artisan test --compact → 6/6 passing, 9 assertions
+vendor/bin/pint --dirty --format agent → passed
+git diff --check     → clean (no whitespace errors)
 ```
-npm run test:core
-PASS — 202 tests across 17 files (up from FSG-001C's 142 tests / 13 files)
 
-  New this sprint:
-  packages/core/tests/workers/process-image-to-target.test.ts     20  (JPEG/WebP/PNG x HARD/FLEXIBLE, HEIC input,
-                                                                        cancellation, output validation, bounds)
-  packages/core/tests/processing/validate-target-request.test.ts  19  (targetBytes/quality/dimension validation)
-  packages/core/tests/transforms/quality-search.test.ts            9  (bounded search, non-monotonic tolerance,
-                                                                        cancellation)
-  packages/core/tests/transforms/dimension-tiers.test.ts           7  (aspect ratio, no-upscale, floor, tier bound)
-  packages/core/tests/runtime/worker-client.test.ts                13 (was 8 — +5: shared job-slot cross-kind
-                                                                        cancellation, met/unreachable event handling,
-                                                                        stale target-size result suppression)
+`npm run typecheck` now runs four TypeScript projects with zero `skipLibCheck` anywhere in the FSG-003 changes (root production, `packages/core/tsconfig.json`, `packages/core/tsconfig.worker.json`, `tsconfig.ui-tests.json`) — see the "TypeScript Project Boundary" section above and `docs/governance/DECISIONS.md` ADR-016 for the full explanation, including the temporary `@types/chai` compatibility override this required.
 
-  Unchanged from FSG-001C (142 total): preflight-image (52), process-image (25), heic-decode (10),
-  process-image-heic-import-failure (1), protocol (14), validate-request (9), orientation (8), resize (7),
-  jpeg-decode-source (5), job-id (1), capabilities (1), index (1)
-```
-
-No existing test was changed to accommodate this sprint. `process-image.test.ts`'s tests continued to pass through the `processImageInWorker` refactor unmodified — they are the regression evidence that the refactor is behavior-preserving.
-
-## Regression Results
-
-`npm run typecheck` and `npm run test:core` were run repeatedly through this sprint's refactor of `process-image.ts`; the only failure encountered (see Known Limitation Found & Fixed) was caught by the *existing* FSG-001B suite, not a new test, and is now fixed with the full suite green.
-
-## Privacy / Scope Audit
-
-```
-grep -rnE "fetch\(|XMLHttpRequest|sendBeacon|axios|multipart|FormData" packages/core/src resources/js
-  → exactly 1 match: heic-decode.ts's existing same-origin WASM asset fetch (unchanged from FSG-001C).
-    No new network path was introduced for target-size optimization (directive §28).
-
-grep -rniE "keryon|church|membership|tenant|logo.?pack|favicon|zip.?packag|cms.?preset" packages/core/src
-  → 0 matches.
-
-git status — 0 PHP files touched this sprint (pure @filesetgo/core TypeScript change set).
-```
-
-## Build Results
-
-```
-npm run typecheck            PASS
-npm run test:core            PASS — 202 tests / 17 files
-npm run build                PASS
-php artisan test --compact   PASS — 2 tests, 2 assertions
-git diff --check             PASS
-```
-
-Production build confirms HEIC lazy-loading isolation is untouched by this sprint (identical chunk hashes to the FSG-001C build):
-
-```
-public/build/assets/image.worker-KAD2TI8R.js     25.16 kB   (grew from 20.73 kB — see Performance Observations)
-public/build/assets/heic-decode-CIxd_bUO.js       32.54 kB   (lazy, unchanged hash — untouched this sprint)
-public/build/assets/heic_dec-ojH1Dp2m.wasm       959.55 kB   (lazy, unchanged hash — untouched this sprint)
-public/build/assets/app-DFkPIp2I.js               28.35 kB   (grew from 25.16 kB — see below)
-```
-Zero HEIC codec markers (`libde265`/`wasmBinaryFile`/`heic_dec`) in `image.worker.js` or `app.js`; both present only in the separate lazy `heic-decode.js` chunk — reconfirmed with the same grep methodology as FSG-001C.
-
-## Performance Observations
-
-- Maximum configured probe count: 5 per tier (`MAX_QUALITY_PROBES_PER_TIER`).
-- Maximum dimension tiers: 7 total including tier 0 (`MAX_DIMENSION_TIERS = 6` reductions).
-- Theoretical maximum encodes per job: 35 (JPEG/WebP FLEXIBLE) — see Deterministic Maximum Encode Counts.
-- Observed encode counts in representative tests: "already under target" = 1; "quality search only" = 2–5; "dimension step-down required" = tier-count-dependent, always within the documented bound. All confirmed via `encodeCalls.length` assertions in the automated suite, not estimated.
-- Bundle size: `image.worker.js` grew from 20.73 kB to 25.16 kB and the main UI entry (`app.js`) grew from 25.16 kB to 28.35 kB. This is the target-size engine's orchestration code (the shared `ImageProcessingRuntime` class, dimension-tier/quality-search logic, contracts) becoming part of the same always-loaded module graph as the existing standard pipeline — unlike HEIC's WASM codec, the directive does not require this code to be lazy-split, and it is ordinary application logic of comparable weight to the rest of the processing pipeline, not an optional heavyweight dependency.
-- No automated browser timing was available in this environment (see Known Limitations); no physical-device benchmarking was attempted (explicitly FSG-006 scope, per directive §34).
+Reproducibility was also verified via a clean install: `npm ci` (141 packages, 0 vulnerabilities) followed by the full verification baseline reproduced identical, clean results from `package-lock.json` alone.
 
 ## Known Limitations
 
-- `TARGET_UNREACHABLE_MIN_QUALITY` is defined but not currently reachable by the algorithm (see Structured Unreachable Outcomes) — documented, not a bug.
-- No real browser session exercised this sprint's code (same infrastructure constraints as FSG-001C: no working browser-automation connection in this environment). All evidence is from Vitest against fake `OffscreenCanvas`/`createImageBitmap`/`ImageData` globals (for the search/orchestration logic) and, for HEIC, the real installed decoder (inherited from FSG-001C, unchanged). Per ADR-013, this does not block closure; comprehensive browser/device certification remains FSG-006 scope.
-- No automated performance/timing benchmarking against real encoder latency — only encode *counts* were verified, not wall-clock duration, since Node has no real `OffscreenCanvas.convertToBlob` to time.
-- The `bestAttempt` reported in an unreachable outcome reflects the smallest byte size seen across the whole search, which is a reasonable "closest miss" but is not guaranteed to be the single best candidate a differently-ordered search might have found — an inherent property of any bounded (non-exhaustive) search, not specific to this implementation.
+- **Browser automation was not exercised this sprint.** The Chrome-in-Chrome extension did not connect in this environment (consistent with repeated failures recorded during FSG-001B); per ADR-013/TESTING.md, this is recorded honestly rather than chased or worked around, and does not block closure. `controller.ts` (the DOM-binding layer) is therefore verified by build + typecheck only, not by an automated or manual browser session, this sprint.
+- Comprehensive real-device/cross-browser responsive and touch-target verification remains FSG-006 scope, as established in prior sprints.
+- No physical/manual QA was requested from or performed by the project owner, per ADR-013.
 
-## FSG-002 Acceptance Audit
+## FSG-003 Acceptance Audit (directive §68)
 
-Checked against `docs/directives/FSG-002.md` §36:
+| # | Criterion | Status |
+|---|---|---|
+| 1 | `/` is a real FileSetGo public shell | Met |
+| 2 | Quick Fit immediately discoverable | Met |
+| 3 | Select/drop JPEG, PNG, WebP, HEIC | Met (preflight-gated) |
+| 4 | Preflight rejection translated to UI | Met |
+| 5 | Source format/dimensions/size shown | Met |
+| 6 | Target size in KB/MB | Met |
+| 7 | Optional max dimensions | Met |
+| 8 | Output format selectable | Met |
+| 9 | HEIC not selectable as output | Met |
+| 10 | Flexible/hard exposed in plain language | Met |
+| 11 | Target-size jobs use `processImageToTarget()` | Met (tested) |
+| 12 | Resize/format-only jobs use `processImage()` | Met (tested) |
+| 13 | No-op jobs prevented | Met (tested) |
+| 14 | Cancellable processing | Met (tested) |
+| 15 | Success shows real output metadata | Met |
+| 16 | Local download | Met |
+| 17 | Blob URLs cleaned up | Met (tested) |
+| 18 | Unreachable distinct from errors | Met |
+| 19 | Reset/start-again without reload | Met |
+| 20 | Replacement files can't get stale results | Met (tested) |
+| 21 | Keyboard usable | Met (drop zone + native controls); not browser-automation verified |
+| 22 | Mobile responsive | Built to responsive conventions; not browser-automation verified |
+| 23 | Privacy language accurate | Met |
+| 24 | No upload/conversion server endpoint | Met (audited + tested) |
+| 25 | HEIC remains lazy-loaded | Met (re-verified) |
+| 26 | Existing 202 core tests remain green | Met |
+| 27 | New UI/workflow tests pass | Met (91/91) |
+| 28 | Laravel feature tests pass | Met (6/6) |
+| 29 | No FSG-004+ scope begun | Met |
+| 30 | No manual project-owner QA required | Met |
 
-```
-1.  targetBytes validated (range, type, NaN/infinite rejected)         ✓
-2.  JPEG bounded quality search works                                  ✓
-3.  WebP bounded quality search works                                  ✓
-4.  PNG deterministic lossless target behavior                         ✓
-5.  HARD dimension policy works                                        ✓
-6.  FLEXIBLE dimension policy works                                    ✓
-7.  Quality probes bounded to <= 5 per tier                            ✓ (enforced in boundedQualitySearch, tested)
-8.  Dimension tiers explicitly bounded                                 ✓ (MAX_DIMENSION_TIERS = 6, tested)
-9.  Total encode attempts deterministically bounded                    ✓ (documented per format/policy combination)
-10. Aspect ratio preserved                                             ✓ (tested)
-11. No upscale by default                                              ✓ (reuses existing no-upscale resize plan)
-12. Unreachable targets return structured outcomes                     ✓ (distinct `unreachable` status, not `failed`)
-13. Target success always satisfies final bytes <= targetBytes         ✓ (tested explicitly)
-14. Output validation remains mandatory                                ✓ (reuses real validateOutput(), tested with
-                                                                            a real mislabeling case)
-15. Cancellation/stale protection remains correct                      ✓ (tested at every required checkpoint, plus
-                                                                            cross-job-kind stale-result suppression)
-16. HEIC input works through the engine                                ✓ (HEIC -> JPEG/PNG/WebP tested)
-17. All FSG-001 safety/privacy invariants remain intact                ✓ (see Privacy/Scope Audit; 24 MP cap enforced
-                                                                            in the new worker path too)
-18. Automated regression suite passes                                  ✓ (202/202)
-19. No FSG-003 functionality begun                                     ✓ (grep-confirmed; no UI styling, no presets)
-```
-
-All 19 criteria satisfied.
+Items 21/22 are implemented to spec but not independently confirmed by browser automation or manual testing this sprint (see Known Limitations) — this is recorded honestly rather than claimed as verified.
 
 ## Next Milestone
 
-FSG-003 — Quick Fit Workflow & Public Shell is NEXT and has not begun.
+FSG-004 — Preset Engine & Guided Workflows is NEXT and has not begun.
 
 ## Commit Reference
 
-This report is included in the FSG-002 closeout commit:
+This report is included in the FSG-003 closeout commit:
 
-`feat(core): add bounded target-size engine`
+`feat(web): add Quick Fit public workflow`
 
 The authoritative commit SHA is recorded in Git history and in the post-commit closeout response.

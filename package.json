@@ -9,10 +9,13 @@
         "build": "vite build",
         "dev": "vite",
         "test:core": "vitest run packages/core/tests",
-        "typecheck": "tsc -p tsconfig.json && tsc -p packages/core/tsconfig.json && tsc -p packages/core/tsconfig.worker.json"
+        "test:ui": "vitest run resources/js/quick-fit/tests",
+        "typecheck": "tsc -p tsconfig.json && tsc -p packages/core/tsconfig.json && tsc -p packages/core/tsconfig.worker.json && tsc -p tsconfig.ui-tests.json",
+        "typecheck:ui": "tsc -p tsconfig.ui-tests.json"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",
+        "@types/node": "^26.4.1",
         "concurrently": "^10.0.3",
         "laravel-vite-plugin": "^3.1",
         "tailwindcss": "^4.0.0",
@@ -22,5 +25,8 @@
     },
     "optionalDependencies": {
         "@laravel/multiplex": "^0.4.1"
+    },
+    "overrides": {
+        "@types/chai": "5.0.1"
     }
 }

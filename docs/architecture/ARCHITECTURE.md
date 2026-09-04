@@ -65,6 +65,8 @@ The web application owns interaction orchestration:
 - sending cancellation commands; and
 - presenting validated outputs for local download.
 
+FSG-003 is the first realized implementation of this layer: the Quick Fit workflow (`resources/js/quick-fit/`) translates plain-language requirements (target file size, optional maximum dimensions, output format, dimension-flexibility) into `processImage()`/`processImageToTarget()` calls, and translates structured outcomes back into human-language success, unreachable-target, and error presentations. See `docs/governance/DECISIONS.md` ADR-016 for how this layer is internally split (DOM-free orchestration vs. a thin DOM-binding controller) for testability.
+
 ## Core-package Responsibility
 
 `@filesetgo/core` owns:

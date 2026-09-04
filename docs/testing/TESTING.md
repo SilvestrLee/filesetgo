@@ -42,6 +42,10 @@ Core-package tests cover public contracts and pure processing logic without depe
 
 Fixtures must be minimal, reviewable, and safe to commit. Tests must not call external conversion services or upload source images.
 
+## Public UI Layer (`resources/js/quick-fit/`)
+
+The Quick Fit workflow (FSG-003) uses Vitest, run separately from the core package via `npm run test:ui`. See `docs/governance/DECISIONS.md` ADR-016 for the architectural split this relies on: pure logic modules (`state.ts`, `format-bytes.ts`, `filename.ts`, `errors.ts`, `request-plan.ts`, `summary.ts`, `capabilities.ts`, `validate-form.ts`) are directly unit-tested; the DOM-free `workflow.ts` orchestration layer is tested with a constructor-injected fake `@filesetgo/core` client (no module mocking, no DOM emulation); `controller.ts` is the only module that touches `document` and is left to build/typecheck/browser-automation verification rather than unit tests, since introducing `jsdom` purely to unit-test DOM rendering was deliberately avoided.
+
 ## Laravel
 
 Laravel uses the existing Laravel PHPUnit test stack. Laravel tests cover routes, pages, product integration, and other Laravel-owned behavior. They do not duplicate browser raster-processing algorithm tests from `@filesetgo/core`.
@@ -52,15 +56,18 @@ Focused browser testing may use Playwright when it is introduced and approved. B
 
 FSG-006 requires launch-blocking verification on iOS Safari, Android Chrome, Safari desktop, Chrome, Firefox, and Edge, including constrained-memory and repeated-processing scenarios.
 
-## Required Verification for FSG-001
+## Required Verification
 
 ```text
 npm run typecheck
 npm run test:core
+npm run test:ui
 npm run build
 php artisan test --compact
 git diff --check
 ```
+
+`npm run test:ui` was added in FSG-003 alongside the public UI layer; earlier sprints (FSG-001/FSG-002) had only `test:core`.
 
 Each result must be reported accurately. A command that was not run must not be marked as passing.
 
