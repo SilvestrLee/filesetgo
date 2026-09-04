@@ -9,7 +9,7 @@
         "build": "vite build",
         "dev": "vite",
         "test:core": "vitest run packages/core/tests",
-        "test:ui": "vitest run resources/js/quick-fit/tests",
+        "test:ui": "vitest run resources/js/quick-fit/tests resources/js/presets/tests",
         "typecheck": "tsc -p tsconfig.json && tsc -p packages/core/tsconfig.json && tsc -p packages/core/tsconfig.worker.json && tsc -p tsconfig.ui-tests.json",
         "typecheck:ui": "tsc -p tsconfig.ui-tests.json"
     },

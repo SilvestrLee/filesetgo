@@ -8,5 +8,5 @@
         "lib": ["ES2022", "DOM", "DOM.Iterable"],
         "types": ["node"]
     },
-    "include": ["resources/js/quick-fit/**/*.ts"]
+    "include": ["resources/js/quick-fit/**/*.ts", "resources/js/presets/**/*.ts"]
 }

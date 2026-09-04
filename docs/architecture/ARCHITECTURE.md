@@ -67,6 +67,8 @@ The web application owns interaction orchestration:
 
 FSG-003 is the first realized implementation of this layer: the Quick Fit workflow (`resources/js/quick-fit/`) translates plain-language requirements (target file size, optional maximum dimensions, output format, dimension-flexibility) into `processImage()`/`processImageToTarget()` calls, and translates structured outcomes back into human-language success, unreachable-target, and error presentations. See `docs/governance/DECISIONS.md` ADR-016 for how this layer is internally split (DOM-free orchestration vs. a thin DOM-binding controller) for testability.
 
+FSG-004 adds Guided Fit (`resources/js/presets/`) as a second way to arrive at the same requirement shape, not a second processing path. A preset compiler (`compilePreset()`) converts a destination/use-case preset directly into the identical `QuickFitRequirements` shape Quick Fit's own form produces; `GuidedFitController` composes the existing, unmodified `QuickFitWorkflow` (`resources/js/quick-fit/workflow.ts`) by calling its public API, the same way the Quick Fit form's controller does. Destination/product knowledge (preset catalog, categories, provenance) stays entirely in `resources/js/presets/` — `@filesetgo/core` and `QuickFitWorkflow` remain destination-neutral and were not modified.
+
 ## Core-package Responsibility
 
 `@filesetgo/core` owns:

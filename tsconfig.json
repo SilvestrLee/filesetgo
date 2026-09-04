@@ -9,5 +9,5 @@
         "types": ["vite/client"]
     },
     "include": ["resources/js/**/*.ts", "vite.config.js"],
-    "exclude": ["resources/js/quick-fit/tests/**"]
+    "exclude": ["resources/js/quick-fit/tests/**", "resources/js/presets/tests/**"]
 }

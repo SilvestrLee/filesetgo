@@ -42,9 +42,11 @@ Core-package tests cover public contracts and pure processing logic without depe
 
 Fixtures must be minimal, reviewable, and safe to commit. Tests must not call external conversion services or upload source images.
 
-## Public UI Layer (`resources/js/quick-fit/`)
+## Public UI Layer (`resources/js/quick-fit/`, `resources/js/presets/`)
 
 The Quick Fit workflow (FSG-003) uses Vitest, run separately from the core package via `npm run test:ui`. See `docs/governance/DECISIONS.md` ADR-016 for the architectural split this relies on: pure logic modules (`state.ts`, `format-bytes.ts`, `filename.ts`, `errors.ts`, `request-plan.ts`, `summary.ts`, `capabilities.ts`, `validate-form.ts`) are directly unit-tested; the DOM-free `workflow.ts` orchestration layer is tested with a constructor-injected fake `@filesetgo/core` client (no module mocking, no DOM emulation); `controller.ts` is the only module that touches `document` and is left to build/typecheck/browser-automation verification rather than unit tests, since introducing `jsdom` purely to unit-test DOM rendering was deliberately avoided.
+
+FSG-004's preset system (`resources/js/presets/`) follows the same pattern: `catalog.ts`/`validate-preset.ts`/`registry.ts`/`compiler.ts`/`already-ready.ts`/`quick-fit-mapping.ts` are pure/DOM-free and directly unit-tested; `GuidedFitController` composes the unmodified `QuickFitWorkflow` the same way and is tested identically (a fake core client, no DOM). `npm run test:ui` now runs both `resources/js/quick-fit/tests` and `resources/js/presets/tests`.
 
 ## Laravel
 

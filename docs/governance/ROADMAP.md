@@ -55,7 +55,7 @@ Upload
 
 ## FSG-004 — Preset Engine & Guided Workflows
 
-**Status: ⏭ NEXT** (not yet started).
+**Status: ✅ CLOSED.** See `docs/directives/FSG-004.md` and `SPRINT_REPORT.md` for the delivery record and closure audit.
 
 Deliver:
 
@@ -65,6 +65,8 @@ Deliver:
 - deterministic suitability warnings.
 
 ## FSG-005 — Packaging & Export
+
+**Status: ⏭ NEXT** (not yet started).
 
 Deliver:
 

@@ -1,5 +1,7 @@
 import type { ImageFormat, OutputImageFormat } from '@filesetgo/core';
 
+import { getAllPresets } from '../presets/registry';
+import { GuidedFitController } from '../presets/guided-fit-controller';
 import { describeRuntimeSupport } from './capabilities';
 import * as coreClient from './core-client';
 import { describeProcessingError, describeUnreachable } from './errors';
@@ -31,6 +33,11 @@ const sourceDimensions = requireElement<HTMLElement>('#source-dimensions');
 const sourceSize = requireElement<HTMLElement>('#source-size');
 const sourceSummary = requireElement<HTMLElement>('#source-summary');
 const sourceRejectedMessage = requireElement<HTMLElement>('#source-rejected-message');
+
+const modeTabQuickFit = requireElement<HTMLButtonElement>('#mode-tab-quick-fit');
+const modeTabGuidedFit = requireElement<HTMLButtonElement>('#mode-tab-guided-fit');
+const modeDescription = requireElement<HTMLElement>('#mode-description');
+
 const requirementsForm = requireElement<HTMLFormElement>('#requirements-form');
 const targetSizeValue = requireElement<HTMLInputElement>('#target-size-value');
 const targetSizeUnit = requireElement<HTMLSelectElement>('#target-size-unit');
@@ -45,13 +52,29 @@ const dimensionFlexibilityField = requireElement<HTMLElement>('#dimension-flexib
 const allowDimensionReduction = requireElement<HTMLInputElement>('#allow-dimension-reduction');
 const noOpHint = requireElement<HTMLElement>('#no-op-hint');
 const processButton = requireElement<HTMLButtonElement>('#process-button');
+
+const guidedFitPanel = requireElement<HTMLElement>('#guided-fit-panel');
+const presetRadios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="preset-choice"]'));
+const presetRecommendation = requireElement<HTMLElement>('#preset-recommendation');
+const presetRecommendationTitle = requireElement<HTMLElement>('#preset-recommendation-title');
+const presetRecommendationSummary = requireElement<HTMLElement>('#preset-recommendation-summary');
+const presetRecommendationRationale = requireElement<HTMLElement>('#preset-recommendation-rationale');
+const presetAlreadyReady = requireElement<HTMLElement>('#preset-already-ready');
+const guidedNoFileHint = requireElement<HTMLElement>('#guided-no-file-hint');
+const guidedProcessButton = requireElement<HTMLButtonElement>('#guided-process-button');
+const guidedUseFileButton = requireElement<HTMLAnchorElement>('#guided-use-file-button');
+const guidedAdjustButton = requireElement<HTMLButtonElement>('#guided-adjust-button');
+
 const cancelButton = requireElement<HTMLButtonElement>('#cancel-button');
 const resetButton = requireElement<HTMLButtonElement>('#reset-button');
 const statusMessage = requireElement<HTMLElement>('#status-message');
 const statusAnnouncer = requireElement<HTMLElement>('#status-announcer');
+
 const resultEmpty = requireElement<HTMLElement>('#result-empty');
 const resultContent = requireElement<HTMLElement>('#result-content');
 const resultHeadline = requireElement<HTMLElement>('#result-headline');
+const resultPreparedFor = requireElement<HTMLElement>('#result-prepared-for');
+const resultPreparedForValue = requireElement<HTMLElement>('#result-prepared-for-value');
 const resultDetail = requireElement<HTMLElement>('#result-detail');
 const resultDimensions = requireElement<HTMLElement>('#result-dimensions');
 const resultFormat = requireElement<HTMLElement>('#result-format');
@@ -60,12 +83,15 @@ const downloadLink = requireElement<HTMLAnchorElement>('#download-link');
 const resultUnreachable = requireElement<HTMLElement>('#result-unreachable');
 const unreachableMessage = requireElement<HTMLElement>('#unreachable-message');
 const unreachableSuggestion = requireElement<HTMLElement>('#unreachable-suggestion');
+const unreachableAdjustButton = requireElement<HTMLButtonElement>('#unreachable-adjust-button');
 const resultError = requireElement<HTMLElement>('#result-error');
 const errorMessage = requireElement<HTMLElement>('#error-message');
 
 const workflow = new QuickFitWorkflow({ core: coreClient });
+const guidedFit = new GuidedFitController(workflow);
 
 let lastConfiguredFile: File | undefined;
+let originalFileUrl: string | undefined;
 
 function currentOutputChoice(): OutputFormatChoice {
   return outputFormatSelect.value as OutputFormatChoice;
@@ -134,6 +160,126 @@ function showResultPanel(panel: 'empty' | 'content' | 'unreachable' | 'error'): 
   resultError.classList.toggle('flex', panel === 'error');
 }
 
+function currentSource(state: QuickFitState) {
+  return state.status === 'success' ? state.result.source : 'source' in state ? state.source : undefined;
+}
+
+// --- Guided Fit: static preset card content, rendered once from the registry (FSG-004 directive §12). ---
+for (const card of document.querySelectorAll<HTMLElement>('.preset-card')) {
+  const presetId = card.dataset.presetId;
+  const preset = getAllPresets().find((candidate) => candidate.id === presetId);
+
+  if (preset === undefined) {
+    continue;
+  }
+
+  const title = card.querySelector<HTMLElement>('.preset-card-title');
+  const use = card.querySelector<HTMLElement>('.preset-card-use');
+  const summary = card.querySelector<HTMLElement>('.preset-card-summary');
+  const radio = card.querySelector<HTMLInputElement>('input[type="radio"]');
+
+  if (title !== null) {
+    title.textContent = preset.title;
+  }
+
+  if (use !== null) {
+    use.textContent = preset.description;
+  }
+
+  if (summary !== null) {
+    const dimensions = preset.requirements.maxWidth !== undefined && preset.requirements.maxHeight !== undefined
+      ? `up to ${preset.requirements.maxWidth} × ${preset.requirements.maxHeight} px`
+      : undefined;
+    const size = preset.requirements.targetBytes === undefined ? undefined : `under ${formatBytes(preset.requirements.targetBytes)}`;
+    summary.textContent = [formatLabel(preset.requirements.outputFormat), dimensions, size].filter(Boolean).join(' · ');
+  }
+
+  if (radio !== null) {
+    radio.id = `preset-choice-${preset.id}`;
+  }
+}
+
+function releaseOriginalFileUrl(): void {
+  if (originalFileUrl !== undefined) {
+    URL.revokeObjectURL(originalFileUrl);
+    originalFileUrl = undefined;
+  }
+
+  guidedUseFileButton.removeAttribute('href');
+}
+
+function renderModeTabs(): void {
+  const mode = guidedFit.getMode();
+  const quickFitActive = mode === 'quick-fit';
+
+  modeTabQuickFit.setAttribute('aria-selected', String(quickFitActive));
+  modeTabQuickFit.tabIndex = quickFitActive ? 0 : -1;
+  modeTabQuickFit.classList.toggle('bg-blue-700', quickFitActive);
+  modeTabQuickFit.classList.toggle('text-white', quickFitActive);
+  modeTabQuickFit.classList.toggle('text-zinc-600', !quickFitActive);
+  modeTabQuickFit.classList.toggle('dark:text-zinc-400', !quickFitActive);
+
+  modeTabGuidedFit.setAttribute('aria-selected', String(!quickFitActive));
+  modeTabGuidedFit.tabIndex = quickFitActive ? -1 : 0;
+  modeTabGuidedFit.classList.toggle('bg-blue-700', !quickFitActive);
+  modeTabGuidedFit.classList.toggle('text-white', !quickFitActive);
+  modeTabGuidedFit.classList.toggle('text-zinc-600', quickFitActive);
+  modeTabGuidedFit.classList.toggle('dark:text-zinc-400', quickFitActive);
+
+  modeDescription.textContent = quickFitActive ? 'Enter the requirement yourself.' : 'Choose what you’re preparing.';
+  guidedFitPanel.classList.toggle('hidden', quickFitActive);
+  guidedFitPanel.classList.toggle('flex', !quickFitActive);
+}
+
+function renderGuidedFit(): void {
+  const state = workflow.getState();
+  const processing = state.status === 'processing';
+
+  for (const radio of presetRadios) {
+    radio.checked = radio.value === guidedFit.getSelectedPresetId();
+    radio.disabled = processing;
+  }
+
+  const preset = guidedFit.currentPreset();
+
+  if (preset === undefined) {
+    presetRecommendation.classList.add('hidden');
+    presetRecommendation.classList.remove('flex');
+    releaseOriginalFileUrl();
+    return;
+  }
+
+  presetRecommendation.classList.remove('hidden');
+  presetRecommendation.classList.add('flex');
+  presetRecommendationTitle.textContent = preset.title;
+
+  const dimensions = preset.requirements.maxWidth !== undefined && preset.requirements.maxHeight !== undefined
+    ? `up to ${preset.requirements.maxWidth} × ${preset.requirements.maxHeight} px`
+    : undefined;
+  const size = preset.requirements.targetBytes === undefined ? undefined : `under ${formatBytes(preset.requirements.targetBytes)}`;
+  presetRecommendationSummary.textContent = `We'll prepare it as ${[formatLabel(preset.requirements.outputFormat), dimensions, size].filter(Boolean).join(', ')}.`;
+  presetRecommendationRationale.textContent = preset.rationale;
+
+  const source = currentSource(state);
+  const ready = guidedFit.alreadyReady();
+
+  presetAlreadyReady.classList.toggle('hidden', ready !== true);
+  guidedNoFileHint.classList.toggle('hidden', source !== undefined);
+  guidedProcessButton.classList.toggle('hidden', ready === true);
+  guidedProcessButton.disabled = processing || source === undefined;
+  guidedUseFileButton.classList.toggle('hidden', ready !== true);
+  guidedAdjustButton.disabled = processing;
+
+  if (ready === true && source !== undefined) {
+    releaseOriginalFileUrl();
+    originalFileUrl = URL.createObjectURL(source.file);
+    guidedUseFileButton.href = originalFileUrl;
+    guidedUseFileButton.download = source.file.name;
+  } else {
+    releaseOriginalFileUrl();
+  }
+}
+
 function render(state: QuickFitState): void {
   const hasSource = state.status !== 'idle';
 
@@ -141,7 +287,8 @@ function render(state: QuickFitState): void {
   sourceRejectedMessage.classList.add('hidden');
   sourceSummary.classList.remove('hidden');
 
-  const showForm = state.status !== 'idle' && state.status !== 'inspecting' && state.status !== 'file-rejected';
+  const mode = guidedFit.getMode();
+  const showForm = mode === 'quick-fit' && state.status !== 'idle' && state.status !== 'inspecting' && state.status !== 'file-rejected';
   requirementsForm.classList.toggle('hidden', !showForm);
   requirementsForm.classList.toggle('flex', showForm);
 
@@ -152,6 +299,11 @@ function render(state: QuickFitState): void {
   resetButton.classList.toggle('hidden', !hasSource || state.status === 'inspecting');
 
   showResultPanel('empty');
+  resultPreparedFor.classList.add('hidden');
+  unreachableAdjustButton.classList.add('hidden');
+
+  renderModeTabs();
+  renderGuidedFit();
 
   switch (state.status) {
     case 'idle':
@@ -208,6 +360,13 @@ function render(state: QuickFitState): void {
         resultSize.textContent = formatBytes(state.result.data.byteSize);
         downloadLink.href = state.result.downloadUrl;
         downloadLink.download = state.result.filename;
+
+        const resultPresetId = guidedFit.getResultPresetId();
+        if (resultPresetId !== undefined) {
+          resultPreparedForValue.textContent = getAllPresets().find((preset) => preset.id === resultPresetId)?.title ?? '';
+          resultPreparedFor.classList.remove('hidden');
+        }
+
         showResultPanel('content');
         setStatus('Your file is ready.', 'success');
         announce('Your file is ready to download.');
@@ -215,6 +374,7 @@ function render(state: QuickFitState): void {
         const explanation = describeUnreachable(state.outcome, allowDimensionReduction.checked ? 'flexible' : 'hard', outputFormatSelect.value as OutputImageFormat);
         unreachableMessage.textContent = explanation.message;
         unreachableSuggestion.textContent = explanation.suggestion;
+        unreachableAdjustButton.classList.toggle('hidden', guidedFit.getResultPresetId() === undefined);
         showResultPanel('unreachable');
         setStatus('That limit couldn’t be reached. Adjust your requirements and try again.', 'unreachable');
         announce(explanation.message);
@@ -234,8 +394,13 @@ function render(state: QuickFitState): void {
   }
 }
 
-workflow.subscribe(render);
-render(workflow.getState());
+function renderAll(): void {
+  render(workflow.getState());
+}
+
+workflow.subscribe(renderAll);
+guidedFit.subscribe(renderAll);
+renderAll();
 
 function openFilePicker(): void {
   sourceInput.click();
@@ -277,8 +442,7 @@ sourceInput.addEventListener('change', () => {
 });
 
 outputFormatSelect.addEventListener('change', () => {
-  const state = workflow.getState();
-  const source = state.status === 'success' ? state.result.source : 'source' in state ? state.source : undefined;
+  const source = currentSource(workflow.getState());
 
   if (source !== undefined) {
     updateFormatWarnings(source.preflight.format);
@@ -302,8 +466,7 @@ resetButton.addEventListener('click', () => {
 requirementsForm.addEventListener('submit', (event) => {
   event.preventDefault();
 
-  const state = workflow.getState();
-  const source = state.status === 'success' ? state.result.source : 'source' in state ? state.source : undefined;
+  const source = currentSource(workflow.getState());
 
   if (source === undefined) {
     return;
@@ -325,8 +488,79 @@ requirementsForm.addEventListener('submit', (event) => {
   workflow.run(result.requirements);
 });
 
+// --- Mode switching (FSG-004 directive §15–§17, §26–§27) ---
+
+function applyPrefill(prefill: ReturnType<typeof guidedFit.adjustSettings>): void {
+  if (prefill === undefined) {
+    return;
+  }
+
+  targetSizeValue.value = prefill.targetSizeValue;
+  targetSizeUnit.value = prefill.targetSizeUnit;
+  maxWidthInput.value = prefill.maxWidth;
+  maxHeightInput.value = prefill.maxHeight;
+  outputFormatSelect.value = prefill.outputChoice;
+  allowDimensionReduction.checked = prefill.allowDimensionReduction;
+  updateTargetSizeDependentFields();
+
+  const source = currentSource(workflow.getState());
+
+  if (source !== undefined) {
+    updateFormatWarnings(source.preflight.format);
+  }
+}
+
+modeTabQuickFit.addEventListener('click', () => {
+  guidedFit.setMode('quick-fit');
+});
+
+modeTabGuidedFit.addEventListener('click', () => {
+  guidedFit.setMode('guided-fit');
+});
+
+for (const tab of [modeTabQuickFit, modeTabGuidedFit]) {
+  tab.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      const next = tab === modeTabQuickFit ? modeTabGuidedFit : modeTabQuickFit;
+      next.focus();
+      next.click();
+    }
+  });
+}
+
+for (const radio of presetRadios) {
+  radio.addEventListener('change', () => {
+    if (radio.checked) {
+      guidedFit.selectPreset(radio.value);
+      const preset = guidedFit.currentPreset();
+
+      if (preset !== undefined) {
+        const dimensions = preset.requirements.maxWidth !== undefined && preset.requirements.maxHeight !== undefined
+          ? `up to ${preset.requirements.maxWidth} × ${preset.requirements.maxHeight} px`
+          : undefined;
+        const size = preset.requirements.targetBytes === undefined ? undefined : `under ${formatBytes(preset.requirements.targetBytes)}`;
+        announce(`Recommendation: ${preset.title} — ${[formatLabel(preset.requirements.outputFormat), dimensions, size].filter(Boolean).join(', ')}.`);
+      }
+    }
+  });
+}
+
+guidedProcessButton.addEventListener('click', () => {
+  guidedFit.runSelectedPreset();
+});
+
+guidedAdjustButton.addEventListener('click', () => {
+  applyPrefill(guidedFit.adjustSettings());
+});
+
+unreachableAdjustButton.addEventListener('click', () => {
+  applyPrefill(guidedFit.adjustSettings());
+});
+
 window.addEventListener('pagehide', () => {
   workflow.reset();
+  releaseOriginalFileUrl();
 });
 
 void coreClient.getRuntimeCapabilities().then((capabilities) => {

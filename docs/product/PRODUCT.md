@@ -62,6 +62,8 @@ Examples include:
 
 Quick Fit and Guided Fit must use the same processing primitives from `@filesetgo/core`.
 
+Guided Fit's first realized presets (FSG-004) are three FileSetGo-authored general website-image recommendations — Large website/hero image, Website content image, and Card/thumbnail image — deliberately positioned as recommendations, not sourced platform requirements. Website Logo Pack and Web Image Optimizer remain future Guided Fit workflows, not yet implemented.
+
 ## Initial V1 Workflows
 
 V1 is initially organized around:

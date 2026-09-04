@@ -34,12 +34,33 @@
             </section>
 
             <section id="quick-fit" class="scroll-mt-20" aria-labelledby="quick-fit-title">
-                <h2 id="quick-fit-title" class="sr-only">Quick Fit</h2>
+                <h2 id="quick-fit-title" class="sr-only">Quick Fit and Guided Fit</h2>
 
                 <div id="runtime-unsupported" class="hidden rounded-xl border border-amber-300 bg-amber-50 p-5 text-sm font-medium text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200" role="alert"></div>
 
                 <div id="quick-fit-app" class="grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)]">
                     <div class="flex flex-col gap-6">
+                        <div role="tablist" aria-label="How would you like to prepare your file?" class="inline-flex w-fit gap-1 rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-800 dark:bg-zinc-900">
+                            <button
+                                id="mode-tab-quick-fit"
+                                type="button"
+                                role="tab"
+                                aria-selected="true"
+                                aria-controls="requirements-form"
+                                class="min-h-9 rounded-lg px-4 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                            >Quick Fit</button>
+                            <button
+                                id="mode-tab-guided-fit"
+                                type="button"
+                                role="tab"
+                                aria-selected="false"
+                                aria-controls="guided-fit-panel"
+                                tabindex="-1"
+                                class="min-h-9 rounded-lg px-4 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                            >Guided Fit</button>
+                        </div>
+                        <p id="mode-description" class="-mt-4 text-sm text-zinc-500 dark:text-zinc-400">Enter the requirement yourself.</p>
+
                         <div>
                             <input id="source-file" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" class="sr-only">
                             <div
@@ -63,7 +84,7 @@
                             <p id="source-rejected-message" class="hidden mt-3 text-sm font-medium text-red-700 dark:text-red-400"></p>
                         </div>
 
-                        <form id="requirements-form" class="hidden flex-col gap-6" novalidate>
+                        <form id="requirements-form" role="tabpanel" aria-labelledby="mode-tab-quick-fit" class="hidden flex-col gap-6" novalidate>
                             <div class="flex flex-col gap-2">
                                 <span class="text-sm font-semibold" id="target-size-label">Target file size <span class="font-normal text-zinc-500 dark:text-zinc-400">(optional)</span></span>
                                 <div class="flex gap-2">
@@ -125,12 +146,61 @@
 
                             <p id="no-op-hint" class="hidden text-sm text-zinc-500 dark:text-zinc-400">Add at least one requirement for your file.</p>
 
-                            <div class="flex flex-wrap items-center gap-3">
-                                <button id="process-button" type="submit" class="min-h-11 whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px disabled:cursor-not-allowed disabled:bg-zinc-400 dark:focus:ring-offset-zinc-950">Get file ready</button>
-                                <button id="cancel-button" type="button" class="hidden min-h-11 whitespace-nowrap rounded-xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 dark:focus:ring-offset-zinc-950">Cancel</button>
-                                <button id="reset-button" type="button" class="hidden min-h-11 whitespace-nowrap rounded-xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 dark:focus:ring-offset-zinc-950">Start again</button>
-                            </div>
+                            <button id="process-button" type="submit" class="min-h-11 w-fit whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px disabled:cursor-not-allowed disabled:bg-zinc-400 dark:focus:ring-offset-zinc-950">Get file ready</button>
                         </form>
+
+                        <div id="guided-fit-panel" role="tabpanel" aria-labelledby="mode-tab-guided-fit" class="hidden flex-col gap-6">
+                            <div class="flex flex-col gap-3">
+                                <h3 class="text-sm font-semibold">Choose what you're preparing</h3>
+                                <p class="text-sm text-zinc-600 dark:text-zinc-400">These are FileSetGo recommendations — practical starting points for general website use, not platform-specific upload limits.</p>
+
+                                <div role="radiogroup" aria-label="What are you preparing?" class="grid gap-4 sm:grid-cols-3">
+                                    <label class="preset-card flex cursor-pointer flex-col gap-2 rounded-xl border border-zinc-300 bg-white p-4 transition hover:border-blue-500 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-blue-600 has-[:checked]:border-blue-600 has-[:checked]:ring-2 has-[:checked]:ring-blue-600 dark:border-zinc-700 dark:bg-zinc-900" data-preset-id="web.hero">
+                                        <input type="radio" name="preset-choice" value="web.hero" class="sr-only">
+                                        <span class="preset-card-title font-semibold"></span>
+                                        <span class="preset-card-use text-sm text-zinc-600 dark:text-zinc-400"></span>
+                                        <span class="preset-card-summary text-xs font-medium text-blue-700 dark:text-blue-400"></span>
+                                    </label>
+                                    <label class="preset-card flex cursor-pointer flex-col gap-2 rounded-xl border border-zinc-300 bg-white p-4 transition hover:border-blue-500 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-blue-600 has-[:checked]:border-blue-600 has-[:checked]:ring-2 has-[:checked]:ring-blue-600 dark:border-zinc-700 dark:bg-zinc-900" data-preset-id="web.content">
+                                        <input type="radio" name="preset-choice" value="web.content" class="sr-only">
+                                        <span class="preset-card-title font-semibold"></span>
+                                        <span class="preset-card-use text-sm text-zinc-600 dark:text-zinc-400"></span>
+                                        <span class="preset-card-summary text-xs font-medium text-blue-700 dark:text-blue-400"></span>
+                                    </label>
+                                    <label class="preset-card flex cursor-pointer flex-col gap-2 rounded-xl border border-zinc-300 bg-white p-4 transition hover:border-blue-500 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-blue-600 has-[:checked]:border-blue-600 has-[:checked]:ring-2 has-[:checked]:ring-blue-600 dark:border-zinc-700 dark:bg-zinc-900" data-preset-id="web.card">
+                                        <input type="radio" name="preset-choice" value="web.card" class="sr-only">
+                                        <span class="preset-card-title font-semibold"></span>
+                                        <span class="preset-card-use text-sm text-zinc-600 dark:text-zinc-400"></span>
+                                        <span class="preset-card-summary text-xs font-medium text-blue-700 dark:text-blue-400"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="preset-recommendation" class="hidden flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                                <div>
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400">FileSetGo recommendation</p>
+                                    <p id="preset-recommendation-title" class="mt-1 text-base font-semibold"></p>
+                                </div>
+                                <p id="preset-recommendation-summary" class="text-sm text-zinc-700 dark:text-zinc-300"></p>
+                                <p class="text-sm text-zinc-500 dark:text-zinc-400">FileSetGo can reduce the dimensions if needed to reach the size limit.</p>
+                                <p id="preset-recommendation-rationale" class="text-sm text-zinc-500 dark:text-zinc-400"></p>
+
+                                <div id="preset-already-ready" class="hidden rounded-lg bg-blue-50 p-3 text-sm font-medium text-blue-800 dark:bg-blue-950 dark:text-blue-300">This file already fits this recommendation.</div>
+
+                                <p id="guided-no-file-hint" class="hidden text-sm text-zinc-500 dark:text-zinc-400">Choose an image above to continue.</p>
+
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <button id="guided-process-button" type="button" class="min-h-11 whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px disabled:cursor-not-allowed disabled:bg-zinc-400 dark:focus:ring-offset-zinc-950">Get file ready</button>
+                                    <a id="guided-use-file-button" href="#" class="hidden min-h-11 whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:focus:ring-offset-zinc-950">Use this file</a>
+                                    <button id="guided-adjust-button" type="button" class="min-h-11 whitespace-nowrap rounded-xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 dark:focus:ring-offset-zinc-950">Adjust settings</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3">
+                            <button id="cancel-button" type="button" class="hidden min-h-11 whitespace-nowrap rounded-xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 dark:focus:ring-offset-zinc-950">Cancel</button>
+                            <button id="reset-button" type="button" class="hidden min-h-11 whitespace-nowrap rounded-xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 dark:focus:ring-offset-zinc-950">Start again</button>
+                        </div>
 
                         <p id="status-message" class="min-h-6 text-sm font-medium text-zinc-700 dark:text-zinc-300" data-state="idle">Choose a supported image to begin.</p>
                         <p id="status-announcer" class="sr-only" aria-live="polite"></p>
@@ -144,6 +214,7 @@
 
                             <div id="result-content" class="hidden flex-col gap-5 p-5">
                                 <p id="result-headline" class="text-lg font-semibold">Your file is ready.</p>
+                                <p id="result-prepared-for" class="hidden text-sm font-medium text-blue-700 dark:text-blue-400">Prepared for: <span id="result-prepared-for-value"></span></p>
                                 <p id="result-detail" class="text-sm text-zinc-600 dark:text-zinc-400"></p>
                                 <div class="grid grid-cols-3 gap-4 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-950">
                                     <div><p class="text-xs text-zinc-500 dark:text-zinc-400">Dimensions</p><p id="result-dimensions" class="mt-1 text-sm font-semibold"></p></div>
@@ -157,6 +228,7 @@
                                 <p class="font-semibold text-amber-800 dark:text-amber-400">We couldn't quite reach that.</p>
                                 <p id="unreachable-message" class="text-sm text-zinc-700 dark:text-zinc-300"></p>
                                 <p id="unreachable-suggestion" class="text-sm text-zinc-600 dark:text-zinc-400"></p>
+                                <button id="unreachable-adjust-button" type="button" class="hidden min-h-11 w-fit whitespace-nowrap rounded-xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">Adjust settings</button>
                             </div>
 
                             <div id="result-error" class="hidden flex-col gap-4 p-5" role="alert">
@@ -182,7 +254,7 @@
                     </li>
                     <li class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
                         <p class="text-sm font-semibold text-blue-700 dark:text-blue-400">2. Set</p>
-                        <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Set the requirement it needs to meet.</p>
+                        <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Set the requirement — or choose what it's for.</p>
                     </li>
                     <li class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
                         <p class="text-sm font-semibold text-blue-700 dark:text-blue-400">3. Go</p>
