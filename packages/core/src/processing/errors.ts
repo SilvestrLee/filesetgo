@@ -27,6 +27,7 @@ const RECOVERABLE_CODES = new Set<ImageProcessingErrorCode>([
   IMAGE_PROCESSING_ERROR_CODES.InvalidArchiveFilename,
   IMAGE_PROCESSING_ERROR_CODES.UnsafeArchiveEntry,
   IMAGE_PROCESSING_ERROR_CODES.ArchiveCreationFailed,
+  IMAGE_PROCESSING_ERROR_CODES.IcoValidationFailed,
 ]);
 
 export function createProcessingError(

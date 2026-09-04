@@ -29,6 +29,8 @@ export const IMAGE_PROCESSING_ERROR_CODES = {
   UnsafeArchiveEntry: 'UNSAFE_ARCHIVE_ENTRY',
   /** FSG-005A: the ZIP archive adapter failed to produce archive bytes. */
   ArchiveCreationFailed: 'ARCHIVE_CREATION_FAILED',
+  /** FSG-005B: a generated ICO container failed independent structural validation. */
+  IcoValidationFailed: 'ICO_VALIDATION_FAILED',
 } as const;
 
 export const OUTPUT_IMAGE_MIME_TYPES = {

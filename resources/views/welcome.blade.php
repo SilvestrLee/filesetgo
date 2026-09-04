@@ -58,6 +58,15 @@
                                 tabindex="-1"
                                 class="min-h-9 rounded-lg px-4 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
                             >Guided Fit</button>
+                            <button
+                                id="mode-tab-logo-pack"
+                                type="button"
+                                role="tab"
+                                aria-selected="false"
+                                aria-controls="logo-pack-panel"
+                                tabindex="-1"
+                                class="min-h-9 rounded-lg px-4 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                            >Logo Pack</button>
                         </div>
                         <p id="mode-description" class="-mt-4 text-sm text-zinc-500 dark:text-zinc-400">Enter the requirement yourself.</p>
 
@@ -194,6 +203,25 @@
                                     <a id="guided-use-file-button" href="#" class="hidden min-h-11 whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:focus:ring-offset-zinc-950">Use this file</a>
                                     <button id="guided-adjust-button" type="button" class="min-h-11 whitespace-nowrap rounded-xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 dark:focus:ring-offset-zinc-950">Adjust settings</button>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div id="logo-pack-panel" role="tabpanel" aria-labelledby="mode-tab-logo-pack" class="hidden flex-col gap-6">
+                            <div id="logo-pack-no-file-hint" class="text-sm text-zinc-500 dark:text-zinc-400">Choose an image above to continue.</div>
+
+                            <div id="logo-pack-review" class="hidden flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                                <p class="text-sm font-semibold">Suitability review</p>
+                                <ul id="logo-pack-issues" class="flex flex-col gap-2 text-sm"></ul>
+
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <button id="logo-pack-create-button" type="button" class="min-h-11 whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px disabled:cursor-not-allowed disabled:bg-zinc-400 dark:focus:ring-offset-zinc-950">Create logo pack</button>
+                                </div>
+                            </div>
+
+                            <div id="logo-pack-result" class="hidden flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                                <p class="text-lg font-semibold">Your logo pack is ready.</p>
+                                <a id="logo-pack-download-zip" href="#" class="min-h-11 w-fit whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:focus:ring-offset-zinc-950" download>Download logo pack</a>
+                                <ul id="logo-pack-assets" class="flex flex-col gap-3"></ul>
                             </div>
                         </div>
 

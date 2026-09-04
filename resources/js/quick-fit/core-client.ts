@@ -8,5 +8,6 @@ export {
   getRuntimeCapabilities,
   preflightImage,
   processImage,
+  processImageSet,
   processImageToTarget,
 } from '@filesetgo/core';

@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ImageSetOutputSpec, ProcessImageSetOptions } from '../../src/processing/image-set-contracts';
+import type { ProcessImageSetOptions, RasterImageSetOutputSpec } from '../../src/processing/image-set-contracts';
 import { MAX_PACKAGE_ASSETS } from '../../src/processing/image-set-limits';
 import { validateProcessImageSetOptions } from '../../src/processing/validate-image-set-request';
 
-function output(overrides: Partial<ImageSetOutputSpec> = {}): ImageSetOutputSpec {
+function output(overrides: Partial<RasterImageSetOutputSpec> = {}): RasterImageSetOutputSpec {
   return {
+    kind: 'raster',
     id: 'a',
     filename: 'a.webp',
     output: { format: 'webp' },

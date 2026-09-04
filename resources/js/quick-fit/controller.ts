@@ -1,5 +1,8 @@
-import type { ImageFormat, OutputImageFormat } from '@filesetgo/core';
+import type { ImageFormat, ImageSetResult, OutputImageFormat } from '@filesetgo/core';
 
+import { LOGO_PACK_ASSET_EXPLANATIONS } from '../logo-pack/spec';
+import type { SuitabilityIssue } from '../logo-pack/suitability';
+import { LogoPackController } from '../logo-pack/logo-pack-controller';
 import { getAllPresets } from '../presets/registry';
 import { GuidedFitController } from '../presets/guided-fit-controller';
 import { describeRuntimeSupport } from './capabilities';
@@ -65,6 +68,16 @@ const guidedProcessButton = requireElement<HTMLButtonElement>('#guided-process-b
 const guidedUseFileButton = requireElement<HTMLAnchorElement>('#guided-use-file-button');
 const guidedAdjustButton = requireElement<HTMLButtonElement>('#guided-adjust-button');
 
+const modeTabLogoPack = requireElement<HTMLButtonElement>('#mode-tab-logo-pack');
+const logoPackPanel = requireElement<HTMLElement>('#logo-pack-panel');
+const logoPackNoFileHint = requireElement<HTMLElement>('#logo-pack-no-file-hint');
+const logoPackReview = requireElement<HTMLElement>('#logo-pack-review');
+const logoPackIssues = requireElement<HTMLElement>('#logo-pack-issues');
+const logoPackCreateButton = requireElement<HTMLButtonElement>('#logo-pack-create-button');
+const logoPackResult = requireElement<HTMLElement>('#logo-pack-result');
+const logoPackDownloadZip = requireElement<HTMLAnchorElement>('#logo-pack-download-zip');
+const logoPackAssetsList = requireElement<HTMLElement>('#logo-pack-assets');
+
 const cancelButton = requireElement<HTMLButtonElement>('#cancel-button');
 const resetButton = requireElement<HTMLButtonElement>('#reset-button');
 const statusMessage = requireElement<HTMLElement>('#status-message');
@@ -88,10 +101,14 @@ const resultError = requireElement<HTMLElement>('#result-error');
 const errorMessage = requireElement<HTMLElement>('#error-message');
 
 const workflow = new QuickFitWorkflow({ core: coreClient });
-const guidedFit = new GuidedFitController(workflow);
+const logoPack = new LogoPackController(workflow, coreClient);
+const guidedFit = new GuidedFitController(workflow, () => logoPack.getState().status === 'processing');
 
 let lastConfiguredFile: File | undefined;
 let originalFileUrl: string | undefined;
+let logoPackZipUrl: string | undefined;
+let logoPackAssetUrls: string[] = [];
+let lastRenderedLogoPackResult: ImageSetResult | undefined;
 
 function currentOutputChoice(): OutputFormatChoice {
   return outputFormatSelect.value as OutputFormatChoice;
@@ -208,27 +225,46 @@ function releaseOriginalFileUrl(): void {
   guidedUseFileButton.removeAttribute('href');
 }
 
+function releaseLogoPackUrls(): void {
+  if (logoPackZipUrl !== undefined) {
+    URL.revokeObjectURL(logoPackZipUrl);
+    logoPackZipUrl = undefined;
+  }
+
+  for (const url of logoPackAssetUrls) {
+    URL.revokeObjectURL(url);
+  }
+
+  logoPackAssetUrls = [];
+}
+
+const MODE_DESCRIPTIONS: Record<string, string> = {
+  'quick-fit': 'Enter the requirement yourself.',
+  'guided-fit': 'Choose what you’re preparing.',
+  'logo-pack': 'Prepare your website logo files.',
+};
+
+function setTabActive(tab: HTMLButtonElement, active: boolean): void {
+  tab.setAttribute('aria-selected', String(active));
+  tab.tabIndex = active ? 0 : -1;
+  tab.classList.toggle('bg-blue-700', active);
+  tab.classList.toggle('text-white', active);
+  tab.classList.toggle('text-zinc-600', !active);
+  tab.classList.toggle('dark:text-zinc-400', !active);
+}
+
 function renderModeTabs(): void {
   const mode = guidedFit.getMode();
-  const quickFitActive = mode === 'quick-fit';
 
-  modeTabQuickFit.setAttribute('aria-selected', String(quickFitActive));
-  modeTabQuickFit.tabIndex = quickFitActive ? 0 : -1;
-  modeTabQuickFit.classList.toggle('bg-blue-700', quickFitActive);
-  modeTabQuickFit.classList.toggle('text-white', quickFitActive);
-  modeTabQuickFit.classList.toggle('text-zinc-600', !quickFitActive);
-  modeTabQuickFit.classList.toggle('dark:text-zinc-400', !quickFitActive);
+  setTabActive(modeTabQuickFit, mode === 'quick-fit');
+  setTabActive(modeTabGuidedFit, mode === 'guided-fit');
+  setTabActive(modeTabLogoPack, mode === 'logo-pack');
 
-  modeTabGuidedFit.setAttribute('aria-selected', String(!quickFitActive));
-  modeTabGuidedFit.tabIndex = quickFitActive ? -1 : 0;
-  modeTabGuidedFit.classList.toggle('bg-blue-700', !quickFitActive);
-  modeTabGuidedFit.classList.toggle('text-white', !quickFitActive);
-  modeTabGuidedFit.classList.toggle('text-zinc-600', quickFitActive);
-  modeTabGuidedFit.classList.toggle('dark:text-zinc-400', quickFitActive);
-
-  modeDescription.textContent = quickFitActive ? 'Enter the requirement yourself.' : 'Choose what you’re preparing.';
-  guidedFitPanel.classList.toggle('hidden', quickFitActive);
-  guidedFitPanel.classList.toggle('flex', !quickFitActive);
+  modeDescription.textContent = MODE_DESCRIPTIONS[mode];
+  guidedFitPanel.classList.toggle('hidden', mode !== 'guided-fit');
+  guidedFitPanel.classList.toggle('flex', mode === 'guided-fit');
+  logoPackPanel.classList.toggle('hidden', mode !== 'logo-pack');
+  logoPackPanel.classList.toggle('flex', mode === 'logo-pack');
 }
 
 function renderGuidedFit(): void {
@@ -280,6 +316,111 @@ function renderGuidedFit(): void {
   }
 }
 
+function issueTextClass(severity: SuitabilityIssue['severity']): string {
+  if (severity === 'blocking') {
+    return 'text-red-700 dark:text-red-400';
+  }
+
+  if (severity === 'warning') {
+    return 'text-amber-700 dark:text-amber-400';
+  }
+
+  return 'text-zinc-600 dark:text-zinc-400';
+}
+
+function renderLogoPack(): void {
+  const source = currentSource(workflow.getState());
+  const logoPackState = logoPack.getState();
+  const processing = logoPackState.status === 'processing';
+
+  logoPackNoFileHint.classList.toggle('hidden', source !== undefined);
+  logoPackReview.classList.toggle('hidden', source === undefined);
+  logoPackReview.classList.toggle('flex', source !== undefined);
+
+  logoPackIssues.replaceChildren();
+
+  let blocked = false;
+
+  if (source !== undefined) {
+    const suitability = logoPack.suitability();
+    blocked = suitability?.blocked ?? false;
+
+    for (const issue of suitability?.issues ?? []) {
+      const item = document.createElement('li');
+      item.className = issueTextClass(issue.severity);
+      item.textContent = issue.message;
+      item.setAttribute('role', issue.severity === 'blocking' ? 'alert' : 'status');
+      logoPackIssues.appendChild(item);
+    }
+
+    if (suitability !== undefined && suitability.issues.length === 0) {
+      const item = document.createElement('li');
+      item.className = 'text-zinc-600 dark:text-zinc-400';
+      item.textContent = 'This logo looks ready to prepare.';
+      logoPackIssues.appendChild(item);
+    }
+  }
+
+  logoPackCreateButton.disabled = source === undefined || processing || blocked;
+
+  if (logoPackState.status !== 'success' || logoPackState.result !== lastRenderedLogoPackResult) {
+    releaseLogoPackUrls();
+  }
+
+  if (logoPackState.status === 'success') {
+    lastRenderedLogoPackResult = logoPackState.result;
+    logoPackResult.classList.remove('hidden');
+    logoPackResult.classList.add('flex');
+
+    if (logoPackAssetUrls.length === 0) {
+      const result = logoPackState.result;
+
+      if (result.archive !== undefined) {
+        logoPackZipUrl = URL.createObjectURL(result.archive.blob);
+        logoPackDownloadZip.href = logoPackZipUrl;
+        logoPackDownloadZip.download = result.archive.filename;
+      }
+
+      logoPackAssetsList.replaceChildren();
+
+      for (const asset of result.assets) {
+        const url = URL.createObjectURL(asset.blob);
+        logoPackAssetUrls.push(url);
+
+        const item = document.createElement('li');
+        item.className = 'flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800';
+
+        const info = document.createElement('div');
+        const name = document.createElement('p');
+        name.className = 'text-sm font-semibold';
+        name.textContent = asset.filename;
+        const detail = document.createElement('p');
+        detail.className = 'text-xs text-zinc-500 dark:text-zinc-400';
+        const sizeLabel = asset.kind === 'ico'
+          ? `ICO · ${asset.sizes.join('/')} px · ${formatBytes(asset.byteSize)}`
+          : `${formatLabel(asset.format)} · ${asset.width} × ${asset.height} · ${formatBytes(asset.byteSize)}`;
+        detail.textContent = `${LOGO_PACK_ASSET_EXPLANATIONS[asset.id] ?? ''} — ${sizeLabel}`;
+        info.appendChild(name);
+        info.appendChild(detail);
+
+        const download = document.createElement('a');
+        download.href = url;
+        download.download = asset.filename;
+        download.textContent = `Download ${asset.filename}`;
+        download.setAttribute('aria-label', `Download ${asset.filename}`);
+        download.className = 'min-h-11 flex items-center whitespace-nowrap rounded-lg border border-zinc-300 px-4 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800';
+
+        item.appendChild(info);
+        item.appendChild(download);
+        logoPackAssetsList.appendChild(item);
+      }
+    }
+  } else {
+    logoPackResult.classList.add('hidden');
+    logoPackResult.classList.remove('flex');
+  }
+}
+
 function render(state: QuickFitState): void {
   const hasSource = state.status !== 'idle';
 
@@ -304,6 +445,7 @@ function render(state: QuickFitState): void {
 
   renderModeTabs();
   renderGuidedFit();
+  renderLogoPack();
 
   switch (state.status) {
     case 'idle':
@@ -392,6 +534,34 @@ function render(state: QuickFitState): void {
       break;
     }
   }
+
+  // Logo Pack has its own processing/result state, independent of the
+  // Quick Fit workflow's state above — this has the final say on the
+  // shared status bar/cancel/reset controls whenever Logo Pack is the
+  // active mode, since `workflow` itself typically just sits at 'ready'
+  // while a Logo Pack job runs (directive §38/§39).
+  if (guidedFit.getMode() === 'logo-pack') {
+    const logoPackState = logoPack.getState();
+
+    cancelButton.classList.toggle('hidden', logoPackState.status !== 'processing');
+    resetButton.classList.toggle('hidden', currentSource(state) === undefined);
+
+    if (logoPackState.status === 'processing') {
+      setStatus('Creating your logo pack...', 'processing');
+    } else if (logoPackState.status === 'success') {
+      setStatus('Your logo pack is ready.', 'success');
+      announce('Your logo pack is ready to download.');
+    } else if (logoPackState.status === 'failed') {
+      const message = describeProcessingError(logoPackState.error);
+      setStatus(message, 'error');
+      announce(message);
+    } else if (logoPackState.status === 'cancelled') {
+      setStatus('Logo pack creation cancelled. You can try again.', 'cancelled');
+      announce('Logo pack creation cancelled.');
+    } else if (currentSource(state) !== undefined) {
+      setStatus('Review the suitability notes, then create your logo pack.', 'ready');
+    }
+  }
 }
 
 function renderAll(): void {
@@ -400,6 +570,7 @@ function renderAll(): void {
 
 workflow.subscribe(renderAll);
 guidedFit.subscribe(renderAll);
+logoPack.subscribe(renderAll);
 renderAll();
 
 function openFilePicker(): void {
@@ -453,10 +624,12 @@ targetSizeValue.addEventListener('input', updateTargetSizeDependentFields);
 
 cancelButton.addEventListener('click', () => {
   workflow.cancel();
+  logoPack.cancel();
 });
 
 resetButton.addEventListener('click', () => {
   workflow.reset();
+  logoPack.reset();
   sourceInput.value = '';
   requirementsForm.reset();
   targetSizeError.classList.add('hidden');
@@ -518,14 +691,24 @@ modeTabGuidedFit.addEventListener('click', () => {
   guidedFit.setMode('guided-fit');
 });
 
-for (const tab of [modeTabQuickFit, modeTabGuidedFit]) {
+modeTabLogoPack.addEventListener('click', () => {
+  guidedFit.setMode('logo-pack');
+});
+
+const modeTabs = [modeTabQuickFit, modeTabGuidedFit, modeTabLogoPack];
+
+for (const tab of modeTabs) {
   tab.addEventListener('keydown', (event) => {
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-      event.preventDefault();
-      const next = tab === modeTabQuickFit ? modeTabGuidedFit : modeTabQuickFit;
-      next.focus();
-      next.click();
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+      return;
     }
+
+    event.preventDefault();
+    const currentIndex = modeTabs.indexOf(tab);
+    const delta = event.key === 'ArrowRight' ? 1 : -1;
+    const next = modeTabs[(currentIndex + delta + modeTabs.length) % modeTabs.length];
+    next.focus();
+    next.click();
   });
 }
 
@@ -558,9 +741,15 @@ unreachableAdjustButton.addEventListener('click', () => {
   applyPrefill(guidedFit.adjustSettings());
 });
 
+logoPackCreateButton.addEventListener('click', () => {
+  logoPack.createLogoPack();
+});
+
 window.addEventListener('pagehide', () => {
   workflow.reset();
+  logoPack.reset();
   releaseOriginalFileUrl();
+  releaseLogoPackUrls();
 });
 
 void coreClient.getRuntimeCapabilities().then((capabilities) => {

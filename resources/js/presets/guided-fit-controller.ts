@@ -6,7 +6,7 @@ import { evaluateAlreadyReady } from './already-ready';
 import { presetToQuickFitFormValues, type QuickFitPrefill } from './quick-fit-mapping';
 import { getPresetById, tryGetPresetById } from './registry';
 
-export type QuickFitMode = 'quick-fit' | 'guided-fit';
+export type QuickFitMode = 'quick-fit' | 'guided-fit' | 'logo-pack';
 
 /**
  * Guided Fit's product-layer state, layered on top of the shared, unmodified
@@ -25,8 +25,16 @@ export class GuidedFitController {
   private resultPresetId: string | undefined;
   private readonly listeners = new Set<() => void>();
 
-  public constructor(workflow: QuickFitWorkflow) {
+  /**
+   * Optional extra "is something else blocking a mode switch" check, so
+   * this class can remain the single owner of workspace-mode state without
+   * needing to import a third controller (e.g. Logo Pack) directly.
+   */
+  private readonly isExternallyBlocked: () => boolean;
+
+  public constructor(workflow: QuickFitWorkflow, isExternallyBlocked: () => boolean = () => false) {
     this.workflow = workflow;
+    this.isExternallyBlocked = isExternallyBlocked;
     this.workflow.subscribe((state) => this.handleWorkflowState(state));
   }
 
@@ -66,7 +74,7 @@ export class GuidedFitController {
 
   /** A normal mode toggle never processes and never touches manual Quick Fit values (directive §26/§27). */
   public setMode(mode: QuickFitMode): void {
-    if (this.workflow.getState().status === 'processing') {
+    if (this.workflow.getState().status === 'processing' || this.isExternallyBlocked()) {
       return;
     }
 

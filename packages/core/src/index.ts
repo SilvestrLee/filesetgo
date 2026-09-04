@@ -51,6 +51,9 @@ export {
 } from './runtime/worker-client';
 export { MAX_ACTIVE_HEAVY_JOBS } from './runtime/constants';
 export {
+  type ContainImageSetOutputSpec,
+  type IcoAssetResult,
+  type IcoImageSetOutputSpec,
   type ImageProcessingSetCancelled,
   type ImageProcessingSetComplete,
   type ImageProcessingSetFailed,
@@ -62,11 +65,17 @@ export {
   type ImageSetProcessingProgress,
   type ImageSetResult,
   type ProcessImageSetOptions,
+  type RasterAssetResult,
+  type RasterImageSetOutputSpec,
 } from './processing/image-set-contracts';
 export {
   MAX_PACKAGE_ASSETS,
   MAX_PACKAGE_TOTAL_OUTPUT_BYTES,
 } from './processing/image-set-limits';
+export {
+  calculateContainPlan,
+  type ContainRenderPlan,
+} from './transforms/contain';
 export {
   TARGET_SIZE_ERROR_CODES,
   type DimensionPolicy,

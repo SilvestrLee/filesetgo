@@ -339,6 +339,7 @@ async function waitForAnyWorker(workers: FakeImageWorker[], index = 0): Promise<
 function createSetResult(): import('../../src/processing/image-set-contracts').ImageSetResult {
   const blob = new Blob([Uint8Array.of(1, 2, 3)], { type: 'image/webp' });
   const asset = {
+    kind: 'raster' as const,
     id: 'a',
     filename: 'a.webp',
     blob,
@@ -359,7 +360,7 @@ describe('ImageProcessingRuntime shared job slot (processImageSet)', () => {
   it('posts PROCESS_IMAGE_SET and resolves a complete image-set outcome', async () => {
     const { runtime, workers } = createRuntime();
     const job = runtime.processImageSet(createPngBlob(), {
-      outputs: [{ id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
+      outputs: [{ kind: 'raster', id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
     });
     const worker = await waitForAnyWorker(workers);
 
@@ -381,7 +382,7 @@ describe('ImageProcessingRuntime shared job slot (processImageSet)', () => {
     const { runtime, workers } = createRuntime();
     const progress: Array<{ stage: string; assetIndex?: number; assetCount?: number }> = [];
     const job = runtime.processImageSet(createPngBlob(), {
-      outputs: [{ id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
+      outputs: [{ kind: 'raster', id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
       onProgress: (event) => progress.push(event),
     });
     const worker = await waitForAnyWorker(workers);
@@ -401,7 +402,7 @@ describe('ImageProcessingRuntime shared job slot (processImageSet)', () => {
     const firstWorker = await waitForWorker(workers);
 
     const setJob = runtime.processImageSet(createPngBlob(), {
-      outputs: [{ id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
+      outputs: [{ kind: 'raster', id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
     });
     const secondWorker = await waitForAnyWorker(workers, 1);
 
@@ -415,7 +416,7 @@ describe('ImageProcessingRuntime shared job slot (processImageSet)', () => {
   it('starting a processImageToTarget job cancels an in-flight processImageSet job', async () => {
     const { runtime, workers } = createRuntime();
     const setJob = runtime.processImageSet(createPngBlob(), {
-      outputs: [{ id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
+      outputs: [{ kind: 'raster', id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
     });
     const firstWorker = await waitForAnyWorker(workers);
 
@@ -439,13 +440,13 @@ describe('ImageProcessingRuntime shared job slot (processImageSet)', () => {
   it('ignores a stale image-set result from a replaced job', async () => {
     const { runtime, workers } = createRuntime();
     const firstJob = runtime.processImageSet(createPngBlob(), {
-      outputs: [{ id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
+      outputs: [{ kind: 'raster', id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
     });
     const firstWorker = await waitForAnyWorker(workers);
     const staleHandler = firstWorker.onmessage;
 
     const secondJob = runtime.processImageSet(createPngBlob(), {
-      outputs: [{ id: 'b', filename: 'b.webp', output: { format: 'webp' } }],
+      outputs: [{ kind: 'raster', id: 'b', filename: 'b.webp', output: { format: 'webp' } }],
     });
     const secondWorker = await waitForAnyWorker(workers, 1);
 

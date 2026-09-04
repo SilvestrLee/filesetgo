@@ -85,4 +85,32 @@ class WelcomeShellTest extends TestCase
         $response->assertSee('data-preset-id="web.content"', false);
         $response->assertSee('data-preset-id="web.card"', false);
     }
+
+    /**
+     * Website Logo Pack is present as a third first-class product mode
+     * (FSG-005B directive §7).
+     */
+    public function test_the_public_shell_presents_the_logo_pack_workspace(): void
+    {
+        $response = $this->get('/');
+
+        $response->assertSee('id="mode-tab-logo-pack"', false);
+        $response->assertSee('Logo Pack');
+        $response->assertSee('id="logo-pack-panel"', false);
+        $response->assertSee('Create logo pack');
+    }
+
+    /**
+     * No ZIP endpoint, favicon-generation endpoint, or Logo Pack upload
+     * route exists — packaging remains entirely local to the browser
+     * (FSG-005B directive §35/§64/§70).
+     */
+    public function test_no_zip_or_favicon_generation_route_exists(): void
+    {
+        $paths = collect(Route::getRoutes())->map(fn ($route) => $route->uri());
+
+        $suspicious = $paths->first(fn (string $uri) => preg_match('/zip|favicon|logo-pack|package/i', $uri) === 1);
+
+        $this->assertNull($suspicious, "Found an unexpected packaging route: {$suspicious}");
+    }
 }

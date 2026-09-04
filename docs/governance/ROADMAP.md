@@ -66,18 +66,17 @@ Deliver:
 
 ## FSG-005 — Packaging & Export
 
-**Status: 🟡 OPEN.**
+**Status: ✅ CLOSED.**
 
 ```text
 FSG-005 — Packaging & Export Systems
+✅ CLOSED
 ├── FSG-005A — Multi-Output Packaging Foundation
 │   ✅ CLOSED — see `docs/directives/FSG-005A.md`, `docs/governance/DECISIONS.md` ADR-017, and `SPRINT_REPORT.md`.
 │
 └── FSG-005B — Website Logo Pack & Favicon Suite
-    ⏭ NEXT — not yet started.
+    ✅ CLOSED — see `docs/directives/FSG-005B.md`, `docs/governance/DECISIONS.md` ADR-018, and `SPRINT_REPORT.md`.
 ```
-
-FSG-005 itself remains open until FSG-005B closes.
 
 Deliver:
 
@@ -89,6 +88,8 @@ Deliver:
 - optional manifest output.
 
 ## FSG-006 — Hardening, Mobile QA & Compatibility
+
+**Status: ⏭ NEXT.** Not started.
 
 Complete launch-blocking testing for:
 
