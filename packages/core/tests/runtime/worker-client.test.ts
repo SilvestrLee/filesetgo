@@ -336,6 +336,130 @@ async function waitForAnyWorker(workers: FakeImageWorker[], index = 0): Promise<
   return workers[index];
 }
 
+function createSetResult(): import('../../src/processing/image-set-contracts').ImageSetResult {
+  const blob = new Blob([Uint8Array.of(1, 2, 3)], { type: 'image/webp' });
+  const asset = {
+    id: 'a',
+    filename: 'a.webp',
+    blob,
+    width: 20,
+    height: 15,
+    format: 'webp' as const,
+    mimeType: 'image/webp',
+    byteSize: blob.size,
+    sourceDimensions: { width: 40, height: 30 },
+    normalizedDimensions: { width: 40, height: 30 },
+    resized: true,
+  };
+
+  return { assets: [asset], assetCount: 1, totalOutputBytes: asset.byteSize };
+}
+
+describe('ImageProcessingRuntime shared job slot (processImageSet)', () => {
+  it('posts PROCESS_IMAGE_SET and resolves a complete image-set outcome', async () => {
+    const { runtime, workers } = createRuntime();
+    const job = runtime.processImageSet(createPngBlob(), {
+      outputs: [{ id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
+    });
+    const worker = await waitForAnyWorker(workers);
+
+    expect(worker.messages[0]).toMatchObject({
+      type: 'PROCESS_IMAGE_SET',
+      jobId: job.jobId,
+      request: { outputs: [{ id: 'a', filename: 'a.webp' }] },
+    });
+
+    worker.emit({ type: 'JOB_COMPLETE_SET', jobId: job.jobId, result: createSetResult() });
+
+    await expect(job.result).resolves.toMatchObject({
+      status: 'complete',
+      result: { assetCount: 1 },
+    });
+  });
+
+  it('reports asset index/count through progress events', async () => {
+    const { runtime, workers } = createRuntime();
+    const progress: Array<{ stage: string; assetIndex?: number; assetCount?: number }> = [];
+    const job = runtime.processImageSet(createPngBlob(), {
+      outputs: [{ id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
+      onProgress: (event) => progress.push(event),
+    });
+    const worker = await waitForAnyWorker(workers);
+
+    worker.emit({ type: 'JOB_PROGRESS', jobId: job.jobId, stage: 'encoding', assetIndex: 1, assetCount: 3 });
+    worker.emit({ type: 'JOB_COMPLETE_SET', jobId: job.jobId, result: createSetResult() });
+    await job.result;
+
+    expect(progress).toContainEqual(
+      expect.objectContaining({ stage: 'encoding', assetIndex: 1, assetCount: 3 }),
+    );
+  });
+
+  it('starting a processImageSet job cancels an in-flight processImage job (shared single-job slot)', async () => {
+    const { runtime, workers } = createRuntime();
+    const standardJob = runtime.processImage(createPngBlob(), { output: { format: 'webp' } });
+    const firstWorker = await waitForWorker(workers);
+
+    const setJob = runtime.processImageSet(createPngBlob(), {
+      outputs: [{ id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
+    });
+    const secondWorker = await waitForAnyWorker(workers, 1);
+
+    await expect(standardJob.result).resolves.toMatchObject({ status: 'cancelled' });
+    expect(firstWorker.terminateCount).toBe(1);
+
+    secondWorker.emit({ type: 'JOB_COMPLETE_SET', jobId: setJob.jobId, result: createSetResult() });
+    await expect(setJob.result).resolves.toMatchObject({ status: 'complete' });
+  });
+
+  it('starting a processImageToTarget job cancels an in-flight processImageSet job', async () => {
+    const { runtime, workers } = createRuntime();
+    const setJob = runtime.processImageSet(createPngBlob(), {
+      outputs: [{ id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
+    });
+    const firstWorker = await waitForAnyWorker(workers);
+
+    const targetJob = runtime.processImageToTarget(createPngBlob(), {
+      targetBytes: 100_000,
+      output: { format: 'jpeg' },
+    });
+    const secondWorker = await waitForAnyWorker(workers, 1);
+
+    await expect(setJob.result).resolves.toMatchObject({ status: 'cancelled' });
+    expect(firstWorker.terminateCount).toBe(1);
+
+    secondWorker.emit({
+      type: 'JOB_COMPLETE_TARGET',
+      jobId: targetJob.jobId,
+      outcome: { status: 'met', result: createTargetResult() },
+    });
+    await expect(targetJob.result).resolves.toMatchObject({ status: 'complete' });
+  });
+
+  it('ignores a stale image-set result from a replaced job', async () => {
+    const { runtime, workers } = createRuntime();
+    const firstJob = runtime.processImageSet(createPngBlob(), {
+      outputs: [{ id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
+    });
+    const firstWorker = await waitForAnyWorker(workers);
+    const staleHandler = firstWorker.onmessage;
+
+    const secondJob = runtime.processImageSet(createPngBlob(), {
+      outputs: [{ id: 'b', filename: 'b.webp', output: { format: 'webp' } }],
+    });
+    const secondWorker = await waitForAnyWorker(workers, 1);
+
+    staleHandler?.({
+      data: { type: 'JOB_COMPLETE_SET', jobId: firstJob.jobId, result: createSetResult() },
+    } as MessageEvent<unknown>);
+
+    secondWorker.emit({ type: 'JOB_COMPLETE_SET', jobId: secondJob.jobId, result: createSetResult() });
+
+    await expect(firstJob.result).resolves.toMatchObject({ status: 'cancelled' });
+    await expect(secondJob.result).resolves.toMatchObject({ status: 'complete' });
+  });
+});
+
 describe('ImageProcessingRuntime shared job slot (processImage / processImageToTarget)', () => {
   it('posts PROCESS_IMAGE_TO_TARGET and resolves a met target-size outcome', async () => {
     const { runtime, workers } = createRuntime();

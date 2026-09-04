@@ -8,7 +8,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@discourse/heic": "1.0.0"
+    "@discourse/heic": "1.0.0",
+    "fflate": "0.8.3"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

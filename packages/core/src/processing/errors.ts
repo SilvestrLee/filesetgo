@@ -20,6 +20,13 @@ const RECOVERABLE_CODES = new Set<ImageProcessingErrorCode>([
   IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
   IMAGE_PROCESSING_ERROR_CODES.OutputValidationFailed,
   IMAGE_PROCESSING_ERROR_CODES.WorkerFailed,
+  IMAGE_PROCESSING_ERROR_CODES.TooManyPackageAssets,
+  IMAGE_PROCESSING_ERROR_CODES.PackageOutputTooLarge,
+  IMAGE_PROCESSING_ERROR_CODES.DuplicateAssetId,
+  IMAGE_PROCESSING_ERROR_CODES.DuplicateFilename,
+  IMAGE_PROCESSING_ERROR_CODES.InvalidArchiveFilename,
+  IMAGE_PROCESSING_ERROR_CODES.UnsafeArchiveEntry,
+  IMAGE_PROCESSING_ERROR_CODES.ArchiveCreationFailed,
 ]);
 
 export function createProcessingError(

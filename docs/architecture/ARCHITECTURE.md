@@ -88,6 +88,8 @@ The package exposes processing capabilities, not host-product concepts. Presets 
 
 `processImageToTarget()` (FSG-002) is a bounded orchestration on top of these same primitives, not a second processing architecture: it reuses preflight, the safety gate, decode, orientation normalization, resize, encode, and output validation, adding only a deterministically bounded dimension-tier × quality-probe search loop. It shares the same single active-job runtime slot as `processImage()` — starting either kind of job cancels whichever job (of either kind) is currently active. See `docs/governance/DECISIONS.md` ADR-015 for the search's bounded parameters.
 
+`processImageSet()` (FSG-005A) extends the same pattern to multiple outputs from one source: it decodes exactly once, then reuses the same render/encode/validate primitives sequentially for each requested output, and shares the identical single active-job runtime slot as `processImage()`/`processImageToTarget()` — a third kind competing for the same one-job invariant, not a separate concurrency model. An optional ZIP archive step (`packages/core/src/archive/`) is layered on top, itself hidden behind a FileSetGo-owned adapter so no third-party archive library type ever appears in a public `@filesetgo/core` contract. Package/output-count and total-byte safety limits mirror the safety-limit pattern established for source files (ADR-004) and the target-size search (ADR-015). See `docs/governance/DECISIONS.md` ADR-017.
+
 ## Architectural Constraints
 
 - Supported V1 processing is browser-first and requires zero server ingestion.

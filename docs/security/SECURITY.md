@@ -48,13 +48,19 @@ A decoder, encoder, or transform may crash or terminate the worker.
 
 Repeated jobs, parallel work, object URLs, canvases, image bitmaps, or retained buffers may consume excessive memory or CPU.
 
-**Controls:** `MAX_ACTIVE_HEAVY_JOBS = 1` (shared across `processImage()` and `processImageToTarget()` — starting either cancels whichever job is active); bounded stages; cancellation; deterministic terminal states; explicit resource cleanup. The FSG-002 target-size engine's repeated-encode search is itself bounded — at most `MAX_DIMENSION_TIERS + 1` dimension candidates × `MAX_QUALITY_PROBES_PER_TIER` quality probes per job, never an open-ended loop (see `docs/governance/DECISIONS.md` ADR-015).
+**Controls:** `MAX_ACTIVE_HEAVY_JOBS = 1` (shared across `processImage()`, `processImageToTarget()`, and `processImageSet()` — starting any of the three cancels whichever job, of any kind, is active); bounded stages; cancellation; deterministic terminal states; explicit resource cleanup. The FSG-002 target-size engine's repeated-encode search is itself bounded — at most `MAX_DIMENSION_TIERS + 1` dimension candidates × `MAX_QUALITY_PROBES_PER_TIER` quality probes per job, never an open-ended loop (see `docs/governance/DECISIONS.md` ADR-015). The FSG-005A multi-output engine is bounded the same way: at most `MAX_PACKAGE_ASSETS` (16) outputs per job, generated strictly sequentially (one canvas released before the next is created) rather than in parallel, with a running `MAX_PACKAGE_TOTAL_OUTPUT_BYTES` (50 MiB) check that fails the job before archiving rather than allowing unbounded package growth (see ADR-017).
 
 ### Malicious metadata
 
 EXIF or other metadata may be malformed, oversized, privacy-sensitive, or capable of confusing orientation and dimension logic.
 
 **Controls:** bounded metadata reads; strict orientation parsing; metadata is not trusted as executable content; source metadata and arbitrary content are not sent to analytics; only required normalized output metadata is retained.
+
+### Unsafe archive entry names (ZIP path traversal)
+
+A caller-supplied output filename or archive filename could attempt path traversal (`../`), an absolute path, a drive-letter path, or a null byte if placed unchecked into a ZIP entry name.
+
+**Controls:** `archive/filename-safety.ts`'s `isSafeArchiveEntryName()` rejects any name containing `/`, `\`, or `:` outright — flat archives only, no directory trees in FSG-005A — plus empty names, `.`, `..`, and null bytes. This check runs before any processing begins (`validate-image-set-request.ts`), not only at archive-creation time. `fflate` itself is never exposed to caller-controlled filenames without passing through this check first.
 
 ### Future server or API abuse
 

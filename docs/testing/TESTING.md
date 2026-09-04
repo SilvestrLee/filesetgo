@@ -42,6 +42,8 @@ Core-package tests cover public contracts and pure processing logic without depe
 
 Fixtures must be minimal, reviewable, and safe to commit. Tests must not call external conversion services or upload source images.
 
+FSG-005A's multi-output/archive tests (`packages/core/tests/workers/process-image-set.test.ts`, `tests/archive/`, `tests/processing/validate-image-set-request.test.ts`) follow the same pattern: fake `OffscreenCanvas`/`createImageBitmap` browser APIs, real parseable image fixtures padded to controlled byte sizes (`encodeAtSize()`), and a mocked `heic-decode` module for the HEIC-decoded-once assertion (the real HEIC codec path is exercised separately in `heic-decode.test.ts`). ZIP integrity is verified by round-tripping `createZipArchive()`'s output through `fflate`'s own `unzipSync()` — proving exact entries/bytes/order, not merely that a Blob was returned.
+
 ## Public UI Layer (`resources/js/quick-fit/`, `resources/js/presets/`)
 
 The Quick Fit workflow (FSG-003) uses Vitest, run separately from the core package via `npm run test:ui`. See `docs/governance/DECISIONS.md` ADR-016 for the architectural split this relies on: pure logic modules (`state.ts`, `format-bytes.ts`, `filename.ts`, `errors.ts`, `request-plan.ts`, `summary.ts`, `capabilities.ts`, `validate-form.ts`) are directly unit-tested; the DOM-free `workflow.ts` orchestration layer is tested with a constructor-injected fake `@filesetgo/core` client (no module mocking, no DOM emulation); `controller.ts` is the only module that touches `document` and is left to build/typecheck/browser-automation verification rather than unit tests, since introducing `jsdom` purely to unit-test DOM rendering was deliberately avoided.

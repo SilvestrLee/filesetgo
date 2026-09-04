@@ -15,7 +15,7 @@ import { createProcessingError } from '../processing/errors';
 import { calculateResizePlan } from '../transforms/resize';
 import { createOrientationNeutralJpeg } from './jpeg-decode-source';
 
-type WorkerStage = Exclude<
+export type WorkerStage = Exclude<
   ImageProcessingStage,
   'preflighting' | 'accepted' | 'complete'
 >;

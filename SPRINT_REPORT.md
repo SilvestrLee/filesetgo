@@ -1,238 +1,240 @@
-# FSG-004 Sprint Report — Preset Engine & Guided Workflows
+# FSG-005A Sprint Report — Multi-Output Packaging Foundation
 
 ## Milestone
 
-FSG-004 — Preset Engine & Guided Workflows (see `docs/directives/FSG-004.md`).
+FSG-005A — Multi-Output Packaging Foundation (see `docs/directives/FSG-005A.md`).
+
+## Parent Milestone
+
+FSG-005 — Packaging & Export Systems.
+
+```text
+FSG-005 — Packaging & Export Systems
+├── FSG-005A — Multi-Output Packaging Foundation   (this sprint)
+└── FSG-005B — Website Logo Pack & Favicon Suite   (not started)
+```
+
+**FSG-005 itself remains OPEN.** This sprint closes only the generic foundation; FSG-005B will close the parent milestone if its own acceptance criteria pass.
 
 ## Status
 
-FSG-004: Complete.
+FSG-005A: Complete.
+FSG-005 parent: Open.
 
-## Base Commit Before FSG-004
+## Base Commit Before FSG-005A
 
-`a7deac8d1b78e1c4c4f60e2c3efbd9e3f3474434` — the FSG-003 closeout commit (`feat(web): add Quick Fit public workflow`).
+`8cddc182535a83720c6d969a556bb37b633b54bd` — the FSG-004 closeout commit (`feat(web): add Guided Fit presets`).
 
 ## Branch
 
-`fsg-004-presets-guided-fit`, created from the commit above.
+`fsg-005a-packaging-foundation`, created from the commit above.
 
 ## Objective
 
-Add a data-driven preset system and the first Guided Fit experience alongside Quick Fit: a user who knows *what an image is for* (not the technical requirement) chooses a FileSetGo-authored recommendation, reviews it, and runs it through the existing processing runtime — with zero new image-processing architecture.
+Build the reusable browser-side foundation FSG-005B will use for Website Logo Pack generation: one source image → one decode → multiple deterministic output specifications → multiple validated local assets → an optional ZIP archive → local result only. No product knowledge (logo, favicon, platform names) enters this layer.
 
-## Preset Architecture
+## Architecture
 
-`resources/js/presets/` — entirely new, product-owned TypeScript modules; `@filesetgo/core` and `resources/js/quick-fit/workflow.ts` (`QuickFitWorkflow`) were **not modified**:
+`processImageSet()` is orchestration over the existing FSG-001/FSG-002 primitives, not a second processing engine — exactly the same relationship `processImageToTarget()` already has to `processImage()`. The worker-side implementation (`packages/core/src/workers/process-image-set.ts`) reuses `decodeSourceToBitmap`, `createRenderCanvas`, `drawBitmapToCanvas`, and `validateOutput` from `process-image.ts` unchanged. See `docs/governance/DECISIONS.md` ADR-017 for the full architectural record.
 
-- `contracts.ts` — the typed `FileSetGoPreset` schema.
-- `catalog.ts` — the single authoritative array of preset data (directive §12).
-- `validate-preset.ts` — `validatePreset()` / `validateCatalog()`.
-- `registry.ts` — `getAllPresets()` / `getPresetById()` / `tryGetPresetById()` / `getPresetsByCategory()`; validates the catalog at module load and throws on any malformed entry (fail-fast, never silently accepts bad data).
-- `compiler.ts` — `compilePreset(preset, sourceFormat)` → the exact same `QuickFitRequirements` shape Quick Fit's manual form produces.
-- `already-ready.ts` — `evaluateAlreadyReady(preflight, preset)`, a pure boundary-inclusive comparison against preflight facts only.
-- `quick-fit-mapping.ts` — `presetToQuickFitFormValues(preset)`, the one reusable preset→Quick-Fit-form mapping used by "Adjust settings".
-- `guided-fit-controller.ts` — `GuidedFitController`, a DOM-free class that composes the unmodified `QuickFitWorkflow` via its existing public API (`selectFile`/`run`/`cancel`/`reset`/`subscribe`/`getState`) and adds only mode/preset-selection state.
-
-## Architectural Boundary
-
-Preset/destination knowledge (preset names, categories, provenance) lives entirely in `resources/js/presets/`. `@filesetgo/core` remains concerned only with safety/processing/transforms/validation and has no concept of "Website Hero" or "FileSetGo preset." Guided Fit produces a `QuickFitRequirements` object and hands it to the same `planProcessing()` → `processImageToTarget()` path Quick Fit already uses (all three initial presets set `targetBytes`, so every compiled preset routes to `processImageToTarget()`, never a second image-processing path).
-
-## Preset Schema
+## Public Core API
 
 ```ts
-interface FileSetGoPreset {
-  id: string;            // stable machine id, e.g. "web.hero"
-  revision: number;       // explicit, starts at 1
-  category: string;
-  title: string;
-  description: string;
-  rationale: string;      // short "why this recommendation"
-  requirements: {
-    targetBytes?: number;
-    maxWidth?: number;
-    maxHeight?: number;
-    outputFormat: OutputImageFormat;   // never 'heic'
-    dimensionPolicy: DimensionPolicy;
-  };
-  provenance: {
-    kind: 'filesetgo-recommended' | 'external';
-    sourceUrl?: string;    // required when kind === 'external'
-    verifiedAt?: string;   // required when kind === 'external'
-    reviewAfter?: string;
-  };
+processImageSet(file: Blob, options: ProcessImageSetOptions): ImageProcessingSetJob
+
+interface ProcessImageSetOptions {
+  outputs: ImageSetOutputSpec[];   // { id, filename, output: { format, quality? }, resize? }
+  archive?: { filename: string };  // must end in .zip
+  onProgress?: (event: ImageSetProcessingProgress) => void;
+}
+
+interface ImageSetResult {
+  assets: ImageSetAssetResult[];   // ProcessedImageResult + { id, filename }, in requested order
+  assetCount: number;
+  totalOutputBytes: number;
+  archive?: { blob: Blob; filename: string; byteSize: number };
 }
 ```
 
-Presets hold no executable callbacks — deterministic data only.
+Reuses `OutputImageFormat`, `ResizeOptions`, and `ProcessedImageResult` from the existing `processing/contracts.ts` rather than redefining format/dimension concepts. No `fflate` type, callback, or option appears anywhere in this public surface.
 
-## Preset Registry
+## Image-Set Processing
 
-One authoritative registry (`registry.ts`) backed by one authoritative catalog array (`catalog.ts`). `getPresetById()` throws cleanly for an unknown id rather than silently falling back to another preset; `tryGetPresetById()` returns `undefined` for call sites that need to check first. The whole catalog is validated once at module load; a malformed catalog throws immediately rather than shipping silently.
+`processImageSetInWorker()`: preflights once (in the runtime, before dispatch — same as `processImage`/`processImageToTarget`), decodes once, then for each requested output *sequentially*: computes an independent resize plan, draws to a freshly created canvas, encodes, validates via the real `validateOutput()` (a genuine `preflightImage()` re-check of the encoded bytes), and releases that canvas before starting the next output. Peak memory is bounded by one decoded bitmap + one canvas at a time, regardless of how many outputs are requested.
 
-## Initial Preset Catalog
+## One-Decode Reuse
 
-Exactly three, all `filesetgo-recommended`, revision 1, output WebP, `dimensionPolicy: 'flexible'`:
+`decodeSourceToBitmap()` and `assertDecodedDimensionsMatch()` run exactly once per job, before the per-output loop begins; the same `ImageBitmap` and normalized dimensions are reused by every output's `drawBitmapToCanvas()` call. Verified directly: `process-image-set.test.ts` asserts `createImageBitmap` (and, for a mocked HEIC source, `decodeHeic`) is called exactly once regardless of output count (2–3 outputs tested).
 
-| ID | Title | Max dimensions | Target |
-|---|---|---|---|
-| `web.hero` | Large website / hero image | 1920 × 1080 px | 500 KB |
-| `web.content` | Website content image | 1600 × 1600 px | 300 KB |
-| `web.card` | Card / thumbnail image | 800 × 800 px | 150 KB |
+## Worker Protocol
 
-Every numeric value exists exactly once, in `catalog.ts`; the UI (preset cards, recommendation review) renders from the registry at runtime, the compiler reads from the same objects, and tests import the catalog directly — no value is repeated in Blade or hand-typed into tests.
+Added `PROCESS_IMAGE_SET` command and `JOB_COMPLETE_SET` event to `runtime/protocol.ts`, plus optional `assetIndex`/`assetCount` fields on the existing `JOB_PROGRESS` event (used only by image-set jobs; `processImage`/`processImageToTarget` progress events are unaffected). `isImageWorkerEvent()` validates the new event shapes structurally, including the optional `archive` field.
 
-## Recommendation Positioning
+## Concurrency
 
-The Guided Fit panel states: "These are FileSetGo recommendations — practical starting points for general website use, not platform-specific upload limits." Each recommendation shows a "FileSetGo recommendation" label plus a short rationale (e.g. web.content: "Balances image detail with practical page weight for normal website content."). No claim of universal correctness, guaranteed performance, or SEO impact is made anywhere.
+`ImageProcessingRuntime`'s `JobVariant` gained a third `'set'` member. `MAX_ACTIVE_HEAVY_JOBS = 1` is enforced identically across all three kinds — starting any job (`processImage`, `processImageToTarget`, or `processImageSet`) cancels whichever job, of any kind, is currently active. Verified in `worker-client.test.ts`: starting a `processImageSet` job cancels an in-flight `processImage` job; starting a `processImageToTarget` job cancels an in-flight `processImageSet` job; a stale image-set result from a replaced job is ignored (existing pairwise cross-kind cancellation between `processImage`/`processImageToTarget` was already covered before this sprint).
 
-## Provenance/Freshness Model
+## Asset Validation
 
-`provenance.kind` distinguishes `filesetgo-recommended` (all three initial presets) from `external` (none ship yet). `validatePreset()` requires `sourceUrl` and `verifiedAt` whenever `kind === 'external'`, so a future sourced platform preset cannot ship without provenance — enforced by the same validation the catalog itself must pass, not by convention. No dynamic/remote preset fetching exists anywhere; presets ship with the application bundle only.
+Every output passes the same `validateOutput()` real-preflight re-check `processImage()` already uses before being added to the result. If any required output fails validation, the whole `processImageSetInWorker()` call rejects — no partial asset list is ever returned. Verified with a deliberately mislabeled output (PNG-typed Blob containing real JPEG bytes) causing the entire operation to reject.
 
-## Guided Fit UX
+## Package Bounds
 
-The Quick Fit workspace now has two first-class modes, presented as an ARIA tablist (`role="tablist"`/`role="tab"`/`role="tabpanel"`, arrow-key navigation, `aria-selected`) directly above the shared drop zone: **Quick Fit** ("Enter the requirement yourself.") and **Guided Fit** ("Choose what you're preparing."). Guided Fit shows three text-first preset cards (radio-input based) that render their title/use-case/summary from the registry; selecting one shows a recommendation-review panel (format, bounding dimensions, target size, flexibility note, rationale) *before* any processing — clicking a card never starts a job. **Get file ready** is the explicit trigger.
+`MAX_PACKAGE_ASSETS = 16` — enforced in `validate-image-set-request.ts` before any decode/processing begins (cheap, up-front rejection). `MAX_PACKAGE_TOTAL_OUTPUT_BYTES = 50 * 1024 * 1024` (50 MiB) — enforced progressively inside the worker as each output's real encoded byte size becomes known, since only the encoder (not the request) can determine a given output's final size. Both are recorded in `docs/governance/DECISIONS.md` ADR-017 as initial engineering limits, not marketing promises. Tested at the exact boundary (accepted) and one byte over (rejected) using controlled-size fixtures (`encodeAtSize()`), not real multi-tens-of-MB image generation.
 
-## Quick Fit / Guided Fit Shared State
+## Filename Safety
 
-Both modes share one `QuickFitWorkflow` instance and therefore one selected source file. Switching modes (`GuidedFitController.setMode()`) never calls `selectFile()`, never processes, and is a no-op while a job is `processing` (re-enabled once cancelled/settled) — verified directly in `guided-fit-controller.test.ts` by asserting `preflightImage` call counts stay constant across repeated mode toggles.
+`archive/filename-safety.ts`'s `isSafeArchiveEntryName()` rejects any name containing `/`, `\`, or `:` outright — a single check that covers path traversal (`../`, `..\`), absolute paths, and drive-letter paths at once — plus empty names, `.`, `..`, and null bytes. Archives are flat only (FSG-005A directive §17); no directory-tree support exists. This check runs in `validate-image-set-request.ts` before any processing, not only at archive-creation time. Duplicate output ids and duplicate filenames are both rejected the same way, before expensive work starts.
 
-## Preset Compiler
+## Archive Architecture
 
-`compilePreset(preset, sourceFormat)` maps `preset.requirements` 1:1 onto `QuickFitRequirements`; `planProcessing()` (unchanged from FSG-003) then routes it. Since every initial preset sets `targetBytes`, `plan.kind` is always `'target'` → `processImageToTarget()`. Verified in `compiler.test.ts` for all three presets, including that the resulting `processImageToTarget()` options (`targetBytes`, `dimensions`, `output`, `dimensionPolicy`) exactly match the catalog.
+`archive/zip-adapter.ts` is the *only* module in FileSetGo that imports `fflate` directly. `createZipArchive(entries)` is a worker-internal implementation detail — it is not exported from `packages/core/src/index.ts` and never appears in any public contract. `process-image-set.ts` reaches it only through a dynamic `import('../archive/zip-adapter')`, invoked only when a job's `archive` option is actually present.
 
-## Adjust Settings
+## fflate Dependency
 
-`GuidedFitController.adjustSettings()` switches to Quick Fit mode and returns `presetToQuickFitFormValues(preset)`; `controller.ts` applies those values to the actual form fields (target size/unit, max width/height, output format, dimension-flexibility checkbox) and re-runs the existing transparency-warning/target-size-dependent-field logic. This is the *only* path that overwrites manual Quick Fit values — a plain mode toggle never touches them (verified: `setMode()` alone does not call `adjustSettings()` or touch any form field).
+Approved by the project owner for this sprint specifically. Verified before installation and again after:
 
-## Already-Ready Handling
+```text
+name: fflate
+version: 0.8.3   (exact-pinned in packages/core/package.json — no caret range)
+license: MIT
+runtime dependencies: none
+```
 
-`evaluateAlreadyReady()` compares preflight facts only (format, byte size, width, height) against the selected preset's requirements, boundary-inclusive (`<=`). When true, the Guided Fit panel shows "This file already fits this recommendation," hides **Get file ready**, and shows **Use this file** instead — a real `<a download>` pointing at an object URL of the *original, unprocessed* `File`, with the **original filename preserved** (no `-filesetgo` suffix, since nothing was transformed). No processed Blob is manufactured in this case. The object URL is created only while already-ready is true for the current file/preset pair and revoked on every preset change, file change, or panel exit.
+`npm ls fflate`:
 
-## Core API Reuse
+```text
+filesetgo@ /Users/silvestr/filesetgo
+└─┬ @filesetgo/core@0.1.0 -> ./packages/core
+  └── fflate@0.8.3
+```
 
-No `GuidedFitWorker`/`GuidedFitImageProcessor`/`GuidedTargetEngine` was created. `GuidedFitController.runSelectedPreset()` calls `this.workflow.run(compilePreset(...))` — the exact same `QuickFitWorkflow.run()` method the Quick Fit form calls. `packages/core/` was not touched; `resources/js/quick-fit/workflow.ts` was not touched.
+No other archive library (JSZip or otherwise) was installed.
 
-## Result / Unreachable UX
+## ZIP Strategy
 
-On success, if the result came from a preset run, the result panel adds "Prepared for: `<preset title>`" above the existing factual result detail — the actual returned `ProcessedImageResult`/`TargetSizeResult` metadata remains the sole source of truth for dimensions/format/size (unchanged from FSG-003's `buildSuccessSummary()`). On `unreachable`, an **Adjust settings** button appears (only when the unreachable result came from a preset run) that sends the same preset into Quick Fit via `adjustSettings()` so the user can loosen the target/dimensions/format themselves. `targetMet: true` from the core result remains the sole success criterion — nothing is presented as successful merely because a preset was selected or processing completed.
+Every entry (and the archive's own metadata) uses ZIP STORE (`level: 0`) — no DEFLATE — since package contents are already-compressed JPEG/PNG/WebP bytes; re-compressing them would waste CPU without shrinking the result (verified in `zip-adapter.test.ts`: a 50,000-byte highly-repetitive input produces an archive *larger* than the input, proving no DEFLATE ran). Every entry's `mtime` is fixed to `1980-01-01T00:00:00Z` (the ZIP format's own epoch) instead of `fflate`'s current-time default, so `createZipArchive()` is deterministic — verified directly by generating the same archive twice and comparing bytes exactly. Archive creation happens synchronously inside the worker (never on the main thread), gated by the same `MAX_PACKAGE_TOTAL_OUTPUT_BYTES` limit that already bounded the assets being archived.
 
-## Accessibility
+## Lazy-Load Evidence
 
-Mode selector: real `role="tablist"`/`tab`/`tabpanel` semantics, `aria-selected`, roving `tabindex`, `ArrowLeft`/`ArrowRight` navigation, visible focus rings. Preset choice: native radio inputs with associated labels inside a `role="radiogroup"`; selection state is structural (`:checked`), not color-only (the selected card also gets a visible border/ring change). Recommendation changes are announced through the existing shared `aria-live="polite"` announcer (`status-announcer`) with a concise summary line, not exhaustive detail.
+Production build output:
 
-## Responsive Behavior
+```text
+public/build/assets/zip-adapter-BOagJ5MW.js     9.12 kB   (new, separate chunk)
+public/build/assets/app-DYvyzjF8.js             52.18 kB  (was 48.19 kB; +3.99 kB)
+public/build/assets/image.worker-BNK2ViNE.js    28.42 kB  (was 25.16 kB; +3.26 kB)
+public/build/assets/heic-decode-CIxd_bUO.js     32.54 kB  (unchanged)
+public/build/assets/heic_dec-ojH1Dp2m.wasm      959.55 kB (unchanged)
+```
 
-Preset cards use `grid gap-4 sm:grid-cols-3` — a single column on narrow mobile, three columns from the `sm` breakpoint up. The recommendation-review panel and all Guided Fit action buttons reuse the same responsive container/typography conventions as the rest of the Quick Fit workspace; no fixed-width elements were introduced. Not independently confirmed by browser automation or a real device this sprint (see Known Limitations).
+`fflate`'s minified DEFLATE table-building code was confirmed present *only* in `zip-adapter-*.js` (identifiable directly in the chunk despite minification) and **absent** from both `app-*.js` and `image.worker-*.js` (checked for `fflate`/`zipSync`/`unzipSync` markers — zero matches in either). The app/worker growth is the new `'set'`-kind branching logic added to the already-shared `ImageProcessingRuntime` class and `image.worker.ts` dispatcher (real code that ships either way, since those files are already part of the Quick Fit bundle) — not `fflate` itself. Quick Fit and Guided Fit do not call `processImageSet()` anywhere in this sprint (no public UI exists yet, per directive §29), so ordinary visitors never trigger the `zip-adapter` chunk's fetch at all.
+
+## Cancellation
+
+Checked before decode, after decode, before each output (dimension-plan computation), after each canvas draw, after each encode, before archive creation, after archive bytes are produced, and before final result publication — matching the checkpoint list in directive §13. Verified: cancellation after the first of two outputs completes stops before the second starts; cancellation mid-asset (during the encode step) stops there; a cancelled job's decoded bitmap is still closed and its canvas still released (the same `finally`-based cleanup pattern as `processImage`/`processImageToTarget`).
+
+## Resource Cleanup
+
+The decoded bitmap is closed and the active canvas released (`width = 0; height = 0`) in a single `finally` block covering the whole job, regardless of success, failure, or cancellation — identical discipline to the existing FSG-001/FSG-002 workers. No object URLs are created anywhere inside `@filesetgo/core`; that remains host/UI responsibility, unchanged.
 
 ## Privacy
 
-No network code was added anywhere in `resources/js/presets/` or the Guided Fit additions to `controller.ts`/`welcome.blade.php`. Preset selection, recommendation review, and "already ready" evaluation are all pure client-side computations against already-local preflight facts — nothing is transmitted. `routes/web.php` is unchanged (`GET /` only); confirmed via a repository-wide `grep` for `fetch(`/`XMLHttpRequest`/`sendBeacon`/`axios`/`FormData`/`multipart` (zero matches outside the pre-existing, unmodified HEIC WASM fetch path).
-
-## TypeScript Governance
-
-FSG-003's TypeScript project boundary is unchanged and preserved: `tsconfig.json` (root, production) still excludes test directories and never gains `"node"` in `types`; `tsconfig.ui-tests.json` now also includes `resources/js/presets/**/*.ts` (source + tests) alongside `resources/js/quick-fit/**/*.ts`. No `skipLibCheck` was reintroduced anywhere. The governed `@types/chai@5.0.1` override was **not touched** — `npm ci` this sprint installed the identical 141 packages as FSG-003's closeout, confirming no dependency drift. Vitest was not upgraded.
+Repository-wide `grep` for `fetch(`/`XMLHttpRequest`/`sendBeacon`/`axios`/`FormData`/`multipart` across `packages/core/src/`, `resources/js/`, and `resources/views/welcome.blade.php` found only the pre-existing, unmodified HEIC WASM `fetch()` (`workers/heic-decode.ts`) — the two other superficial matches were false positives from the string "FormData" appearing inside an unrelated variable name (`transformData` in the HEIC orientation parser) and are not network calls. No server packaging/upload endpoint was created; `routes/web.php` is unchanged (`GET /` only). `fflate` is bundled locally, never loaded from a CDN.
 
 ## Automated Tests
 
-**Core package regression** (`npm run test:core`): **202/202 passing**, unchanged — `@filesetgo/core` was not modified this sprint.
-
-**UI tests** (`npm run test:ui`, now spanning `resources/js/quick-fit/tests` and `resources/js/presets/tests`): **171/171 passing** (91 unchanged FSG-003 tests + 80 new):
+**New core tests**, all passing:
 
 | File | Tests | Covers |
 |---|---|---|
-| `presets/tests/catalog.test.ts` | 15 | Exactly 3 presets, stable/unique ids, revision 1, catalog validates, WebP-only, all `filesetgo-recommended`, governed numeric values |
-| `presets/tests/validate-preset.test.ts` | 19 | Every rejection case (§13): empty id, bad revision, missing title/description, HEIC/unsupported output, invalid targetBytes/dimensions, oversized dimensions, invalid dimensionPolicy/provenance, external-provenance requirements, duplicate id |
-| `presets/tests/registry.test.ts` | 7 | `getAllPresets`/`getPresetById` (throws cleanly)/`tryGetPresetById`/`getPresetsByCategory` |
-| `presets/tests/compiler.test.ts` | 5 | All three presets compile to their exact governed `QuickFitRequirements`, and route to `processImageToTarget()` |
-| `presets/tests/already-ready.test.ts` | 10 | Qualifying/oversized/over-target/format-mismatch (JPEG/PNG/HEIC) cases, exact byte and dimension boundaries (both directions) |
-| `presets/tests/quick-fit-mapping.test.ts` | 3 | Exact prefill values for all three presets |
-| `presets/tests/guided-fit-controller.test.ts` | 21 | Mode switching (shared file, no re-preflight, disabled while processing), preset selection (including unknown-id failure), running a preset (routing, success/unreachable/failure preset-context retention), reset/file-replacement (preset state clearing, stale-result protection), already-ready integration, adjust-settings behavior |
+| `tests/archive/filename-safety.test.ts` | 11 | Path traversal, absolute paths, drive letters, null bytes, empty/`.`/`..`, nested directories, `.zip` suffix requirement |
+| `tests/archive/zip-adapter.test.ts` | 6 | Round-trip via real `unzipSync()`, exact bytes, order preservation, empty archive, determinism, STORE-not-DEFLATE |
+| `tests/processing/validate-image-set-request.test.ts` | 18 | Empty/oversized output lists, per-output field validation, duplicate ids/filenames, unsafe/invalid filenames, archive filename validation |
+| `tests/workers/process-image-set.test.ts` | 17 | Multi-output generation, order, one-decode reuse (incl. mocked HEIC), mixed formats, per-output resize, progress asset index/count, one-failure-fails-all, package byte limit (exact boundary + over-limit), cancellation (between/during assets, cleanup-on-cancel), archive creation + integrity + no-archive-when-unrequested |
+| `tests/runtime/protocol.test.ts` (extended) | +6 | `JOB_COMPLETE_SET`/progress-with-asset-info valid-event recognition; malformed image-set result rejection |
+| `tests/runtime/worker-client.test.ts` (extended) | +5 | `PROCESS_IMAGE_SET` dispatch, asset progress forwarding, cross-kind cancellation (both directions), stale image-set result suppression |
 
-## Laravel Tests
+**Total new tests: 63** (11+6+18+17+6+5), exactly matching the 202→265 core baseline delta.
 
-`php artisan test --compact`: **8/8 passing, 17 assertions** (6 pre-existing + 2 new). `WelcomeShellTest` gained `test_no_dynamic_preset_route_exists` and `test_the_public_shell_presents_guided_fit_and_its_initial_presets` (confirms the mode tabs, `guided-fit-panel`, and all three `data-preset-id` markers render).
+## Regression Baseline
+
+`npm run test:core`: **265/265 passing** (202 pre-existing + 63 new — zero pre-existing tests were modified in behavior, only two assertions adjusted to match richer, still-correct event payloads: a `toContainEqual` widened to `expect.objectContaining` after adding `jobId` alongside the new asset-progress fields).
+
+`npm run test:ui`: **171/171 passing**, unchanged — no `resources/js/` product code was touched this sprint.
+
+`php artisan test --compact`: **8/8 passing, 17 assertions**, unchanged.
 
 ## Production Build
 
-`npm run build` succeeds.
+`npm run build` succeeds (verified twice; one transient network failure from the unrelated build-time Google/Bunny font-fetch plugin was retried and succeeded cleanly — no relation to this sprint's changes).
 
 ## Bundle Observation
 
-| Asset | FSG-003 closeout | FSG-004 | Delta |
-|---|---|---|---|
-| `app-*.js` | 38.31 kB | 48.19 kB | +9.88 kB |
-| `app-*.css` | 24.08 kB | 25.94 kB | +1.86 kB |
-| `image.worker-*.js` | 25.16 kB | 25.16 kB | unchanged |
-| `heic-decode-*.js` | 32.54 kB | 32.54 kB | unchanged |
-| `heic_dec-*.wasm` | 959.55 kB | 959.55 kB | unchanged |
+See "Lazy-Load Evidence" above for exact before/after sizes. Summary: `zip-adapter` is a new, separate, properly lazy chunk (9.12 kB); `app.js`/`image.worker.js` grew modestly (+3.99 kB / +3.26 kB) from the shared runtime's new `'set'`-kind branches, not from `fflate`; HEIC-related chunks are byte-for-byte unchanged.
 
-The app bundle growth covers the entire new feature (preset schema/validation/registry/compiler/already-ready/mapping logic, the `GuidedFitController` orchestration class, and all of `controller.ts`'s new Guided Fit DOM wiring) — not merely three data records — so it is proportionate; the preset *data* itself (`catalog.ts`) is a few hundred bytes. No lazy-loading was added for the preset catalog, per directive §58 ("do not create lazy-loading complexity for a tiny static catalog unless there is evidence it is necessary") — there is none. Worker and HEIC-related chunks are byte-for-byte unchanged, confirming zero impact on the processing runtime.
+## HEIC Regression
 
-## HEIC Lazy-Load Regression
-
-Re-verified after this sprint's rebuild: `app-*.js` and `image.worker-*.js` contain zero occurrences of the HEIC decoder glue markers (`libde265`, `wasmBinaryFile`, `instantiateWasm`); those markers appear only inside the untouched `heic-decode-*.js` chunk.
+Re-verified: `app-*.js` and `image.worker-*.js` contain zero HEIC decoder glue markers (`libde265`, `wasmBinaryFile`, `instantiateWasm`); those appear only in the untouched `heic-decode-*.js` chunk. HEIC input processing itself was not modified — `process-image-set.ts` calls the same `decodeSourceToBitmap()` HEIC branch `process-image.ts` and `process-image-to-target.ts` already use.
 
 ## Known Limitations
 
-- **Browser automation was not exercised this sprint.** Consistent with the pattern recorded in FSG-003 (Chrome-in-Chrome did not connect in this environment); not re-attempted repeatedly per standing "avoid rabbit holes" guidance. Per ADR-013/TESTING.md this is recorded honestly and does not block closure — mode switching, preset keyboard selection, and mobile card stacking are implemented to spec and covered by DOM-free orchestration/logic tests, but were not independently confirmed by a real browser session or device this sprint.
-- Comprehensive real-device/cross-browser verification remains FSG-006 scope.
-- No project-owner manual QA was requested or performed, per ADR-013.
+- **Browser automation was not exercised this sprint** (consistent with the pattern recorded since FSG-003) — but per directive §45, FSG-005A has no required public UI, so this is not a meaningful gap for this sprint's actual deliverable. All verification is automated-test- and build-inspection-based, per ADR-013.
+- `docs/product/PRODUCT.md` was deliberately **not** updated — FSG-005A introduces no product-facing concept (directive §29/§30 explicitly exclude a public surface), so there is nothing accurate to add there yet. FSG-005B will be the first sprint with real product copy to record.
+- The 50 MiB/16-asset limits are, per ADR-017 (mirroring ADR-004's framing), initial engineering defaults, not values validated against real device memory constraints — that validation remains FSG-006 scope.
 
-## FSG-004 Acceptance Audit (directive §60)
+## FSG-005A Acceptance Audit (directive §46)
 
 | # | Criterion | Status |
 |---|---|---|
-| 1 | Typed preset schema exists | Met |
-| 2 | One authoritative preset registry exists | Met |
-| 3 | Preset IDs stable and unique | Met (tested) |
-| 4 | Preset revision explicit | Met (all = 1) |
-| 5 | Preset validation exists | Met (tested) |
-| 6 | Provenance distinguishes recommended vs. external | Met |
-| 7 | External provenance requires source/freshness metadata | Met (tested) |
-| 8 | Exactly three initial presets ship | Met (tested) |
-| 9 | Initial presets use the governed values | Met (tested) |
-| 10 | Initial presets positioned as FileSetGo recommendations | Met |
-| 11 | Quick Fit remains available | Met |
-| 12 | Guided Fit available alongside Quick Fit | Met |
-| 13 | Quick Fit/Guided Fit share selected file state | Met (tested) |
-| 14 | Mode switching does not unnecessarily re-preflight | Met (tested) |
-| 15 | Guided Fit shows recommendation before processing | Met |
-| 16 | Preset execution routes through existing processing APIs | Met (tested) |
-| 17 | No second image-processing architecture exists | Met |
-| 18 | Guided Fit target jobs use `processImageToTarget()` | Met (tested) |
-| 19 | Selected preset context survives to result presentation | Met (tested) |
-| 20 | Adjust settings prefills Quick Fit correctly | Met (tested) |
-| 21 | Normal mode switching does not overwrite manual values | Met (tested) |
-| 22 | Already-ready WebP detection deterministic | Met (tested) |
-| 23 | Already-ready files not unnecessarily re-encoded | Met |
-| 24 | Unreachable distinct from failure | Met (tested) |
-| 25 | Reset/replacement-file stale protection correct | Met (tested) |
-| 26 | Preset selection keyboard accessible | Met (radio inputs + labels); not browser-automation verified |
-| 27 | Responsive layout implemented | Met; not browser-automation verified |
-| 28 | Privacy guarantees remain accurate | Met (audited) |
-| 29 | No remote preset lookup exists | Met |
-| 30 | No third-party/platform preset ships without sourcing | Met |
-| 31 | No FSG-005 packaging functionality has begun | Met |
-| 32 | Existing 202 core tests remain green | Met |
-| 33 | Existing Quick Fit tests remain green | Met (91/91) |
-| 34 | New preset/Guided Fit tests pass | Met (80/80) |
-| 35 | Laravel tests pass | Met (8/8) |
-| 36 | Typecheck passes under governed TS boundaries | Met |
-| 37 | Production build passes | Met |
-| 38 | HEIC remains lazy-loaded | Met (re-verified) |
-| 39 | No project-owner manual QA required | Met |
+| 1 | Generic typed image-set contract exists | Met |
+| 2 | Image-set processing occurs as one heavy job | Met |
+| 3 | Source is preflighted once | Met |
+| 4 | Source is decoded once | Met (tested) |
+| 5 | Multiple outputs reuse the decoded source | Met (tested) |
+| 6 | Outputs are processed sequentially | Met |
+| 7 | JPEG/PNG/WebP outputs work | Met (tested) |
+| 8 | HEIC input works without duplicate decode | Met (tested) |
+| 9 | Every output is validated | Met (tested) |
+| 10 | One failed required output fails the set | Met (tested) |
+| 11 | Cancellation works between outputs | Met (tested) |
+| 12 | Stale-result protection works | Met (tested) |
+| 13 | Existing heavy-job concurrency invariant remains intact | Met (tested) |
+| 14 | Generic archive adapter exists | Met |
+| 15 | fflate@0.8.3 is exact-pinned and isolated | Met |
+| 16 | ZIP creation occurs off the main thread | Met (in worker) |
+| 17 | ZIP contains exact expected entries | Met (tested, real unzip) |
+| 18 | Entry filenames are validated | Met (tested) |
+| 19 | Duplicate filenames/IDs are rejected | Met (tested) |
+| 20 | Path traversal is rejected | Met (tested) |
+| 21 | Asset-count limit is enforced | Met (tested) |
+| 22 | Total-output-byte limit is enforced | Met (tested) |
+| 23 | Archive result is application/zip | Met (tested) |
+| 24 | Archive code is lazy-loaded | Met (build-verified) |
+| 25 | Quick Fit/Guided Fit do not eagerly load archive code | Met (build-verified) |
+| 26 | No server packaging/upload endpoint exists | Met (audited) |
+| 27 | No Website Logo Pack UI exists | Met |
+| 28 | No favicon/ICO generation exists | Met |
+| 29 | Existing core/UI/Laravel baselines remain green | Met (265/171/8) |
+| 30 | New image-set/archive tests pass | Met (63/63) |
+| 31 | Typecheck passes | Met |
+| 32 | Production build passes | Met |
+| 33 | HEIC remains lazy | Met (re-verified) |
+| 34 | Privacy invariants remain intact | Met (audited) |
+| 35 | FSG-005 remains OPEN | Met — not claimed closed anywhere in this report |
+| 36 | FSG-005B becomes NEXT | Pending project-owner closure approval |
 
-Items 26/27 are implemented to spec but not independently confirmed by browser automation this sprint (see Known Limitations) — recorded honestly rather than claimed as verified.
+## FSG-005 Parent Status
+
+**OPEN.** Only the generic multi-output/packaging foundation (FSG-005A) is complete. The Website Logo Pack, favicon/ICO generation, and any public packaging UI remain entirely unbuilt and are FSG-005B's scope.
 
 ## Next Milestone
 
-FSG-005 — Packaging & Export Systems is NEXT and has not begun.
+FSG-005B — Website Logo Pack & Favicon Suite is NEXT and has not begun.
 
 ## Commit Reference
 
-This report is included in the FSG-004 closeout commit:
+This report is included in the FSG-005A closeout commit:
 
-`feat(web): add Guided Fit presets`
+`feat(core): add multi-output packaging foundation`
 
 The authoritative commit SHA is recorded in Git history and in the post-commit closeout response.

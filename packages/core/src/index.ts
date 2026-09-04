@@ -46,9 +46,27 @@ export {
 export {
   cancelImageJob,
   processImage,
+  processImageSet,
   processImageToTarget,
 } from './runtime/worker-client';
 export { MAX_ACTIVE_HEAVY_JOBS } from './runtime/constants';
+export {
+  type ImageProcessingSetCancelled,
+  type ImageProcessingSetComplete,
+  type ImageProcessingSetFailed,
+  type ImageProcessingSetJob,
+  type ImageProcessingSetOutcome,
+  type ImageSetArchiveOptions,
+  type ImageSetAssetResult,
+  type ImageSetOutputSpec,
+  type ImageSetProcessingProgress,
+  type ImageSetResult,
+  type ProcessImageSetOptions,
+} from './processing/image-set-contracts';
+export {
+  MAX_PACKAGE_ASSETS,
+  MAX_PACKAGE_TOTAL_OUTPUT_BYTES,
+} from './processing/image-set-limits';
 export {
   TARGET_SIZE_ERROR_CODES,
   type DimensionPolicy,

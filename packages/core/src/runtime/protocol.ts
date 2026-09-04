@@ -9,6 +9,10 @@ import type {
   TargetSizeResult,
   TargetSizeUnreachable,
 } from '../processing/target-size-contracts';
+import type {
+  ImageSetResult,
+  SafeImageProcessingSetRequest,
+} from '../processing/image-set-contracts';
 
 export interface ProcessImageCommand {
   type: 'PROCESS_IMAGE';
@@ -22,6 +26,12 @@ export interface ProcessImageToTargetCommand {
   request: SafeImageProcessingTargetRequest;
 }
 
+export interface ProcessImageSetCommand {
+  type: 'PROCESS_IMAGE_SET';
+  jobId: string;
+  request: SafeImageProcessingSetRequest;
+}
+
 export interface CancelJobCommand {
   type: 'CANCEL_JOB';
   jobId: string;
@@ -30,6 +40,7 @@ export interface CancelJobCommand {
 export type ImageWorkerCommand =
   | ProcessImageCommand
   | ProcessImageToTargetCommand
+  | ProcessImageSetCommand
   | CancelJobCommand;
 
 export interface JobAcceptedEvent {
@@ -44,6 +55,9 @@ export interface JobProgressEvent {
     ImageProcessingStage,
     'preflighting' | 'accepted' | 'complete'
   >;
+  /** Image-set jobs only (FSG-005A directive §32): 1-based index of the asset currently being produced. */
+  assetIndex?: number;
+  assetCount?: number;
 }
 
 export interface JobCompleteEvent {
@@ -67,6 +81,13 @@ export interface JobCompleteTargetEvent {
     | { status: 'unreachable'; outcome: TargetSizeUnreachable };
 }
 
+/** Terminal event for a successful image-set job (FSG-005A). */
+export interface JobCompleteSetEvent {
+  type: 'JOB_COMPLETE_SET';
+  jobId: string;
+  result: ImageSetResult;
+}
+
 export interface JobFailedEvent {
   type: 'JOB_FAILED';
   jobId: string;
@@ -83,6 +104,7 @@ export type ImageWorkerEvent =
   | JobProgressEvent
   | JobCompleteEvent
   | JobCompleteTargetEvent
+  | JobCompleteSetEvent
   | JobFailedEvent
   | JobCancelledEvent;
 
@@ -92,6 +114,7 @@ const WORKER_PROGRESS_STAGES = new Set([
   'optimizing',
   'resizing',
   'encoding',
+  'packaging',
   'finalizing',
 ]);
 
@@ -160,6 +183,35 @@ function isTargetSizeOutcome(value: unknown): boolean {
   return false;
 }
 
+function isImageSetAssetResult(value: unknown): boolean {
+  return isProcessedImageResult(value) && isRecord(value) && typeof value.id === 'string' && typeof value.filename === 'string';
+}
+
+function isImageSetResult(value: unknown): boolean {
+  if (!isRecord(value) || !Array.isArray(value.assets)) {
+    return false;
+  }
+
+  if (
+    typeof value.assetCount !== 'number' ||
+    typeof value.totalOutputBytes !== 'number' ||
+    !value.assets.every((asset) => isImageSetAssetResult(asset))
+  ) {
+    return false;
+  }
+
+  if (value.archive === undefined) {
+    return true;
+  }
+
+  return (
+    isRecord(value.archive) &&
+    value.archive.blob instanceof Blob &&
+    typeof value.archive.filename === 'string' &&
+    typeof value.archive.byteSize === 'number'
+  );
+}
+
 export function isImageWorkerEvent(value: unknown): value is ImageWorkerEvent {
   if (!isRecord(value) || typeof value.jobId !== 'string') {
     return false;
@@ -178,6 +230,8 @@ export function isImageWorkerEvent(value: unknown): value is ImageWorkerEvent {
       return isProcessedImageResult(value.result);
     case 'JOB_COMPLETE_TARGET':
       return isTargetSizeOutcome(value.outcome);
+    case 'JOB_COMPLETE_SET':
+      return isImageSetResult(value.result);
     case 'JOB_FAILED':
       return isProcessingError(value.error);
     default:

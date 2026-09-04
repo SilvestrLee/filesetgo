@@ -15,6 +15,20 @@ export const IMAGE_PROCESSING_ERROR_CODES = {
   HeicDecoderUnavailable: 'HEIC_DECODER_UNAVAILABLE',
   /** The HEIC decoder module loaded but its WASM runtime failed to initialize. */
   HeicInitializationFailed: 'HEIC_INITIALIZATION_FAILED',
+  /** FSG-005A: more outputs were requested than MAX_PACKAGE_ASSETS permits. */
+  TooManyPackageAssets: 'TOO_MANY_PACKAGE_ASSETS',
+  /** FSG-005A: completed asset bytes would exceed MAX_PACKAGE_TOTAL_OUTPUT_BYTES. */
+  PackageOutputTooLarge: 'PACKAGE_OUTPUT_TOO_LARGE',
+  /** FSG-005A: two or more requested outputs share the same `id`. */
+  DuplicateAssetId: 'DUPLICATE_ASSET_ID',
+  /** FSG-005A: two or more requested outputs share the same `filename`. */
+  DuplicateFilename: 'DUPLICATE_FILENAME',
+  /** FSG-005A: the requested archive filename does not end in `.zip`. */
+  InvalidArchiveFilename: 'INVALID_ARCHIVE_FILENAME',
+  /** FSG-005A: a requested output/archive entry filename fails archive path-safety validation. */
+  UnsafeArchiveEntry: 'UNSAFE_ARCHIVE_ENTRY',
+  /** FSG-005A: the ZIP archive adapter failed to produce archive bytes. */
+  ArchiveCreationFailed: 'ARCHIVE_CREATION_FAILED',
 } as const;
 
 export const OUTPUT_IMAGE_MIME_TYPES = {
@@ -38,6 +52,8 @@ export type ImageProcessingStage =
   | 'optimizing'
   | 'resizing'
   | 'encoding'
+  /** Multi-output jobs only (FSG-005A): archive creation, after all requested outputs have been produced and validated. */
+  | 'packaging'
   | 'finalizing'
   | 'complete';
 
