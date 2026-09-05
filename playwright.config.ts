@@ -7,21 +7,24 @@ import { defineConfig, devices } from '@playwright/test';
  * (`php artisan serve` over the production Vite build) — never a synthetic
  * reimplementation of controller logic (§9).
  *
- * Engine coverage: Chromium and Firefox. WebKit is deliberately excluded —
- * see "Browser Engine Matrix" in SPRINT_REPORT.md for the exact, verified
- * technical reason (this host's only installable macOS-12 WebKit build is a
- * frozen 2023 snapshot whose protocol is incompatible with Playwright's
- * current driver; a Product Office decision accepted this as a documented
- * environment limitation rather than downgrading to a CVE-affected
- * Playwright version for a non-representative legacy WebKit build).
+ * Engine coverage: Chromium, Firefox, and WebKit — all three are governed
+ * targets (see docs/governance/DECISIONS.md ADR-019). The WebKit project
+ * below is only added when `CI` is set: this coding agent's local macOS 12
+ * host cannot launch any current, non-CVE-affected Playwright WebKit build
+ * at all (ADR-019 has the full investigation), so WebKit runs on the
+ * GitHub Actions runner (`.github/workflows/fsg-006-browser-certification.yml`,
+ * which sets `CI: true`), not locally. This is a local-environment
+ * constraint worked around by running WebKit somewhere it isn't
+ * constrained — not a decision to drop WebKit from the matrix.
  *
  * Mobile viewport coverage uses Chromium with explicit viewport/touch
  * emulation rather than named "iPhone"/"iPad" device presets, because those
- * presets force WebKit in Playwright and this host cannot run it (directive
- * §11 explicitly allows this: "the required product behaviors are more
- * important than device branding").
+ * presets force WebKit in Playwright, which is unavailable in exactly the
+ * same way locally (directive §11 explicitly allows this: "the required
+ * product behaviors are more important than device branding").
  */
 const PORT = 8123;
+const includeWebkit = !!process.env.CI;
 
 export default defineConfig({
   testDir: './tests/browser/specs',
@@ -31,9 +34,9 @@ export default defineConfig({
   retries: 0,
   // This host has only 2 physical CPUs; several tests exercise real
   // canvas/WASM/ZIP work through the actual worker runtime (directive §9),
-  // and running too many headless Chromium/Firefox instances in parallel
-  // starves that work of CPU rather than exercising a genuine app defect
-  // (directive §59/§60: determinism over hidden flakiness).
+  // and running too many headless browser instances in parallel starves
+  // that work of CPU rather than exercising a genuine app defect (directive
+  // §59/§60: determinism over hidden flakiness).
   workers: 2,
   reporter: [
     ['list'],
@@ -55,6 +58,9 @@ export default defineConfig({
     // layout suite (which needs mobile emulation, not desktop viewports).
     { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: '**/mobile-viewport.spec.ts' },
     { name: 'firefox', use: { ...devices['Desktop Firefox'] }, testIgnore: '**/mobile-viewport.spec.ts' },
+    ...(includeWebkit
+      ? [{ name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: '**/mobile-viewport.spec.ts' }]
+      : []),
 
     // Dedicated mobile viewport/layout suite only (directive §11-§14).
     {
