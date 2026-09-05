@@ -60,6 +60,9 @@ jobs:
         run: |
           cp .env.example .env
           php artisan key:generate --force
+          mkdir -p database
+          touch database/database.sqlite
+          php artisan migrate --force
 
       - name: Build production assets
         run: npm run build
