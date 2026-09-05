@@ -42,7 +42,13 @@ jobs:
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
       - name: Install Node dependencies
-        run: npm ci
+        # `npm ci` on this Linux runner hits the documented npm optional-
+        # dependency bug (npm/cli#4828): the lockfile committed from a macOS
+        # dev environment doesn't reliably resolve Vite's rolldown bundler's
+        # Linux-x64 native binding under `ci`'s strict mode. `npm install`
+        # still installs the exact locked versions but re-resolves the
+        # platform-specific optional dependency correctly.
+        run: npm install
 
       - name: Install the governed Playwright browsers (Chromium, Firefox, WebKit)
         run: npx playwright install --with-deps chromium firefox webkit
