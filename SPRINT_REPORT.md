@@ -6,7 +6,7 @@ FSG-006 — Hardening, Mobile QA & Compatibility (see `docs/directives/FSG-006.m
 
 ## Status
 
-**FSG-006 remains OPEN.** A Product Office final-certification pass identified three remaining closure gaps (WebKit execution, a same-session stress test, and a real browser-level unsupported-runtime test) after the first provisional pass. This report reflects the state after closing those gaps: the same-session stress test and unsupported-runtime capability-fallback test are implemented and passing locally on Chromium/Firefox; WebKit execution required a supported environment this local macOS 12 host cannot provide, so a narrow, explicitly non-closure verification checkpoint was pushed to trigger it on GitHub Actions (see "Commit Reference"). FSG-006 introduces no new product feature — it certifies the existing V1 surface (Quick Fit, Guided Fit, Website Logo Pack) against real Chromium, Firefox, and WebKit engines plus four mobile viewport classes, and fixes every defect that certification found.
+Implementation and verification complete, including the real WebKit result the previous provisional pass was missing. **Not committed as closed.** A verification checkpoint (5 commits — the certification suite, three CI infrastructure fixes, and the missing-WebKit-project fix) is already pushed to `fsg-006-hardening-compatibility`, per Product Office's explicit authorization for exactly that; **FSG-006 itself remains formally OPEN until Product Office approves closure**, and `docs/governance/ROADMAP.md` has not been touched. FSG-006 introduces no new product feature — it certifies the existing V1 surface (Quick Fit, Guided Fit, Website Logo Pack) against real Chromium, Firefox, and WebKit engines plus four mobile viewport classes, and fixes every defect that certification found.
 
 ## Base Commit
 
@@ -40,9 +40,11 @@ WebKit is a required, governed engine target — it has not been waived, and thi
 
 | Engine | Classification | Evidence |
 |---|---|---|
-| Chromium | **PASS** | 45/45 tests passing locally — full functional certification suite plus the new stress and unsupported-runtime specs |
-| Firefox | **PASS** | 42/45 passing locally, 3 skipped with a documented, non-product tooling reason (see below); 0 failed |
-| WebKit | *(see "GitHub Actions WebKit Result" below — this section is updated with the real CI outcome once the workflow run this report triggers completes; it is not reported as PASS, FAIL, or waived without that real result)* | |
+| Chromium | **PASS** | 45/45 — GitHub Actions run [`33972958935`](https://github.com/SilvestrLee/filesetgo/actions/runs/33972958935); also 45/45 locally |
+| Firefox | **PASS** | 42/45, 3 skipped with a documented, non-product tooling reason (see below); 0 failed — same CI run; also matches locally |
+| **WebKit** | **PASS** | **42/45, 3 skipped (same documented tooling reason, generalized to any non-Chromium engine), 0 failed** — real Playwright WebKit execution on a Linux GitHub Actions runner, `@playwright/test@1.55.1` (the identical governed pin), triggered by commit `383cc2a` on this branch |
+
+All three engine results above come from **one single CI run** (`33972958935`) for direct comparability — Chromium/Firefox were re-run there too, not merely copied from the earlier local numbers, and they match exactly.
 
 **No Safari or physical device was tested at any point.** "WebKit" throughout this report refers only to Playwright's automated WebKit browser engine — never Safari, never a physical device. This distinction is stated explicitly per directive §55, not implied, everywhere WebKit is mentioned.
 
@@ -50,9 +52,18 @@ WebKit is a required, governed engine target — it has not been waived, and thi
 - Playwright `1.55.1` (the governed pin, chosen for its CVE fix) — the only WebKit build installable for macOS 12 (`webkit_mac12_special`, a frozen 2023-era snapshot) is protocol-incompatible with this version's driver (`Unknown setting: FixedBackgroundsPaintRelativeToDocument` on every `newPage()`). WebKit cannot launch at all.
 - Playwright `1.40.0` + WebKit build `1944` — confirmed to actually launch (`webkit OK hi`) in isolation, but `1.40.0` carries the same SSL-verification-bypass CVE `1.55.1` exists to fix, and build `1944` is a multi-year-old snapshot that would not represent current WebKit/Safari behavior even if adopted. Neither the CVE exposure nor the non-representative result were acceptable, so this combination was not used anywhere, including in CI.
 
-**The 3 Firefox skips:** `lazy-load.spec.ts`'s three tests assert which chunks a request-collector observed. Playwright reliably surfaces requests made *from inside* a module Worker (both `image.worker.js` itself and its own dynamic `import()` of `zip-adapter.js`/`heic-decode.js`) through `page.on('request')` only under Chromium's CDP transport; Firefox's Juggler protocol does not expose worker-scope requests the same way — independently reconfirmed while building the Firefox Logo Pack cancellation test (a `page.route()` interceptor for the same worker-scope request recorded zero hits in Firefox despite the job completing normally). This is a Playwright/Firefox tooling limitation, not a product behavior difference — the same lazy-loading fact is independently and more strongly proven by the byte-for-byte-unchanged chunk-hash bundle inspection below. Each skipped test still runs its full real functional flow up to the point of the unavailable assertion; only the network-observation assertion itself is skipped, with the reason printed inline. The same limitation required one Logo Pack cancellation test (see "Cancellation Certification") to skip only its cancel-mid-flight assertion on Firefox specifically, while still running the complete flow.
+**The 3 skips on Firefox, and the same 3 on WebKit:** `lazy-load.spec.ts`'s three tests assert which chunks a request-collector observed. Playwright reliably surfaces requests made *from inside* a module Worker (both `image.worker.js` itself and its own dynamic `import()` of `zip-adapter.js`/`heic-decode.js`) through `page.on('request')` only under Chromium's CDP transport — Firefox's Juggler protocol and WebKit's own remote protocol do not expose worker-scope requests the same way — independently reconfirmed while building the Firefox Logo Pack cancellation test (a `page.route()` interceptor for the same worker-scope request recorded zero hits in Firefox despite the job completing normally). This is a Playwright tooling limitation shared by both non-Chromium engines, not a product behavior difference — the same lazy-loading fact is independently and more strongly proven by the byte-for-byte-unchanged chunk-hash bundle inspection below. Each skipped test still runs its full real functional flow up to the point of the unavailable assertion; only the network-observation assertion itself is skipped, with the reason printed inline. The same limitation made one Logo Pack cancellation test (see "Cancellation Certification") skip only its cancel-mid-flight assertion on non-Chromium engines specifically, while still running the complete flow — this is why that test's condition is `browserName === 'chromium'`, generalizing cleanly to WebKit without any change needed once WebKit actually ran.
 
 ## GitHub Actions WebKit Result
+
+**WebKit — PASS. 42/45 tests passing, 3 skipped (documented tooling limitation above), 0 failed.**
+
+Obtained from workflow run [`33972958935`](https://github.com/SilvestrLee/filesetgo/actions/runs/33972958935) (`.github/workflows/fsg-006-browser-certification.yml`, commit `383cc2a`), triggered by a push to `fsg-006-hardening-compatibility`, on a `ubuntu-latest` GitHub Actions runner — Node 22, PHP 8.5, `@playwright/test@1.55.1` (the identical governed pin used everywhere else in this milestone), Playwright WebKit installed via `npx playwright install --with-deps webkit`. The job built the real production assets (`npm run build`) and served the real application (`php artisan serve`) exactly as the local suite does; no synthetic reimplementation.
+
+**This required three infrastructure fixes along the way, all fully resolved, none touching FSG-006 product code or test assertions:**
+1. `npm ci` (and even a lockfile-respecting `npm install`) failed on the Linux runner with the documented `npm/cli#4828` optional-dependency bug — Vite's rolldown bundler couldn't resolve its Linux-x64 native binding from a macOS-authored lockfile. Fixed by dropping the lockfile for this CI-only install (the repository's committed `package-lock.json` is untouched).
+2. `php artisan serve` never came up (`Timed out waiting 30000ms from config.webServer`) — `.env.example` defaults `SESSION_DRIVER`/`CACHE_STORE`/`QUEUE_CONNECTION` to `database`, and `database/database.sqlite` is gitignored, so it didn't exist in a fresh CI checkout. Fixed by creating the file and running migrations before starting the server.
+3. **The most consequential one:** the first two (otherwise-successful) CI runs silently never executed WebKit at all, despite installing it — `playwright.config.ts` never defined a `webkit` project. `npx playwright test` only ever runs the projects a config actually declares, regardless of which browser binaries are installed. Fixed by adding a `webkit` project, included only when `CI` is set (this local host still cannot launch it — see "Browser Engine Matrix"). This is recorded plainly because it would have been easy to mistake "the workflow succeeded" for "WebKit was verified" without checking the actual per-project test counts, which is exactly why this report cross-checked exact `[webkit]`-tagged pass/skip/fail counts from the raw CI log rather than trusting the green checkmark alone.
 
 *(This section is filled in with the exact result once the triggered workflow run completes — see "Commit Reference" for the checkpoint commit SHA and how to find the run.)*
 
@@ -201,18 +212,21 @@ Per directive §58, FSG-006 is QA, not redesign — the full four-skill pipeline
 
 ## Browser Test Counts
 
-**Local (Chromium/Firefox/4 mobile projects): 110 browser tests total, 107 passed, 3 skipped (documented Firefox tooling limitation), 0 failed.** This includes the two new specs added to close Product Office gaps §3/§4 (`stress.spec.ts`, `unsupported-runtime.spec.ts` — 11 tests together, Chromium+Firefox only, not run against the mobile-viewport projects).
+**GitHub Actions, full 7-project matrix including WebKit (run `33972958935`, the authoritative cross-engine result): 155 tests total, 149 passed, 6 skipped (documented tooling limitation, 3 on Firefox + 3 on WebKit), 0 failed.**
 
 | Project | Passed | Skipped | Failed |
 |---|---|---|---|
 | chromium | 45 | 0 | 0 |
 | firefox | 42 | 3 | 0 |
+| **webkit** | **42** | **3** | **0** |
 | mobile-narrow-320 | 5 | 0 | 0 |
 | mobile-iphone-class | 5 | 0 | 0 |
 | mobile-android-class | 5 | 0 | 0 |
 | mobile-tablet-class | 5 | 0 | 0 |
 
-This is a real, stable local result — the full 6-project matrix was re-run twice, back to back, after every fix in this closure pass until both runs were completely green (110/110 minus the 3 documented skips both times, not merely "passed once"). **WebKit is not part of this local matrix** — see "Browser Engine Matrix"/"GitHub Actions WebKit Result" for how and where it was actually executed.
+**Local (Chromium/Firefox/4 mobile projects — WebKit cannot run on this host, see "Browser Engine Matrix"): 110 tests total, 107 passed, 3 skipped, 0 failed**, re-run twice back to back until both runs were completely green, not merely "passed once." The two totals are consistent: 155 CI − 45 webkit-project tests = 110, matching the local total exactly.
+
+This includes the two new specs added to close Product Office gaps §3/§4 (`stress.spec.ts`, `unsupported-runtime.spec.ts` — 11 tests together, run on chromium/firefox/webkit, not against the mobile-viewport projects).
 
 **Two test-reliability fixes landed alongside the product fixes, both confirmed as test-timing issues, not product defects, by passing reliably in isolation and only failing under added parallel load:** `accessibility.spec.ts`'s focus-after-cancellation check now uses `expect.poll()` instead of an instant snapshot (a browser's own focus-clearing when a focused control is hidden is not necessarily synchronous with the script that hides it, under real CPU contention); `logo-pack.spec.ts`'s primary success-path test no longer asserts an intermediate `processing` state before `success` (the same "job finishes faster than a round-trip check" pattern already fixed elsewhere in this suite).
 
@@ -255,7 +269,7 @@ No physical device or real Safari instance was available to, or used by, this ag
 | 5 | Production build passes | Met |
 | 6 | Chromium compatibility passes | Met (45/45 local) |
 | 7 | Firefox compatibility passes | Met (42/45 local, 3 documented tooling skips, 0 failed) |
-| 8 | WebKit compatibility passes | **Pending real result from the triggered GitHub Actions run** — this local environment cannot execute it; not marked Met until that real result is in (see "GitHub Actions WebKit Result") |
+| 8 | WebKit compatibility passes | **Met (42/45, 3 documented tooling skips, 0 failed — real GitHub Actions run `33972958935`, see "GitHub Actions WebKit Result")** |
 | 9 | Mobile viewport compatibility passes | Met (20/20 across 4 projects) |
 | 10 | 320px layout remains functional | Met (tested directly, one real defect found and fixed) |
 | 11 | Quick Fit browser flow passes | Met |
@@ -290,7 +304,7 @@ No physical device or real Safari instance was available to, or used by, this ag
 
 ## Launch-Readiness Recommendation
 
-**FSG-006 remains OPEN pending the real WebKit result.** Not READY FOR FSG-007 and not NOT READY — genuinely undetermined until "GitHub Actions WebKit Result" above is filled in with the actual outcome. Every other required item is Met: Chromium/Firefox/mobile certification, the same-session stress test, the real browser-level unsupported-runtime test, and the one real severity-P0 defect this milestone exists to catch (found, root-caused, fixed, and regression-tested).
+**READY FOR FSG-007**, pending Product Office's own closure approval (this agent does not self-approve FSG-006's closure). Every FSG-006 Acceptance Audit item is Met, including WebKit (§8, real 42/45-passing GitHub Actions result) — the two remaining gaps from the prior provisional pass (WebKit execution, the same-session stress test and unsupported-runtime test) are all closed with real, verified evidence, not assumed or waived.
 
 ## Next Milestone
 
@@ -298,4 +312,14 @@ FSG-007 — SEO Acquisition Surfaces & Public Launch. **Not started, and will no
 
 ## Commit Reference
 
-**Not the FSG-006 closure commit.** A narrow, explicitly non-closure verification checkpoint was pushed to `fsg-006-hardening-compatibility` solely to let GitHub Actions execute the WebKit (and cross-validation Chromium/Firefox) run this local environment cannot perform — per Product Office's explicit authorization for exactly this. It contains the complete FSG-006 browser-test infrastructure, the two responsive/accessibility fixes, the P0 protocol fix, the new stress/unsupported-runtime specs, and this report/governance documentation. **FSG-006 is not marked CLOSED in it, and ROADMAP.md is not touched by it.** Commit SHA and the triggered workflow run are reported in the closeout response accompanying this report.
+**None of the following are the FSG-006 closure commit.** A narrow, explicitly non-closure verification checkpoint (5 commits) was pushed to `fsg-006-hardening-compatibility` solely to let GitHub Actions execute the WebKit (and cross-validation Chromium/Firefox) run this local environment cannot perform — per Product Office's explicit authorization for exactly this. **FSG-006 is not marked CLOSED in any of them, and `docs/governance/ROADMAP.md` is not touched by any of them.**
+
+| Commit | Contents |
+|---|---|
+| `7c2c86d` | The complete FSG-006 browser-test suite, the P0 protocol fix, the two responsive/accessibility fixes, and the CI workflow definition |
+| `b0ad341` | CI fix: `npm ci` → `npm install` (attempt 1 at the rolldown optional-dependency bug) |
+| `c7f3d72` | CI fix: drop the lockfile for the CI-only install (attempt 2, the one that worked) |
+| `414578e` | CI fix: create and migrate the sqlite database so `php artisan serve` actually starts |
+| `383cc2a` | Fix: add the missing `webkit` Playwright project so CI actually executes it (this is the commit the real WebKit result above came from) |
+
+This report's own final update (reflecting the real WebKit result) is committed and pushed as a further non-closure commit on the same branch immediately after this pass completes.
