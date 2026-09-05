@@ -6,7 +6,13 @@ FSG-006 — Hardening, Mobile QA & Compatibility (see `docs/directives/FSG-006.m
 
 ## Status
 
-Implementation and verification complete, including the real WebKit result the previous provisional pass was missing. **Not committed as closed.** A verification checkpoint (5 commits — the certification suite, three CI infrastructure fixes, and the missing-WebKit-project fix) is already pushed to `fsg-006-hardening-compatibility`, per Product Office's explicit authorization for exactly that; **FSG-006 itself remains formally OPEN until Product Office approves closure**, and `docs/governance/ROADMAP.md` has not been touched. FSG-006 introduces no new product feature — it certifies the existing V1 surface (Quick Fit, Guided Fit, Website Logo Pack) against real Chromium, Firefox, and WebKit engines plus four mobile viewport classes, and fixes every defect that certification found.
+**FSG-006 — PAUSED.**
+
+**Reason:** a real-user Logo Pack validation introduced the approved FSG-005C ("Logo Transparency & Verification") requirement after this FSG-006 certification work was already substantially completed. FSG-005C changes the Logo Pack workflow this milestone certified, so final FSG-006 closure must wait until the new transparency workflow is implemented and its affected paths are re-certified.
+
+**The existing certification is not invalidated.** Everything recorded in this report — the full Chromium/Firefox/WebKit/mobile browser matrix, the P0 protocol fix, the two responsive/accessibility fixes, the same-session stress test, the unsupported-runtime test, and the CI infrastructure — is preserved as an authoritative baseline for the pre-FSG-005C product. It remains pushed, untouched, and unreset on `fsg-006-hardening-compatibility` (verification checkpoint through commit `1a08ff5`, plus this pause/governance-correction commit). `docs/governance/ROADMAP.md` is not touched — FSG-006 is not marked closed there.
+
+FSG-005C now branches from this pause checkpoint as `fsg-005c-logo-transparency`. FSG-006 does not resume during FSG-005C.
 
 ## Base Commit
 
@@ -15,6 +21,23 @@ Implementation and verification complete, including the real WebKit result the p
 ## Branch
 
 `fsg-006-hardening-compatibility`, created from the commit above (not continued on the FSG-005B branch).
+
+## Milestone State
+
+```text
+FSG-001 ✅ CLOSED
+FSG-002 ✅ CLOSED
+FSG-003 ✅ CLOSED
+FSG-004 ✅ CLOSED
+FSG-005A ✅ CLOSED
+FSG-005B ✅ CLOSED
+
+FSG-005 ⏭ REOPENED
+FSG-005C ▶ CURRENT — Logo Transparency & Verification
+
+FSG-006 ⏸ PAUSED — existing certification preserved
+FSG-007 — NOT STARTED
+```
 
 ## Objective
 
@@ -36,13 +59,15 @@ Per directive §8, existing tooling was inspected before installing anything: no
 
 ## Browser Engine Matrix
 
-WebKit is a required, governed engine target — it has not been waived, and this milestone does not close with it unexecuted. What is real is a narrower, purely environmental fact, corrected from an earlier draft of this report that overstated it as a settled trade-off: **this coding agent's local macOS 12 host cannot run a current, non-CVE-affected Playwright WebKit build at all**, full investigation in `docs/governance/DECISIONS.md` ADR-019. Per Product Office direction, WebKit execution was obtained from a supported environment instead of being redefined away — no local Docker/VM runtime was available in this environment (checked directly: `docker` is not installed), so a GitHub Actions workflow (`.github/workflows/fsg-006-browser-certification.yml`) running the identical governed `@playwright/test@1.55.1` toolchain on a current Ubuntu runner was used.
+WebKit is a required, governed engine target — it has not been waived, and this milestone does not close with it unexecuted. What is real is a narrower, purely environmental fact, corrected from an earlier draft of this report that overstated it as a settled trade-off: **this coding agent's local macOS 12 host cannot run a current, non-CVE-affected Playwright WebKit build at all**, full investigation in `docs/governance/DECISIONS.md` ADR-019. Per Product Office direction, WebKit execution was obtained from a supported environment instead of being redefined away — no local Docker/VM runtime was available in this environment (checked directly: `docker` is not installed), so a GitHub Actions workflow (`.github/workflows/fsg-006-browser-certification.yml`) running Playwright on a current Ubuntu runner was used.
+
+**Playwright-version correction:** an earlier draft of this report claimed that CI run used "the identical governed `@playwright/test@1.55.1` pin." That was not accurate at the time. `package.json` then declared `"@playwright/test": "^1.55.1"` (a caret range, not an exact pin — corrected below, see "Reproducibility Correction"), and the CI workflow's install step dropped `package-lock.json` to work around the rolldown optional-dependency bug, so npm was free to resolve any `1.x` release satisfying that range. **The exact `@playwright/test`/browser build versions actually exercised in run `33972958935` were never captured or logged** (the workflow did not run `npm ls @playwright/test` or an equivalent version-print step). The PASS result remains valid evidence that the application worked correctly against whatever real Chromium, Firefox, and WebKit engine builds Playwright actually installed and ran there — it is not evidence that those were specifically version `1.55.1`'s bundled browsers.
 
 | Engine | Classification | Evidence |
 |---|---|---|
 | Chromium | **PASS** | 45/45 — GitHub Actions run [`33972958935`](https://github.com/SilvestrLee/filesetgo/actions/runs/33972958935); also 45/45 locally |
 | Firefox | **PASS** | 42/45, 3 skipped with a documented, non-product tooling reason (see below); 0 failed — same CI run; also matches locally |
-| **WebKit** | **PASS** | **42/45, 3 skipped (same documented tooling reason, generalized to any non-Chromium engine), 0 failed** — real Playwright WebKit execution on a Linux GitHub Actions runner, `@playwright/test@1.55.1` (the identical governed pin), triggered by commit `383cc2a` on this branch |
+| **WebKit** | **PASS** | **42/45, 3 skipped (same documented tooling reason, generalized to any non-Chromium engine), 0 failed** — real Playwright WebKit execution on a Linux GitHub Actions runner, triggered by commit `383cc2a` on this branch (exact Playwright/browser build version not captured from that run — see correction above) |
 
 All three engine results above come from **one single CI run** (`33972958935`) for direct comparability — Chromium/Firefox were re-run there too, not merely copied from the earlier local numbers, and they match exactly.
 
@@ -58,14 +83,20 @@ All three engine results above come from **one single CI run** (`33972958935`) f
 
 **WebKit — PASS. 42/45 tests passing, 3 skipped (documented tooling limitation above), 0 failed.**
 
-Obtained from workflow run [`33972958935`](https://github.com/SilvestrLee/filesetgo/actions/runs/33972958935) (`.github/workflows/fsg-006-browser-certification.yml`, commit `383cc2a`), triggered by a push to `fsg-006-hardening-compatibility`, on a `ubuntu-latest` GitHub Actions runner — Node 22, PHP 8.5, `@playwright/test@1.55.1` (the identical governed pin used everywhere else in this milestone), Playwright WebKit installed via `npx playwright install --with-deps webkit`. The job built the real production assets (`npm run build`) and served the real application (`php artisan serve`) exactly as the local suite does; no synthetic reimplementation.
+Obtained from workflow run [`33972958935`](https://github.com/SilvestrLee/filesetgo/actions/runs/33972958935) (`.github/workflows/fsg-006-browser-certification.yml`, commit `383cc2a`), triggered by a push to `fsg-006-hardening-compatibility`, on a `ubuntu-latest` GitHub Actions runner — Node 22, PHP 8.5, `@playwright/test` (per "Playwright-version correction" above, the exact resolved version from that specific run was not captured — `package.json` at that commit declared `^1.55.1` and the CI install step dropped the lockfile), Playwright WebKit installed via `npx playwright install --with-deps webkit`. The job built the real production assets (`npm run build`) and served the real application (`php artisan serve`) exactly as the local suite does; no synthetic reimplementation.
 
 **This required three infrastructure fixes along the way, all fully resolved, none touching FSG-006 product code or test assertions:**
 1. `npm ci` (and even a lockfile-respecting `npm install`) failed on the Linux runner with the documented `npm/cli#4828` optional-dependency bug — Vite's rolldown bundler couldn't resolve its Linux-x64 native binding from a macOS-authored lockfile. Fixed by dropping the lockfile for this CI-only install (the repository's committed `package-lock.json` is untouched).
 2. `php artisan serve` never came up (`Timed out waiting 30000ms from config.webServer`) — `.env.example` defaults `SESSION_DRIVER`/`CACHE_STORE`/`QUEUE_CONNECTION` to `database`, and `database/database.sqlite` is gitignored, so it didn't exist in a fresh CI checkout. Fixed by creating the file and running migrations before starting the server.
 3. **The most consequential one:** the first two (otherwise-successful) CI runs silently never executed WebKit at all, despite installing it — `playwright.config.ts` never defined a `webkit` project. `npx playwright test` only ever runs the projects a config actually declares, regardless of which browser binaries are installed. Fixed by adding a `webkit` project, included only when `CI` is set (this local host still cannot launch it — see "Browser Engine Matrix"). This is recorded plainly because it would have been easy to mistake "the workflow succeeded" for "WebKit was verified" without checking the actual per-project test counts, which is exactly why this report cross-checked exact `[webkit]`-tagged pass/skip/fail counts from the raw CI log rather than trusting the green checkmark alone.
 
-*(This section is filled in with the exact result once the triggered workflow run completes — see "Commit Reference" for the checkpoint commit SHA and how to find the run.)*
+## Reproducibility Correction
+
+Two more governance/reproducibility issues surfaced on review, corrected here:
+
+**`@playwright/test` was not actually exact-pinned when the WebKit run above executed**, despite ADR-019 and earlier drafts of this report describing it that way. `package.json` declared `"@playwright/test": "^1.55.1"` — a caret range, not an exact version. **Corrected now:** changed to `"@playwright/test": "1.55.1"` and `package-lock.json` regenerated through the normal governed workflow (`npm install`, not the CI-only lockfile-dropping path). Verified: `npm ci` followed by `npm ls @playwright/test` resolves exactly `@playwright/test@1.55.1`, locally. This local exact pin did not exist at the time run `33972958935` executed, which is exactly why that run's own resolved version cannot be claimed retroactively (see "Playwright-version correction" above).
+
+**CI reproducibility is not solved, and this report does not pretend it is.** The CI workflow's install step still drops `package-lock.json` to work around the `npm/cli#4828` rolldown optional-dependency bug (see item 1 above) — meaning the remote dependency graph, including `@playwright/test` itself, is not fully lockfile-reproducible from that job. This is recorded as an open FSG-006 infrastructure limitation, to be resolved (a real cross-platform fix — not a hard-coded Rolldown native-binding package guess) before FSG-006's final certification, not before this pause. No fresh 155-test remote run was performed for this governance correction alone, per Product Office instruction — the Logo Pack contract this suite certifies is about to change under FSG-005C regardless, which would make re-running it now redundant.
 
 ## Mobile Viewport Matrix
 
@@ -304,15 +335,17 @@ No physical device or real Safari instance was available to, or used by, this ag
 
 ## Launch-Readiness Recommendation
 
-**READY FOR FSG-007**, pending Product Office's own closure approval (this agent does not self-approve FSG-006's closure). Every FSG-006 Acceptance Audit item is Met, including WebKit (§8, real 42/45-passing GitHub Actions result) — the two remaining gaps from the prior provisional pass (WebKit execution, the same-session stress test and unsupported-runtime test) are all closed with real, verified evidence, not assumed or waived.
+**NOT READY FOR FSG-007 — FSG-005C must complete and affected FSG-006 certification must be resumed.**
+
+Every FSG-006 Acceptance Audit item recorded in this report was genuinely Met against the *pre-FSG-005C* Logo Pack contract, including WebKit (§8, real 42/45-passing GitHub Actions result). That evidence is preserved as a valid baseline, not discarded. But FSG-005C changes the Logo Pack workflow this milestone certified, so the certification as a whole cannot be called final or launch-ready until the new transparency workflow exists and its affected paths (Logo Pack certification, suitability messaging, any new/changed asset behavior) are re-verified against this same browser matrix.
 
 ## Next Milestone
 
-FSG-007 — SEO Acquisition Surfaces & Public Launch. **Not started, and will not start before FSG-006 actually closes** — no FSG-007 work exists in this sprint's changes.
+FSG-005C — Logo Transparency & Verification, branching from this pause checkpoint as `fsg-005c-logo-transparency`. FSG-006 does not resume during FSG-005C. FSG-007 remains **not started**, and will not start before both FSG-005C and the resumed FSG-006 certification are closed.
 
 ## Commit Reference
 
-**None of the following are the FSG-006 closure commit.** A narrow, explicitly non-closure verification checkpoint (5 commits) was pushed to `fsg-006-hardening-compatibility` solely to let GitHub Actions execute the WebKit (and cross-validation Chromium/Firefox) run this local environment cannot perform — per Product Office's explicit authorization for exactly this. **FSG-006 is not marked CLOSED in any of them, and `docs/governance/ROADMAP.md` is not touched by any of them.**
+**None of the following are the FSG-006 closure commit** — FSG-006 is PAUSED, not closed, and `docs/governance/ROADMAP.md` is not touched by any of them.
 
 | Commit | Contents |
 |---|---|
@@ -321,5 +354,7 @@ FSG-007 — SEO Acquisition Surfaces & Public Launch. **Not started, and will no
 | `c7f3d72` | CI fix: drop the lockfile for the CI-only install (attempt 2, the one that worked) |
 | `414578e` | CI fix: create and migrate the sqlite database so `php artisan serve` actually starts |
 | `383cc2a` | Fix: add the missing `webkit` Playwright project so CI actually executes it (this is the commit the real WebKit result above came from) |
+| `1a08ff5` | Report update recording the real WebKit result |
+| *(this pause commit)* | `chore(governance): pause FSG-006 for Logo Pack correction` — this Status/version/Playwright-pin/reproducibility correction, per this Product Office pause directive |
 
-This report's own final update (reflecting the real WebKit result) is committed and pushed as a further non-closure commit on the same branch immediately after this pass completes.
+`fsg-005c-logo-transparency` branches from the pause commit above.

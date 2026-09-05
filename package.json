@@ -16,7 +16,7 @@
         "typecheck:browser": "tsc -p tsconfig.browser-tests.json"
     },
     "devDependencies": {
-        "@playwright/test": "^1.55.1",
+        "@playwright/test": "1.55.1",
         "@tailwindcss/vite": "^4.0.0",
         "@types/node": "^26.4.1",
         "concurrently": "^10.0.3",
