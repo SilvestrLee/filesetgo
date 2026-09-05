@@ -37,3 +37,8 @@ Thumbs.db
 .claude/skills/design-taste-frontend
 .claude/skills/impeccable
 .claude/skills/ui-ux-pro-max
+
+# FSG-006 Playwright browser-test output — reproducible from tests/browser/
+/tests/browser/.artifacts/
+/playwright-report/
+/blob-report/

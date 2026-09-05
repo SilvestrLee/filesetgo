@@ -391,6 +391,13 @@ function renderLogoPack(): void {
         item.className = 'flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800';
 
         const info = document.createElement('div');
+        // A flex item with no explicit width defaults to its content's
+        // intrinsic width (min-width: auto), which lets a long filename or
+        // asset explanation force this row (and the page) wider than a
+        // narrow viewport instead of wrapping — found via FSG-006's 320px
+        // mobile-viewport audit (directive §11/§12). `min-w-0` lets the text
+        // wrap normally within the row instead.
+        info.className = 'min-w-0 flex-1';
         const name = document.createElement('p');
         name.className = 'text-sm font-semibold';
         name.textContent = asset.filename;
@@ -406,9 +413,14 @@ function renderLogoPack(): void {
         const download = document.createElement('a');
         download.href = url;
         download.download = asset.filename;
-        download.textContent = `Download ${asset.filename}`;
+        // The visible label stays short ("Download") since the filename is
+        // already shown above; a `whitespace-nowrap` label including the
+        // filename forced this button wider than a 320px viewport — found
+        // via FSG-006's mobile-viewport audit (directive §11/§12). The
+        // accessible name still carries the full, distinct filename.
+        download.textContent = 'Download';
         download.setAttribute('aria-label', `Download ${asset.filename}`);
-        download.className = 'min-h-11 flex items-center whitespace-nowrap rounded-lg border border-zinc-300 px-4 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800';
+        download.className = 'min-h-11 flex shrink-0 items-center whitespace-nowrap rounded-lg border border-zinc-300 px-4 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800';
 
         item.appendChild(info);
         item.appendChild(download);

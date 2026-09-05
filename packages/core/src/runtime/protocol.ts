@@ -183,8 +183,37 @@ function isTargetSizeOutcome(value: unknown): boolean {
   return false;
 }
 
+/** `ImageSetAssetResult`'s `'ico'` branch (`IcoAssetResult`) — no single width/height, a `sizes` list instead. */
+function isIcoAssetResult(value: Record<string, unknown>): boolean {
+  return (
+    value.blob instanceof Blob &&
+    typeof value.mimeType === 'string' &&
+    typeof value.byteSize === 'number' &&
+    Array.isArray(value.sizes) &&
+    value.sizes.every((size) => typeof size === 'number')
+  );
+}
+
+/**
+ * `ImageSetAssetResult` is a discriminated union (`'raster' | 'ico'` —
+ * FSG-005B's fixed-canvas CONTAIN outputs also produce `RasterAssetResult`s,
+ * only ICO differs in shape). This must branch on `kind` rather than
+ * assuming every asset is raster-shaped: an `IcoAssetResult` has no
+ * width/height/format, so validating it against `isProcessedImageResult()`
+ * unconditionally always fails, silently discarding the entire
+ * `JOB_COMPLETE_SET` message for every real Logo Pack result (favicon.ico is
+ * always present) — see docs/governance/DECISIONS.md ADR-019.
+ */
 function isImageSetAssetResult(value: unknown): boolean {
-  return isProcessedImageResult(value) && isRecord(value) && typeof value.id === 'string' && typeof value.filename === 'string';
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.filename !== 'string') {
+    return false;
+  }
+
+  if (value.kind === 'ico') {
+    return isIcoAssetResult(value);
+  }
+
+  return isProcessedImageResult(value);
 }
 
 function isImageSetResult(value: unknown): boolean {

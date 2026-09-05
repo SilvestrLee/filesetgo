@@ -47,7 +47,7 @@
                                 role="tab"
                                 aria-selected="true"
                                 aria-controls="requirements-form"
-                                class="min-h-9 rounded-lg px-4 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                                class="min-h-11 rounded-lg px-4 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
                             >Quick Fit</button>
                             <button
                                 id="mode-tab-guided-fit"
@@ -56,7 +56,7 @@
                                 aria-selected="false"
                                 aria-controls="guided-fit-panel"
                                 tabindex="-1"
-                                class="min-h-9 rounded-lg px-4 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                                class="min-h-11 rounded-lg px-4 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
                             >Guided Fit</button>
                             <button
                                 id="mode-tab-logo-pack"
@@ -65,7 +65,7 @@
                                 aria-selected="false"
                                 aria-controls="logo-pack-panel"
                                 tabindex="-1"
-                                class="min-h-9 rounded-lg px-4 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                                class="min-h-11 rounded-lg px-4 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
                             >Logo Pack</button>
                         </div>
                         <p id="mode-description" class="-mt-4 text-sm text-zinc-500 dark:text-zinc-400">Enter the requirement yourself.</p>

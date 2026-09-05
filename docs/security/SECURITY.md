@@ -91,3 +91,7 @@ Every supported V1 path includes:
 ## Failure Policy
 
 Unsafe uncertainty fails closed. If FileSetGo cannot establish a supported format, safe dimensions, or a valid processing result within bounded work, it returns a structured error and does not export a file.
+
+## FSG-006 Browser-Level Re-confirmation
+
+FSG-006's Playwright browser suite (`tests/browser/specs/network-privacy.spec.ts`) independently re-confirmed, at the real network level rather than only by code inspection, that no supported-format processing job (JPEG/PNG/WebP/HEIC, Quick Fit or Logo Pack) issues any request to a non-application origin — the only cross-origin-adjacent request is the pre-existing same-origin HEIC WASM asset fetch, and no `localStorage`/`sessionStorage`/`IndexedDB`/Cache Storage entry is created for user-file content. No security boundary above was weakened to make any browser test pass; see `docs/governance/DECISIONS.md` ADR-019 for the one real defect FSG-006 found (a worker-protocol validation gap, not a security-boundary weakening) and its fix.

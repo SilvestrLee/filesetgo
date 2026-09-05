@@ -1,0 +1,69 @@
+name: FSG-006 Browser Compatibility Certification
+
+# Runs the full FSG-006 Playwright browser certification matrix — including
+# WebKit — on a supported Linux runner. The macOS 12 coding-agent
+# environment used to build FSG-006 cannot run a current, non-CVE-affected
+# WebKit build at all (see docs/governance/DECISIONS.md ADR-019); this
+# workflow exists specifically to obtain a real WebKit result from an
+# environment that has no such constraint, per Product Office directive.
+#
+# This workflow is verification infrastructure, not a deployment. It does
+# not publish anything, does not touch production, and only exercises the
+# same local, browser-only processing architecture the rest of the test
+# suite already exercises.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fsg-006-hardening-compatibility
+
+jobs:
+  browser-certification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          tools: composer:v2
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install the governed Playwright browsers (Chromium, Firefox, WebKit)
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Prepare the Laravel environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+
+      - name: Build production assets
+        run: npm run build
+
+      - name: Run the full browser certification matrix
+        run: npx playwright test
+        env:
+          CI: true
+
+      - name: Upload Playwright report and artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fsg-006-playwright-report
+          path: tests/browser/.artifacts/
+          retention-days: 14

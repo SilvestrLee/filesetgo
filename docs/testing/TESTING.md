@@ -58,9 +58,13 @@ Laravel uses the existing Laravel PHPUnit test stack. Laravel tests cover routes
 
 ## Browser and End-to-end Testing
 
-Focused browser testing may use Playwright when it is introduced and approved. Browser tests should exercise the real worker boundary, local file handling, output generation, download behavior, cancellation, stale-result prevention, and runtime capability differences.
+FSG-006 introduced `@playwright/test` (dev-only, exact-pinned at `1.55.1` — see `docs/governance/DECISIONS.md` ADR-019) as the permanent browser-test framework. `tests/browser/specs/` runs against the real, built, locally served application (`php artisan serve` over the production Vite build), never a synthetic reimplementation of controller logic. `npm run test:browser` runs it (`playwright test`); `npm run typecheck:browser` type-checks the suite separately from the main `npm run typecheck` (a dedicated `tsconfig.browser-tests.json`, mirroring the `tsconfig.ui-tests.json` split from ADR-016).
 
-FSG-006 requires launch-blocking verification on iOS Safari, Android Chrome, Safari desktop, Chrome, Firefox, and Edge, including constrained-memory and repeated-processing scenarios.
+Engine coverage: `chromium` and `firefox` projects run the full functional certification suite (bootstrap, Quick Fit, Guided Fit, Website Logo Pack, HEIC, cancellation, stale-result/rapid-replacement, reset, invalid-file recovery, accessibility/keyboard, network/privacy boundary, lazy-load runtime verification). Four Chromium-based mobile-viewport projects (`mobile-narrow-320`, `mobile-iphone-class`, `mobile-android-class`, `mobile-tablet-class`) run a dedicated responsive-layout suite (`mobile-viewport.spec.ts`) instead — no horizontal overflow, touch-target sizing, stacking, footer placement, orientation transitions.
+
+**WebKit is not part of this suite in this environment** — ADR-019 records the exact technical reason (a frozen macOS-12 WebKit build incompatible with any non-CVE-affected Playwright driver) and the Product Office decision to accept Chromium+Firefox certification rather than pair a CVE-affected Playwright version with a multi-year-old WebKit snapshot. No claim of WebKit, Safari, or physical-device testing appears anywhere in this codebase's reports unless actually performed.
+
+Fixtures (`tests/browser/fixtures/`) are small, self-generated, real, decodable images (PNG/JPEG/WebP/HEIC, plus deliberately invalid/corrupted/oversized cases) — see `tests/browser/fixtures/README.md` for exact provenance. No fixture is downloaded from a network source.
 
 ## Required Verification
 

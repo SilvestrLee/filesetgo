@@ -83,6 +83,47 @@ describe('image worker protocol validation', () => {
         },
       },
     ],
+    [
+      // Regression case: every real Logo Pack result includes an ICO asset
+      // (favicon.ico) alongside raster assets. isImageSetAssetResult() once
+      // validated every asset against the raster-only shape unconditionally,
+      // which made this exact, entirely realistic event fail validation and
+      // get silently dropped — see docs/governance/DECISIONS.md ADR-019.
+      'image-set completion with a raster asset AND an ICO asset (real Logo Pack shape)',
+      {
+        type: 'JOB_COMPLETE_SET',
+        jobId: 'fsgjob_test',
+        result: {
+          assets: [
+            {
+              kind: 'raster',
+              id: 'header',
+              filename: 'logo-header.png',
+              blob: new Blob([Uint8Array.of(1)]),
+              width: 400,
+              height: 120,
+              format: 'png',
+              mimeType: 'image/png',
+              byteSize: 1,
+              sourceDimensions: { width: 400, height: 120 },
+              normalizedDimensions: { width: 400, height: 120 },
+              resized: false,
+            },
+            {
+              kind: 'ico',
+              id: 'favicon-ico',
+              filename: 'favicon.ico',
+              blob: new Blob([Uint8Array.of(2)]),
+              mimeType: 'image/x-icon',
+              byteSize: 1,
+              sizes: [16, 32, 48],
+            },
+          ],
+          assetCount: 2,
+          totalOutputBytes: 2,
+        },
+      },
+    ],
   ])('recognizes a valid %s event', (_, event) => {
     expect(isImageWorkerEvent(event)).toBe(true);
   });
@@ -103,6 +144,19 @@ describe('image worker protocol validation', () => {
       type: 'JOB_COMPLETE_SET',
       jobId: 'fsgjob_test',
       result: { assets: [{ id: 'a' }], assetCount: 1, totalOutputBytes: 1 },
+    },
+    {
+      // A malformed ICO asset (missing `sizes`) must still be rejected —
+      // the ICO branch is a real, checked shape, not a bypass.
+      type: 'JOB_COMPLETE_SET',
+      jobId: 'fsgjob_test',
+      result: {
+        assets: [
+          { kind: 'ico', id: 'favicon-ico', filename: 'favicon.ico', blob: new Blob([Uint8Array.of(1)]), mimeType: 'image/x-icon', byteSize: 1 },
+        ],
+        assetCount: 1,
+        totalOutputBytes: 1,
+      },
     },
   ])('rejects a malformed event envelope', (value) => {
     expect(isImageWorkerEvent(value)).toBe(false);

@@ -1,339 +1,301 @@
-# FSG-005B Sprint Report — Website Logo Pack & Favicon Suite
+# FSG-006 Sprint Report — Hardening, Mobile QA & Compatibility
 
 ## Milestone
 
-FSG-005B — Website Logo Pack & Favicon Suite (see `docs/directives/FSG-005B.md`).
-
-## Parent Milestone
-
-FSG-005 — Packaging & Export Systems.
-
-```text
-FSG-005 — Packaging & Export Systems
-├── FSG-005A — Multi-Output Packaging Foundation   ✅ CLOSED
-└── FSG-005B — Website Logo Pack & Favicon Suite    (this sprint)
-```
-
-See "FSG-005 Parent Acceptance Audit" and "FSG-005 Closure Recommendation" below.
+FSG-006 — Hardening, Mobile QA & Compatibility (see `docs/directives/FSG-006.md`).
 
 ## Status
 
-**FSG-005B: Complete. FSG-005 parent: Closed.** Implementation and verification are complete, including the Product Office completion-audit correction round: git history reconciliation, skill-tooling state correction, a governed four-skill design review, a `calculateContainPlan()` floor-rounding fix with required numeric evidence, and primary-ZIP-CTA object-identity test coverage. Closed by explicit Product Office approval; see "Commit Reference" for the closeout commit.
+**FSG-006 remains OPEN.** A Product Office final-certification pass identified three remaining closure gaps (WebKit execution, a same-session stress test, and a real browser-level unsupported-runtime test) after the first provisional pass. This report reflects the state after closing those gaps: the same-session stress test and unsupported-runtime capability-fallback test are implemented and passing locally on Chromium/Firefox; WebKit execution required a supported environment this local macOS 12 host cannot provide, so a narrow, explicitly non-closure verification checkpoint was pushed to trigger it on GitHub Actions (see "Commit Reference"). FSG-006 introduces no new product feature — it certifies the existing V1 surface (Quick Fit, Guided Fit, Website Logo Pack) against real Chromium, Firefox, and WebKit engines plus four mobile viewport classes, and fixes every defect that certification found.
 
-## Base Commit Before FSG-005B
+## Base Commit
 
-`cf78599c8b6ae4a6b26dba0c8df935143bfccf7b` — the FSG-005A closeout commit (`feat(core): add multi-output packaging foundation`). This is where the `fsg-005b-website-logo-pack` branch was created from; it is no longer the branch's current tip — see "Current Branch / History Note" below.
-
-## Current Branch / History Note
-
-Pre-FSG-005B closeout HEAD: **`f49ae9ee74646b656da76176848c22435c1cb183`** on `fsg-005b-website-logo-pack`. Two commits landed directly on top of the FSG-005A base above, both authored by the project owner (`SilvestrLee <scodilu@gmail.com>`), independently verified via `git log`/`git show --stat`/`git show <sha> -- <file>` rather than taken on claim:
-
-| Commit | Summary | What actually changed |
-|---|---|---|
-| `4ddb1c7` — `chore: register frontend design agent skills` | Commits the third-party skill lockfile; gitignores the skill payload directories | `.gitignore` (+12 lines: ignores `.agents/skills/` and each individual `.claude/skills/<name>/` directory, with the comment "Third-party agent skills — reproducible from skills-lock.json"); `skills-lock.json` (new file, +65 lines, committed and tracked) |
-| `f49ae9e` — `chore: define frontend design skill routing` | Adds governed frontend design-review skill sequencing | `AGENTS.md` and `CLAUDE.md` (identical +18-line "### Frontend Design Skill Routing" subsection under "## Skills Activation" in both files, recommending `ui-ux-pro-max` → `design-taste-frontend` → `21st-*` → `impeccable` for significant new frontend surfaces) |
-
-Neither commit touches any FSG-005B implementation file. This sprint's own FSG-005B changes landed directly on top of this HEAD, unmodified, as the `feat(web): add Website Logo Pack` closeout commit (see "Commit Reference") — nothing was reset, rebased, or replayed to produce it. See "Existing Working Tree Preservation" below.
-
-## Existing Working Tree Preservation
-
-No reset, stash, discard, or checkout was performed at any point during this correction round. `git status --short` before making any change in this pass showed the full, unmodified set of FSG-005B changes already produced earlier in this sprint (every file listed under "Automated Tests" and the Core/Product Boundary sections below) sitting on top of the new `HEAD`, exactly as left. This correction round only *added to* that existing work: the `calculateContainPlan()` floor-rounding fix (see "Fixed-Canvas Contain"), its accompanying test evidence, and this report's corrections. No prior FSG-005B file was reverted, recreated from scratch, or silently dropped.
+`fb6d75b9536f8d3549ceceb1fc2e52db98a954a8` — the FSG-005B report-correction commit, the authoritative repository checkpoint named in this milestone's directive. Confirmed via `git status`/`git rev-parse HEAD` before branching: working tree clean, HEAD matched exactly.
 
 ## Branch
 
-`fsg-005b-website-logo-pack`, created from the commit above.
+`fsg-006-hardening-compatibility`, created from the commit above (not continued on the FSG-005B branch).
 
 ## Objective
 
-Build the first complete Website Logo Pack workflow: choose a logo → suitability guidance → generate header/favicon/icon assets → review generated files → download individually or as one ZIP → start again. All local, all browser-based, on top of the FSG-005A generic multi-output foundation.
+Verify, harden, and certify the existing V1 product surface against real browser engines and mobile viewport conditions — not add a new feature. The question this milestone answers: does the FileSetGo MVP behave reliably in the browsers and viewports real users will actually encounter?
 
-## Product Surface
+## Scope Freeze
 
-Website Logo Pack ships as a third first-class product mode — **Logo Pack** — alongside Quick Fit and Guided Fit in the same accessible tablist ("Prepare your website logo files."). It is not buried in a marketing section; it lives in the same dominant workspace as the other two modes. Public positioning: "Creates practical website logo and icon files from your existing logo." No claims of automatic background removal, brand redesign, or guaranteed universal compatibility appear anywhere (directive §46).
+No new presets, file formats, batch processing, Logo Pack assets, accounts, billing, analytics, or marketing sections were introduced. Every change in this sprint is one of: a compatibility/accessibility/responsive fix, a resilience fix, or test infrastructure necessary for this milestone. `docs/product/PRODUCT.md` is unmodified — nothing about the product surface changed. No FSG-007 work was started.
 
-## Logo Pack Architecture
+## Browser Tooling
 
-`processImageSet()` (FSG-005A) is reused unchanged as the execution engine — no `GuidedFitWorker`/`LogoPackWorker`/second processing architecture was created. `resources/js/logo-pack/compiler.ts` compiles the one authoritative asset catalog (`spec.ts`) into a `ProcessImageSetOptions`; `logo-pack-controller.ts` is a DOM-free orchestration class that composes the *same shared* `QuickFitWorkflow` instance Quick Fit/Guided Fit use — only to read the currently selected source — and drives its own `processImageSet()` job directly (Logo Pack's request shape has nothing to do with Quick Fit's `QuickFitRequirements` contract, so it doesn't go through `workflow.run()`).
+Per directive §8, existing tooling was inspected before installing anything: no Playwright/Cypress/Puppeteer in `package.json`, `node_modules`, or globally; no `tests/browser/` or `playwright.config.*` existed. The `claude-in-chrome` MCP tool available in this environment is a real but different capability — interactive, Chromium-family only, driven turn-by-turn, not a scriptable multi-engine suite producing deterministic per-engine PASS/FAIL counts. This was surfaced to Product Office, who approved installing `@playwright/test` as a new dev-only dependency.
 
-## Core/Product Boundary
+**Version and platform note (see `docs/governance/DECISIONS.md` ADR-019 for full detail):** `@playwright/test@1.63.0` (latest at install time) refuses to install Chromium at all on this host's macOS 12. Testing across versions found `1.55.1` is the *minimum* version fixing a high-severity install-time SSL-certificate-verification-bypass CVE (GHSA-7mvr-c777-76hp) while still supporting macOS 12 — this is the version pinned. WebKit is a separate story: see "Browser Engine Matrix" below.
 
-`@filesetgo/core` gained exactly two new *generic* capabilities, with zero knowledge of "logo," "favicon," "header," or "Logo Pack":
+## Browser Test Architecture
 
-- `transforms/contain.ts` — `calculateContainPlan()`, a fixed-canvas CONTAIN primitive (source → contain → fixed canvas), reusable by any future workflow.
-- `icons/ico.ts` — `createIco()`/`validateIcoContainer()`, a small, dependency-free ICO container reader/writer named after the file format, not any product concept.
+`tests/browser/specs/*.spec.ts` — a dedicated boundary, never mixed into `packages/core/tests`/`resources/js/**/tests`. Tests run against the real, built, locally served application (`php artisan serve` over the production `npm run build` output via Playwright's `webServer` config), asserting real DOM/state (`#status-message[data-state]`, result panels, asset lists) rather than screenshots. `tests/browser/helpers/app.ts` provides shared, DOM-free-style helpers (`gotoApp`, `selectMode`, `uploadFile`, `waitForStatus`, `collectConsoleProblems`, `collectRequests`). `tests/browser/fixtures/` holds small, self-generated, real, decodable images (see its own `README.md` for exact provenance — PNG/JPEG/WebP/HEIC gradients built with `struct`+`zlib`/macOS `sips`/`cwebp`, plus deliberately invalid/corrupted/truncated cases and one larger 4800×3200 real-world-scale JPEG). `npm run test:browser` runs the suite; `npm run typecheck:browser` type-checks it separately (dedicated `tsconfig.browser-tests.json`, `skipLibCheck: true` scoped narrowly to work around a pre-existing TS-version/Playwright-bundled-`.d.ts` incompatibility — the main `npm run typecheck` is untouched).
 
-All Logo Pack-specific knowledge — the exact seven-asset composition, geometry/resolution suitability thresholds, controlled-upscale policy, asset explanations — lives entirely in `resources/js/logo-pack/`, mirroring the `resources/js/presets/` boundary FSG-004 established. See `docs/governance/DECISIONS.md` ADR-018 for the full architectural record.
+## Browser Engine Matrix
 
-## Shared Source State
+WebKit is a required, governed engine target — it has not been waived, and this milestone does not close with it unexecuted. What is real is a narrower, purely environmental fact, corrected from an earlier draft of this report that overstated it as a settled trade-off: **this coding agent's local macOS 12 host cannot run a current, non-CVE-affected Playwright WebKit build at all**, full investigation in `docs/governance/DECISIONS.md` ADR-019. Per Product Office direction, WebKit execution was obtained from a supported environment instead of being redefined away — no local Docker/VM runtime was available in this environment (checked directly: `docker` is not installed), so a GitHub Actions workflow (`.github/workflows/fsg-006-browser-certification.yml`) running the identical governed `@playwright/test@1.55.1` toolchain on a current Ubuntu runner was used.
 
-Logo Pack reads the same `QuickFitWorkflow`-owned source (file + preflight) Quick Fit and Guided Fit already share — it never triggers a second `selectFile()`/preflight, and switching to/from Logo Pack does not touch the selected file. `GuidedFitController` (FSG-004) remains the single owner of workspace-mode state; its `QuickFitMode` type gained a third `'logo-pack'` value and its constructor gained an optional `isExternallyBlocked` callback (`controller.ts` wires it to `() => logoPack.getState().status === 'processing'`) so mode-switching is blocked while *either* a Quick-Fit/Guided-Fit job *or* a Logo Pack job is active — without `GuidedFitController` importing `LogoPackController` directly.
-
-## Suitability Assessment
-
-`resources/js/logo-pack/suitability.ts` runs entirely from preflight facts (format/width/height) — no decode, no AI, no visual-quality estimation:
-
-- **Resolution** (`assessResolution`): the required scale factor to fill the 512px icon canvas at 90% content scale, computed via `calculateContainPlan(..., allowUpscale: true).scale` — `≤1` → good, `1–4×` → warning (generation proceeds), `>4×` → **blocking** (generation refused, "This logo is too small to create a useful 512 px website icon. Try a larger source file.").
-- **Geometry** (`assessGeometry`): `longerEdge / shorterEdge > 2.5` → warning ("...may appear small inside square favicon and app-icon files..."), never a crop, never blocking.
-- **Transparency** (`assessTransparencyGuidance`): JPEG gets an explicit "won't remove the existing background" note; PNG/WebP get a conditional "if your source already contains transparency..." note — never an assertion that transparency exists.
-- **Header resolution** (`assessHeaderResolution`): an informational note when the source can't naturally fill the 800×240 high-density header box.
-
-Only the resolution "too-small" case blocks the **Create logo pack** button; every other issue is shown but never prevents generation (directive §26/§27).
-
-## Geometry Guidance
-
-See "Suitability Assessment" above. Threshold recorded in `docs/governance/DECISIONS.md` ADR-018: `GEOMETRY_WARNING_ASPECT_RATIO = 2.5`. Verified numerically at the exact boundary (2.5 → no warning) and just above it (→ warning) in `suitability.test.ts`.
-
-## Resolution/Upscale Rules
-
-`ICON_CONTENT_SCALE = 0.90`, `MAX_ICON_UPSCALE_FACTOR = 4` (ADR-018). Every square icon/favicon output is compiled with `allowUpscale: true` — a narrow, explicit exception to FileSetGo's general no-upscale convention — made safe because the suitability check above refuses to start any processing at all once the required factor exceeds 4×. This is a genuine pre-processing gate, not merely a UI warning: `LogoPackController.createLogoPack()` itself re-checks `assessLogoPackSuitability(...).blocked` before calling `processImageSet()`.
-
-## Transparency/Background Behavior
-
-No background removal, no automatic trim, no pixel-scanning subject extraction anywhere (directive §11/§12). "For the best icon result, use a tightly cropped logo or icon file" style guidance was intentionally omitted from this sprint's copy in favor of the governed transparency/geometry messages already specified by the directive; the source's existing whitespace/background is always preserved as-is.
-
-## Header Outputs
-
-`logo-header.png` (≤400×120) and `logo-header@2x.png` (≤800×240) both use the existing FSG-001 resize-fit primitive (`RasterImageSetOutputSpec` + `resize`) — preserve aspect ratio, no crop, no stretch, no upscale beyond source resolution. Verified: both bounding boxes enforced exactly, aspect ratio preserved, no upscale (`spec.test.ts`).
-
-## Fixed-Canvas Contain
-
-`packages/core/src/transforms/contain.ts`'s `calculateContainPlan()` — pure, deterministic, numerically tested (`contain.test.ts`, 14 tests): landscape/portrait/square centering, exact canvas dimensions preserved regardless of source aspect ratio, 90% content-scale enforcement, `allowUpscale: false` clamps to 1×, `allowUpscale: true` scales up to fill the content area, fully deterministic for identical inputs. Rendering (`workers/process-image-set.ts`'s `drawBitmapContained()`) reuses the existing FSG-001 `scaledTransform()` helper unchanged, only adding a centering offset.
-
-**Correction landed this round:** the content box a source may occupy (`canvasWidth * contentScale`) was previously used as a **fractional** value directly in the scale computation (e.g. `512 * 0.9 = 460.8` fed straight into `availableWidth / sourceWidth`). This is not equivalent to a floor-rounded integer content box, and the Product Office's completion definition requires the latter: `contentBoxWidth = floor(canvasWidth * 0.90)`. Fixed narrowly — `availableWidth`/`availableHeight` are now `Math.floor(canvasWidth * contentScale)` / `Math.floor(canvasHeight * contentScale)` before anything derives from them — without introducing any icon/Logo Pack-specific concept into this generic primitive (the fix is phrased purely in terms of "canvas," "content box," and "scale," identical to the rest of the module). Required evidence, now asserted directly in `contain.test.ts`'s new `'deterministic floor-rounded content box'` block (a square source matching a square canvas at `allowUpscale: true` makes `drawWidth`/`drawHeight` equal to the content box exactly, proving the box itself was floored rather than merely a draw dimension coincidentally landing on a whole number):
-
-| Canvas | `floor(canvas * 0.90)` | Verified `drawWidth`/`drawHeight` |
+| Engine | Classification | Evidence |
 |---|---|---|
-| 32px | 28 | 28 |
-| 180px | 162 | 162 |
-| 192px | 172 | 172 |
-| 512px | 460 | 460 |
+| Chromium | **PASS** | 45/45 tests passing locally — full functional certification suite plus the new stress and unsupported-runtime specs |
+| Firefox | **PASS** | 42/45 passing locally, 3 skipped with a documented, non-product tooling reason (see below); 0 failed |
+| WebKit | *(see "GitHub Actions WebKit Result" below — this section is updated with the real CI outcome once the workflow run this report triggers completes; it is not reported as PASS, FAIL, or waived without that real result)* | |
 
-A dedicated test also asserts `drawWidth` is *not* `toBeCloseTo(460.8, 5)` for the 512px case, directly disproving the fractional-basis equivalence the Product Office message warned against. All nine pre-existing `contain.test.ts` assertions that depended on the old fractional behavior (e.g. `drawWidth` of `460.8`/`230.4`, `offsetY` of `512 * 0.05`) were updated to their correct floored values (`460`/`230`, `26`) — the tests were adjusted to the corrected implementation, not the other way around. `resources/js/logo-pack/suitability.ts`'s `assessResolution()`/`assessHeaderResolution()` consume `calculateContainPlan()`'s `.scale` output; both were re-checked against the fix — the required-upscale-factor shifts by less than 0.2% at realistic source sizes and no existing `suitability.test.ts` boundary case sits close enough to flip (verified by hand: the "just under 4×"/"blocks over 4×" boundary tests use 116px/100px sources, both several percentage points clear of the threshold either way). `docs/governance/DECISIONS.md` ADR-018 is updated to record the floor-rounded formula as authoritative.
+**No Safari or physical device was tested at any point.** "WebKit" throughout this report refers only to Playwright's automated WebKit browser engine — never Safari, never a physical device. This distinction is stated explicitly per directive §55, not implied, everywhere WebKit is mentioned.
 
-## Square Icon Outputs
+**WebKit local-environment investigation, for the record (not a decision to skip WebKit — a record of why it needed a different environment):**
+- Playwright `1.55.1` (the governed pin, chosen for its CVE fix) — the only WebKit build installable for macOS 12 (`webkit_mac12_special`, a frozen 2023-era snapshot) is protocol-incompatible with this version's driver (`Unknown setting: FixedBackgroundsPaintRelativeToDocument` on every `newPage()`). WebKit cannot launch at all.
+- Playwright `1.40.0` + WebKit build `1944` — confirmed to actually launch (`webkit OK hi`) in isolation, but `1.40.0` carries the same SSL-verification-bypass CVE `1.55.1` exists to fix, and build `1944` is a multi-year-old snapshot that would not represent current WebKit/Safari behavior even if adopted. Neither the CVE exposure nor the non-representative result were acceptable, so this combination was not used anywhere, including in CI.
 
-`favicon-32x32.png` (32×32), `apple-touch-icon.png` (180×180), `icon-192x192.png` (192×192), `icon-512x512.png` (512×512) — all `ContainImageSetOutputSpec`, all PNG, all `ICON_CONTENT_SCALE = 0.90`, transparent background, no rounded corners or baked-in iOS styling. Each verified to produce an asset at *exactly* the requested canvas size regardless of source aspect ratio (`process-image-set.test.ts`).
+**The 3 Firefox skips:** `lazy-load.spec.ts`'s three tests assert which chunks a request-collector observed. Playwright reliably surfaces requests made *from inside* a module Worker (both `image.worker.js` itself and its own dynamic `import()` of `zip-adapter.js`/`heic-decode.js`) through `page.on('request')` only under Chromium's CDP transport; Firefox's Juggler protocol does not expose worker-scope requests the same way — independently reconfirmed while building the Firefox Logo Pack cancellation test (a `page.route()` interceptor for the same worker-scope request recorded zero hits in Firefox despite the job completing normally). This is a Playwright/Firefox tooling limitation, not a product behavior difference — the same lazy-loading fact is independently and more strongly proven by the byte-for-byte-unchanged chunk-hash bundle inspection below. Each skipped test still runs its full real functional flow up to the point of the unavailable assertion; only the network-observation assertion itself is skipped, with the reason printed inline. The same limitation required one Logo Pack cancellation test (see "Cancellation Certification") to skip only its cancel-mid-flight assertion on Firefox specifically, while still running the complete flow.
 
-## ICO Architecture
+## GitHub Actions WebKit Result
 
-`packages/core/src/icons/ico.ts` — `createIco()` builds a valid `ICONDIR` + `ICONDIRENTRY[]` + PNG-compressed payloads container (reserved=0, type=1, little-endian fields, deterministic entry order). `favicon.ico` is compiled as one `IcoImageSetOutputSpec` with three independently CONTAIN-rendered entries (16/32/48px — `resources/js/logo-pack/spec.ts`'s `ICO_ENTRY_SIZES`, a *product* decision, not enforced by the generic core writer). No BMP/DIB legacy encoding. No new dependency — the writer is entirely FileSetGo-owned, self-contained, and small (see Bundle Observation).
+*(This section is filled in with the exact result once the triggered workflow run completes — see "Commit Reference" for the checkpoint commit SHA and how to find the run.)*
 
-## ICO Validation
+## Mobile Viewport Matrix
 
-`validateIcoContainer()` independently re-parses raw ICO bytes from scratch (header, type, count, every directory entry's bounds/offsets/lengths, every embedded payload's PNG signature and IHDR dimensions) — it never trusts `createIco()`'s own internal state. `process-image-set.ts` additionally confirms the validated entries match the *requested* sizes before accepting the asset. Either check failing fails the *entire* Logo Pack job (`ICO_VALIDATION_FAILED`), never just omits `favicon.ico`. 17 dedicated tests (`icons/ico.test.ts`) including 11 deliberate-corruption cases (bad reserved field, wrong type, zero count, truncated directory, out-of-bounds payload, invalid PNG signature, dimension mismatch, zero-length entry) plus confirmation that the *generic* validator accepts other valid entry sets (it does not itself enforce 16/32/48 — that's the product layer's job).
+Four Chromium-based projects (named-device presets were not used for iPhone/iPad-class viewports because Playwright's `devices['iPhone …']`/`devices['iPad …']` force WebKit, which this host cannot run — directive §11 explicitly allows behavior over device branding):
 
-## Exact Package Contents
-
-Exactly seven public assets, in this exact order, verified in `spec.test.ts` and via a real ZIP round-trip in `process-image-set.test.ts`'s mixed-pack test: `logo-header.png`, `logo-header@2x.png`, `favicon.ico`, `favicon-32x32.png`, `apple-touch-icon.png`, `icon-192x192.png`, `icon-512x512.png`. No README, no `site.webmanifest`/`browserconfig.xml`, no HTML snippet — deliberately deferred (directive §44/§45; complete manifest metadata needs site/application context FileSetGo doesn't have yet). `favicon.ico`'s internal 16px/48px intermediates are never exposed as separate public assets or ZIP entries — confirmed by `result.assets`/`result.assetCount` staying at the count of *requested* outputs (7), never 9.
-
-## One-Decode Reuse
-
-The full seven-asset pack — both headers, all four square icons, and all three ICO entries — decodes the source exactly once. Verified directly: `bitmapCreateCount` stays at 1 across a mixed raster+contain+ico request in `process-image-set.test.ts`, and again for a dedicated ICO-only multi-entry test.
-
-## Sequential Rendering
-
-Outputs (and, within the ICO output, its individual entries) are generated strictly one at a time — each canvas is released (`width = 0; height = 0`) before the next is created, via the shared `releasePreviousCanvas()` helper already used by FSG-005A's raster path, now shared by the `'contain'` and `'ico'` branches too. No more than one active render canvas exists at any point during a Logo Pack job.
-
-## ZIP Packaging
-
-Unchanged from FSG-005A: worker-side `createZipArchive()` (STORE, deterministic fixed `mtime`), `application/zip` MIME, archive filename `<safe-basename>-filesetgo-logo-pack.zip` (`spec.ts`'s `buildArchiveFilename()`, reusing the same strip-extension/fallback-to-a-default pattern as Quick Fit's `buildOutputFilename()`). Real `unzipSync()` round-trip confirms exactly the seven requested entries, correct filenames, correct bytes, correct order, no hidden entries.
-
-## Individual Downloads
-
-`controller.ts` creates one `Blob` object URL per asset (plus one for the ZIP) only when a *new* Logo Pack result arrives (compared by object reference against the last-rendered result), and revokes all of them before creating new ones or on source replacement/reset/`pagehide`. Each download link's accessible name is the actual filename (`aria-label="Download favicon.ico"`, etc.) — never a generic "Download" repeated seven times (directive §53).
-
-## Primary ZIP Experience
-
-The Logo Pack success state has exactly one visually primary action: `#logo-pack-download-zip` ("Download logo pack"), styled identically to every other primary CTA in the app (`bg-blue-700` filled button, `min-h-11`). The seven individual per-asset downloads in `#logo-pack-assets` are styled as secondary (`border-zinc-300`, no fill) and rendered below the primary CTA in DOM order. Verified directly in `controller.ts`'s `renderLogoPack()`: `logoPackZipUrl = URL.createObjectURL(result.archive.blob)` — `result` is `outcome.result`, the exact, untouched `ImageSetResult` returned by `LogoPackController`'s `processImageSet()` job (traced through `logo-pack-controller.ts`: `this.setState({ status: 'success', result: outcome.result })`, no intermediate transformation). **The archive Blob is never rebuilt in the UI layer** — `fflate`'s `zipSync`/`unzipSync` do not appear anywhere in `resources/js/`, confirmed both by source grep and, structurally, by the bundle inspection below (`zipSync`/`unzipSync` markers are absent from `app-*.js`). Coverage sits at the DOM-free product-logic boundary already established for Logo Pack. `logo-pack-controller.test.ts`'s "resolves to a success state with the real result" test was strengthened this round with explicit object-identity assertions (`expect(state.result).toBe(result)`, `.archive`, `.archive.blob`) proving `LogoPackController` surfaces the job's own resolved `ImageSetResult` — including its archive Blob — untouched, not a copy or reconstruction; previously this test only checked `status === 'success'`, not identity. `process-image-set.test.ts`'s mixed-pack test independently proves the core's own `result.archive.blob` round-trips through a real `unzipSync()` to exactly the seven requested entries — together the two tests prove the archive the UI links to is the one the core engine actually built.
-
-## Cancellation / Stale Protection
-
-Cancellation is checked at every documented checkpoint inherited from FSG-005A's `processImageSetInWorker()` (before decode, after decode, before/during/after each output — including each ICO entry — before and after archive creation, before final publication). `LogoPackController` clears its own state (cancelling any active job, discarding any result) whenever the shared `QuickFitWorkflow` transitions to `'inspecting'` (new file selected) or `'idle'` (reset) — the identical pattern `GuidedFitController` already uses for its own preset-result staleness. A cancelled or superseded job can never later surface as a completed pack.
-
-## Accessibility
-
-The mode tablist now has three tabs with full roving-tabindex `ArrowLeft`/`ArrowRight` keyboard cycling (wrapping at both ends), correct `aria-selected`/`aria-controls`. Suitability issues are plain text list items (never color-only), with `role="alert"` reserved for the blocking case and `role="status"` for informational/warning ones. Individual asset downloads carry meaningful `aria-label`s. Success/failure/cancellation are announced through the existing shared `aria-live="polite"` status announcer.
-
-## Responsive Behavior
-
-The Logo Pack panel reuses the same responsive container/typography conventions as Quick Fit/Guided Fit (no new breakpoints introduced); the suitability-issue list and asset-result list are simple stacked flex columns, so they stack naturally on narrow viewports without a forced multi-column grid. Not independently confirmed by browser automation this sprint (see Known Limitations).
-
-## Privacy
-
-Repository-wide `grep` for `fetch(`/`XMLHttpRequest`/`sendBeacon`/`axios`/`FormData`/`multipart` across `packages/core/src/`, `resources/js/`, and `resources/views/welcome.blade.php` found only the pre-existing, unmodified HEIC WASM `fetch()`. Logo Pack transmits nothing: no source image, no generated files, no filename, no selected mode, no suitability assessment. No analytics were added.
-
-## Server Boundary
-
-`routes/web.php` is unchanged (`GET /` only). New Laravel tests confirm no ZIP endpoint, no favicon-generation endpoint, and no Logo Pack upload route exist. All asset generation, ICO assembly, and ZIP creation happen entirely in the browser worker.
-
-## Automated Tests
-
-**New/extended core tests:**
-
-| File | Tests | Covers |
+| Project | Viewport | Result |
 |---|---|---|
-| `tests/transforms/contain.test.ts` | 14 | Centering (landscape/portrait/square), exact canvas size, aspect-ratio preservation, upscale clamp on/off, determinism, non-square canvas, deterministic floor-rounded content box (32/180/192/512px evidence) |
-| `tests/icons/ico.test.ts` | 17 | Entry order/count, header fields, offsets/lengths, PNG signature/dimension embedding, determinism, 256px convention, 11 corruption-rejection cases, generic-validator non-enforcement of 16/32/48 |
-| `tests/workers/process-image-set.test.ts` (extended) | +8 | `'contain'`-kind exact canvas size, contain validation failure, sequential contain rendering; `'ico'`-kind valid asset shape, one-decode-for-multi-entry, ICO validation failure, no internal-entry leakage; mixed raster+contain+ico pack (one decode, order, archive) |
-| `tests/processing/validate-image-set-request.test.ts`, `tests/runtime/worker-client.test.ts` | (updated in place) | Adapted to the new discriminated-union contract; behavior unchanged |
+| `mobile-narrow-320` | 320×640, touch | 5/5 PASS |
+| `mobile-iphone-class` | 390×844, touch, iOS Safari UA | 5/5 PASS |
+| `mobile-android-class` | Chromium's real `devices['Pixel 7']` preset (412×839, touch) | 5/5 PASS |
+| `mobile-tablet-class` | 810×1080, touch | 5/5 PASS |
 
-**New product-layer tests** (`resources/js/logo-pack/tests/`, DOM-free per ADR-016's established pattern):
+Each project runs `mobile-viewport.spec.ts`: bootstrap (no overflow, mode-tab touch targets), Quick Fit form (reachable/tappable/no overflow through a real success), Website Logo Pack (suitability review + all 7 asset rows + primary/secondary CTA sizing + no overflow through a real success), footer placement, and a portrait↔landscape resize check. All 20/20 pass after the two responsive fixes recorded under "Defects Found."
 
-| File | Tests | Covers |
+## Quick Fit Certification
+
+Real flows exercised end-to-end through the actual worker/runtime (`quick-fit.spec.ts`): a target-size job (bounded quality search), a plain output-format conversion with a real confirmed download event, a 4800×3200 (15.36 MP) large representative image resized and re-encoded successfully (directive §51 — comfortably under the 24 MP/15 MB safety limits, chosen to catch canvas/worker/resource problems tiny fixtures can't), and a deterministic unreachable target-size case (1 KB target on a real photo, dimension reduction disabled) presented as unreachable — never a system failure — with a working "Adjust settings" recovery path.
+
+## Guided Fit Certification
+
+`guided-fit.spec.ts`: selecting a preset shows the recommendation review and does **not** start processing by itself; "Get file ready" then completes and the result carries the selected preset's context (`#result-prepared-for`). "Adjust settings" switches to Quick Fit, retains the same source (no second preflight — confirmed by the still-correct format label), and prefills the exact `web.card` preset values (150 KB / 800×800 / WebP). An already-ready source (a WebP already under the preset's limits) is reported as needing no processing, and "Use this file" downloads the real original file untouched (confirmed via a real download event with the original filename).
+
+## Logo Pack Certification
+
+`logo-pack.spec.ts`: a complete successful flow from a shared source produces exactly the seven named public assets, `favicon.ico` exactly once, no README/manifest/browserconfig text anywhere in the result, a primary "Download logo pack" CTA that produces a real `*-filesetgo-logo-pack.zip` download event, and a clean reset back to the initial workspace. A wide (8:1) logo shows the geometry warning without blocking generation. A too-small (60×60) logo blocks generation with the exact governed message, `Create logo pack` disabled, and replacing it with an adequate source restores the ability to generate. A JPEG source gets the truthful "won't remove the existing background" note, never a transparency/removal claim. **This certification is what found and proved the fix for the P0 defect recorded under "Defects Found" — every one of these flows was completely broken (stuck on "processing" forever) before that fix.**
+
+## HEIC Certification
+
+`heic.spec.ts`: a real, self-generated, valid HEIC file (reused from `packages/core/tests/workers/heic-fixture.ts`'s existing provenance) is selected, correctly identified (`#source-format` shows HEIC), shown the truthful "HEIC can't be used as an output format, so your ready file will be WebP" note, and processes to a real successful WebP result through the actual decoder — in both Chromium and Firefox.
+
+## Download Certification
+
+Real download events (`page.waitForEvent('download')`), not merely `<a>` presence, are asserted for: Quick Fit's plain-conversion result (`.webp` extension), Guided Fit's already-ready "Use this file" (exact original filename), and Website Logo Pack's primary ZIP CTA (`*-filesetgo-logo-pack.zip` filename pattern). Quick Fit's target-size and large-image flows assert the `blob:` href and a well-formed `download` filename attribute directly.
+
+## ZIP Certification
+
+The real Logo Pack browser flow's confirmed ZIP download (above) is the browser-level evidence; exact-entry-count/no-extra-files verification is already proven at the core level by `process-image-set.test.ts`'s real `unzipSync()` round-trip (unchanged this sprint) — browser tests were not given their own unzip logic, consistent with directive §19's "do not expose unzip code to production UI merely for browser tests."
+
+## Invalid Input / Recovery
+
+`invalid-file.spec.ts`: a non-image file is rejected with a real, non-empty message and the app remains usable without a reload — a valid file selected immediately afterward succeeds. A truncated JPEG (valid signature, no data) is rejected the same way. A file with real PNG bytes but a `.jpg` name/MIME is correctly identified as PNG — binary preflight, not the extension, is authoritative.
+
+## Cancellation Certification
+
+`cancellation.spec.ts`: cancelling a Quick Fit target-size job (using the 4800×3200 fixture for a real processing window) reaches `cancelled`, no later success silently replaces it, and a subsequent job still completes — on both Chromium and Firefox. Cancelling a Website Logo Pack job reaches `cancelled` on Chromium (a `page.route()` delay on the `zip-adapter` chunk deterministically holds the job at its archiving stage — a genuine network condition, not a sleep — since even a 15 MP source can otherwise complete before a Cancel click round-trip reliably lands on a fast engine/CPU); mode switching in both directions afterward remains functional with no stale processing lock, and a subsequent Logo Pack generation still succeeds. **On Firefox specifically**, the same worker-scope request-visibility gap documented under "Browser Engine Matrix" also prevents `page.route()` from ever intercepting that request (confirmed directly: 0 route hits recorded), so this one test lets the job complete instead of forcing an unreliable cancel-mid-flight window there — Firefox's shared cancellation architecture is still fully proven by the Quick Fit cancellation test immediately above it (identical single-job-slot runtime and cancellation primitives), and the rest of this test (mode switching, subsequent generation) still runs for real on Firefox.
+
+## Stale-Result Certification
+
+`stale-replacement.spec.ts`: selecting File A then immediately File B (both `setInputFiles` calls fired back-to-back, so File A's async preflight can genuinely still be in flight) leaves File B authoritative in both Quick Fit and Website Logo Pack — confirmed again after a settle delay to rule out a late overwrite.
+
+## Reset Certification
+
+`reset.spec.ts` (Quick Fit) and `logo-pack.spec.ts` (Logo Pack): reset from a successful result and from a rejected-file state both restore the initial workspace (source panel hidden, result hidden, drop-zone label restored) and accept a new file successfully afterward, with no stale Blob URL errors observed.
+
+## Capability Fallbacks
+
+`gotoApp()`'s shared assertion (`#runtime-unsupported` hidden) ran on every single test in the suite across both certified engines — the capability-gated unsupported-runtime banner never appeared, confirming Chromium and Firefox both satisfy FileSetGo's processing contract cleanly.
+
+**Real browser-level capability-fallback certification** (`unsupported-runtime.spec.ts`, Product Office gap §4): `page.addInitScript()` removes `window.Worker`, `window.OffscreenCanvas`, or `window.createImageBitmap` — the exact three globals `getRuntimeCapabilities()` feature-detects — *before* the application's own JS runs on the page, a standard Playwright environment-simulation technique operating on the real browser environment, not a mock of FileSetGo's own code. In every case: `#runtime-unsupported` becomes visible with the real, correct message ("This browser doesn't support the processing features FileSetGo needs."), the entire `#quick-fit-app` workspace is hidden rather than left in a broken half-enabled state, and zero console errors or exceptions occur. A fourth test removes `window.WebAssembly` (the HEIC-decoder-specific prerequisite, not part of the core `workerProcessing` contract) and confirms ordinary JPEG processing still completes normally — proving the capability gate is scoped correctly, not overly broad. All four pass on both Chromium and Firefox.
+
+## Accessibility / Keyboard Audit
+
+`accessibility.spec.ts`: exactly one `<h1>`; all three mode tabs expose `role="tab"`/`aria-controls`; the drop zone is a real `role="button" tabindex="0"` control; the primary Quick Fit CTA is keyboard-focusable and activatable with Enter, completing a real job; a blocking file rejection is announced through the shared `aria-live` status announcer; every Logo Pack download control has a distinct accessible name (via `aria-label`, never a bare repeated "Download"); and focus is never left stranded inside now-hidden content after a cancellation. `bootstrap.spec.ts` additionally confirms ArrowLeft/ArrowRight roving-tabindex cycling with automatic activation across all three tabs.
+
+## Responsive / Mobile Audit
+
+See "Mobile Viewport Matrix" above. Two real defects were found and fixed here — see "Defects Found."
+
+## Touch Target Audit
+
+Mode tabs, the primary Quick Fit CTA, and the Logo Pack "Create"/download controls were measured directly (`boundingBox()`) against a ~44 CSS px floor at every mobile viewport. One real gap was found (mode tabs) and fixed — see "Defects Found." Every other audited control already met the floor.
+
+## Console / Exception Audit
+
+`collectConsoleProblems()` (console errors + `pageerror`, i.e. uncaught exceptions and unhandled rejections) ran attached for every certified successful workflow in `bootstrap.spec.ts`, `quick-fit.spec.ts`, `logo-pack.spec.ts`, and `network-privacy.spec.ts`. Zero unexplained entries were observed across any run in this sprint's final, green suite. The one benign, expected log line present on every page load — Laravel Boost's dev-tooling `🔍 Browser logger active (MCP server detected)` notice — is a `console.log`, not an error, and is unrelated to FileSetGo's own code; it was not suppressed, only correctly excluded from the "errors" filter.
+
+## Network / Privacy Audit
+
+`network-privacy.spec.ts`, at the real network level (not code inspection): normal JPEG/PNG/WebP/HEIC processing issues zero requests to any non-application origin; the ZIP adapter loads as a local application asset; no `localStorage`/`sessionStorage`/`IndexedDB`/Cache Storage entry is created for user-file content after a real successful job. See `docs/security/SECURITY.md`'s new "FSG-006 Browser-Level Re-confirmation" section.
+
+## Lazy-Load Runtime Audit
+
+`lazy-load.spec.ts` (Chromium; see "Browser Engine Matrix" for the Firefox tooling limitation): a normal JPEG job never requests the HEIC decoder or ZIP adapter chunks; the HEIC decoder chunk is requested only once a HEIC file is actually processed, not merely selected; opening the Logo Pack tab alone never requests the ZIP adapter chunk, which is requested only once generation actually starts. Cross-checked against the bundle inspection below — all three lazy chunk hashes are byte-for-byte identical to the FSG-005B baseline.
+
+## Browser Storage Audit
+
+Covered in "Network / Privacy Audit" above — `localStorage`, `sessionStorage`, `indexedDB.databases()`, and `caches.keys()` are all confirmed empty after a real successful processing job.
+
+## Security Regression
+
+No governed security boundary was weakened to make any browser test pass. Magic-byte/container validation, the 15 MB/24 MP limits, archive filename protection, and output re-validation are all unchanged this sprint (no core safety-boundary file was modified — only `runtime/protocol.ts`'s worker-*event*-shape validator, which is a protocol-correctness fix, not a content-safety boundary). `docs/security/SECURITY.md` records the browser-level re-confirmation.
+
+## Stress / Resource Testing
+
+**Dedicated same-session resource-lifecycle stress test** (`stress.spec.ts`, Product Office gap §3), one page/session per test, no arbitrary sleeps — only observable state transitions:
+
+- **5 repeated Quick Fit cycles** (alternating JPEG/PNG sources, select → process → assert exactly one visible result → reset → repeat). Blob URL lifecycle is instrumented by wrapping `URL.createObjectURL`/`revokeObjectURL` via `page.addInitScript()` (tracking, not mocking, the real calls) — after 5 full cycles plus one final selection, at most 2 Blob URLs remain alive (the current, not-yet-reset source preview), not a count that grows with the number of cycles.
+- **5 repeated Website Logo Pack generation cycles** in one session — exactly 7 asset rows every single cycle (never accumulating), Blob URL count bounded the same way.
+- **5 source-replacement cycles plus one cancellation/restart cycle** in one session — File B is authoritative every time, and the tool completes a normal job immediately after a cancel/restart with no unrecovered processing lock.
+
+All three pass on Chromium and Firefox. No stuck worker state, stale result, accumulating visible result state, failed subsequent job, Blob URL growth, or unrecovered processing lock was observed in any iteration.
+
+## Performance Observations
+
+Engineering observations only, not a performance guarantee. On this host (2 physical CPUs, `workers: 2` to avoid CPU-contention-induced false timeouts):
+
+| Flow | Chromium | Firefox |
 |---|---|---|
-| `spec.test.ts` | 16 | Exact 7-asset composition/order, unique ids/filenames, header bounds, square dimensions, content scale, ICO entry sizes, archive filename generation |
-| `suitability.test.ts` | 15 | Resolution good/warning/blocking boundaries, geometry 2.5 threshold (exact + over), JPEG/PNG/WebP transparency guidance, header-resolution warning, aggregate blocking logic |
-| `compiler.test.ts` | 3 | Compiled request matches the catalog, archive filename derivation, progress-callback forwarding |
-| `logo-pack-controller.test.ts` | 12 | Suitability reflects current source, `createLogoPack()` compiles+runs via `processImageSet()`, blocked suitability prevents generation, no second job while processing, cancellation, success/failure resolution (including object-identity proof that the surfaced result and its archive Blob are the job's own, not a copy — see "Primary ZIP Experience"), stale-result clearing on file replacement, no re-preflight / no `workflow.run()` side effect, reset |
+| Quick Fit target-size (640×480 gradient JPEG) | ~3s (incl. navigation) | ~3–12s |
+| Website Logo Pack (600×600 PNG, 7 assets + ICO + ZIP) | ~4.6s | ~4–14s |
+| Large image (4800×3200) resize + re-encode | ~3.8s | ~4.9s |
 
-## Laravel Tests
+Firefox showed noticeably more run-to-run variance than Chromium on this shared, CPU-constrained host — this drove the cancellation tests' route-delay technique (see "Cancellation Certification") and is recorded here rather than smoothed over.
 
-`php artisan test --compact`: **10/10 passing, 22 assertions** (8 pre-existing + 2 new: Logo Pack entry point present; no ZIP/favicon-generation/Logo-Pack-upload route exists).
+## Defects Found
 
-## Regression Baseline
+| # | Severity | Description |
+|---|---|---|
+| 1 | **P0** | `runtime/protocol.ts`'s `isImageWorkerEvent()`/`isImageSetAssetResult()` validated every `ImageSetAssetResult` against the raster-only shape (`width`/`height`/`format`) unconditionally. Every real Logo Pack job includes an ICO asset (`favicon.ico`), which has none of those fields — this silently rejected the real `JOB_COMPLETE_SET` message from every real browser Worker for every real Logo Pack job, leaving the UI stuck on "Creating your logo pack..." forever with no error, no timeout, no console output. The worker itself completed correctly every time (confirmed via temporary instrumentation, removed before commit). 304 pre-existing core tests never caught this because `worker-client.test.ts`/`protocol.test.ts`'s `JOB_COMPLETE_SET` fixtures only ever used raster-shaped assets. |
+| 2 | **P2** | The three mode tabs used `min-h-9` (36px, measuring ~40px effective), short of the ~44px touch-target guideline directive §13 names them under explicitly, measured directly at a 320px viewport. |
+| 3 | **P2** | The Logo Pack per-asset download button rendered its full `Download {filename}` label with `whitespace-nowrap`, forcing the button (and the page) wider than a 320px viewport for any real filename. |
 
-`npm run test:core`: **304/304 passing** (265 pre-FSG-005B + 14 contain + 17 ico + 8 new process-image-set FSG-005B sections). The 9→14 `contain.test.ts` growth is this correction round's floor-rounding fix and its required evidence (see "Fixed-Canvas Contain"); every other count is unchanged from the original FSG-005B implementation pass. No pre-existing core test's *behavior* changed — `validate-image-set-request.test.ts` and `worker-client.test.ts` needed mechanical `kind: 'raster'` additions to their fixtures for the new discriminated-union contract, nothing more.
+## Defect Disposition
 
-`npm run test:ui`: **217/217 passing** (171 pre-FSG-005B + 46 Logo Pack product-layer tests). Count unchanged this round — `logo-pack-controller.test.ts`'s existing "resolves to a success state" test was strengthened in place with object-identity assertions (see "Primary ZIP Experience"), not added to. No Quick Fit/Guided Fit test changed.
+All three defects were fixed in this sprint, not deferred — P0/P1 must be resolved before closure (directive §63) and both P2s were cheap, correct, in-scope compatibility/accessibility fixes (§2/§64 permit exactly this).
 
-`php artisan test --compact`: **10/10 passing, 22 assertions** — unchanged; no Laravel file was touched this correction round.
+1. **Fixed.** `isImageSetAssetResult()` now branches on `kind`: `'ico'` validates the actual `IcoAssetResult` shape (`blob`, `mimeType`, `byteSize`, `sizes: number[]`); anything else validates against the existing raster shape. New regression tests: `protocol.test.ts` gained a positive case (a real raster+ICO mixed result is accepted) and a negative case (a malformed ICO asset — missing `sizes` — is still rejected); `worker-client.test.ts` gained a full runtime round-trip test resolving a mixed-asset result end-to-end. See `docs/governance/DECISIONS.md` ADR-019.
+2. **Fixed.** Mode tabs changed to `min-h-11` (44px), matching every other primary control already in the app (`process-button`, `logo-pack-create-button`, etc.) — this is a consistency fix, not a new pattern.
+3. **Fixed.** The download button's visible label shortened to "Download" (the filename is already shown in the row above it); the full, distinct `Download {filename}` remains as the `aria-label` for the accessible name. This also removed redundant on-screen text, not just the overflow.
+
+No P3/polish-only issues were identified this sprint.
+
+## Design / UX Review
+
+Per directive §58, FSG-006 is QA, not redesign — the full four-skill pipeline was not run for every fix. `ui-ux-pro-max` was queried for touch-target guidance (`"tab touch target minimum size" --domain ux`), confirming WCAG 2.2 AA's actual web minimum is 24 CSS px and that the app's own existing 44px convention (used everywhere else) is the right target to bring the mode tabs in line with — not an arbitrary overcorrection. `impeccable`'s mechanical detector (`impeccable detect`) ran against every changed UI file (`welcome.blade.php`, `controller.ts`) after the fixes and returned zero findings, matching FSG-005B's clean baseline. `design-taste-frontend` and the `21st.dev` skills were not invoked — no visual/component-design issue was found that would warrant them; both defects found were a numeric sizing gap and a text-wrap/label-length issue, not composition or visual-language problems.
+
+## Automated Unit/Integration Baseline
+
+`npm run test:core`: **307/307 passing** (304 pre-FSG-006 + 3 new regression tests proving the P0 fix: one in `protocol.test.ts`'s positive-case table, one in its negative-case table, one full-runtime test in `worker-client.test.ts`). No pre-existing test's behavior changed.
+
+`npm run test:ui`: **217/217 passing**, unchanged.
+
+`php artisan test --compact`: **10/10 passing, 22 assertions**, unchanged — no Laravel file was touched this sprint.
+
+## Browser Test Counts
+
+**Local (Chromium/Firefox/4 mobile projects): 110 browser tests total, 107 passed, 3 skipped (documented Firefox tooling limitation), 0 failed.** This includes the two new specs added to close Product Office gaps §3/§4 (`stress.spec.ts`, `unsupported-runtime.spec.ts` — 11 tests together, Chromium+Firefox only, not run against the mobile-viewport projects).
+
+| Project | Passed | Skipped | Failed |
+|---|---|---|---|
+| chromium | 45 | 0 | 0 |
+| firefox | 42 | 3 | 0 |
+| mobile-narrow-320 | 5 | 0 | 0 |
+| mobile-iphone-class | 5 | 0 | 0 |
+| mobile-android-class | 5 | 0 | 0 |
+| mobile-tablet-class | 5 | 0 | 0 |
+
+This is a real, stable local result — the full 6-project matrix was re-run twice, back to back, after every fix in this closure pass until both runs were completely green (110/110 minus the 3 documented skips both times, not merely "passed once"). **WebKit is not part of this local matrix** — see "Browser Engine Matrix"/"GitHub Actions WebKit Result" for how and where it was actually executed.
+
+**Two test-reliability fixes landed alongside the product fixes, both confirmed as test-timing issues, not product defects, by passing reliably in isolation and only failing under added parallel load:** `accessibility.spec.ts`'s focus-after-cancellation check now uses `expect.poll()` instead of an instant snapshot (a browser's own focus-clearing when a focused control is hidden is not necessarily synchronous with the script that hides it, under real CPU contention); `logo-pack.spec.ts`'s primary success-path test no longer asserts an intermediate `processing` state before `success` (the same "job finishes faster than a round-trip check" pattern already fixed elsewhere in this suite).
 
 ## Production Build
 
-`npm run build` succeeds. Re-verified this correction round from a fully clean state: `npm ci` (fresh `node_modules` from the committed lockfile, 0 vulnerabilities) followed by `rm -rf public/build node_modules/.vite` and `npm run build` — results reproducible.
+`npm run build` succeeds. Verified from a fully clean state: `npm ci` (fresh `node_modules` from the committed lockfile, 0 vulnerabilities) → `rm -rf public/build node_modules/.vite` → `npm run build`.
 
 ## Bundle Observation
 
-**Correction landed this round:** the `app-*.css` row below was previously reported as `39.05 kB` (`+13.11 kB`). A fresh `npm ci` + clean rebuild this round measured `app-*.css` at **25.94 kB — byte-for-byte identical to the FSG-005A baseline**, not larger. The earlier figure was wrong; this table now reflects the freshly re-verified truth rather than carrying the earlier number forward. The explanation is consistent with the "Design Skill Review" finding that Logo Pack's markup reuses sibling panels' existing Tailwind utility classes rather than introducing new ones: Tailwind v4's JIT scanner has nothing new to compile into CSS when every class string (`rounded-xl`, `border-zinc-200`, `min-h-11`, `bg-blue-700`, etc.) was already present in Quick Fit/Guided Fit markup — confirmed directly by grepping the compiled `app-*.css` for `min-h-11` (present, from Logo Pack's own buttons) while the overall byte count still matches the pre-Logo-Pack baseline exactly.
-
-| Asset | FSG-005A closeout | FSG-005B (re-verified) | Delta |
+| Asset | FSG-005B baseline | FSG-006 | Delta |
 |---|---|---|---|
-| `app-*.js` | 52.18 kB | 62.19 kB | +10.01 kB |
-| `app-*.css` | 25.94 kB | 25.94 kB | +0.00 kB (corrected — see above) |
-| `image.worker-*.js` | 28.42 kB | 32.38 kB | +3.96 kB |
+| `app-*.js` | 62.19 kB | 62.41 kB | +0.22 kB (the `protocol.ts` ICO-branch validator + the two UI fixes) |
+| `app-*.css` | 25.94–25.97 kB | 26.06 kB | +~0.1 kB (negligible; no new utility classes of note) |
+| `image.worker-*.js` (hash `7xiD-vqa`) | 32.38 kB | 32.38 kB (identical hash) | unchanged |
 | `zip-adapter-*.js` (hash `BOagJ5MW`) | 9.12 kB | 9.12 kB (identical hash) | unchanged |
 | `heic-decode-*.js` (hash `CIxd_bUO`) | 32.54 kB | 32.54 kB (identical hash) | unchanged |
 | `heic_dec-*.wasm` (hash `ojH1Dp2m`) | 959.55 kB | 959.55 kB (identical hash) | unchanged |
 
-`app.js` growth covers the entire Logo Pack product layer (spec/suitability/compiler/controller) plus the third-tab UI wiring; `image.worker.js` growth is the new `contain.ts` primitive + `icons/ico.ts` writer/validator + the worker's new `'contain'`/`'ico'` render branches — no new dependency contributed to either. `zip-adapter`/`heic-decode`/`heic_dec.wasm` chunk hashes are **byte-for-byte identical** to FSG-005A's closeout, confirming Logo Pack introduced zero changes to the archive or HEIC lazy-loaded code paths themselves.
+The `image.worker.js` chunk is byte-for-byte identical because `runtime/protocol.ts`'s validator functions are only imported by `worker-client.ts` (main thread), never by the worker itself — confirmed directly by the unchanged hash, not assumed. `@playwright/test` is a dev-only dependency; it contributes zero bytes to any production bundle (confirmed by the identical/near-identical hashes above).
 
-## HEIC Lazy-Load Regression
+## Physical Device Limitation
 
-Re-verified this round from the clean `npm ci` rebuild: `app-*.js` and `image.worker-*.js` contain zero HEIC decoder glue markers (`libde265`, `wasmBinaryFile`, `instantiateWasm`); present only in the untouched, identically-hashed `heic-decode-*.js` chunk. HEIC input to Logo Pack reuses the exact same `decodeSourceToBitmap()` HEIC branch every other worker path already uses.
-
-## Archive Lazy-Load Regression
-
-Re-verified this round from the clean `npm ci` rebuild: `zipSync`/`unzipSync` and `fflate` identifier markers are absent from both `app-*.js` and `image.worker-*.js`; the `zip-adapter-*.js` chunk itself (hash `BOagJ5MW`, 9.12 kB) is byte-for-byte identical to the FSG-005A baseline — this is stronger evidence than a literal identifier-string search inside that chunk, since minification renames `fflate`'s internal function names to single letters and a literal `zipSync`/`unzipSync` match inside the minified chunk itself is not expected either way. `grep -rln "processImageSet" resources/js/` (excluding `tests/`) shows it is invoked *only* from `resources/js/logo-pack/compiler.ts` and `resources/js/logo-pack/logo-pack-controller.ts` (plus the necessary `resources/js/quick-fit/core-client.ts` re-export) — Quick Fit and Guided Fit never call it, so visiting any tab before pressing **Create logo pack** never triggers the archive chunk fetch.
-
-## Design Skill Review
-
-Per the governance the project owner committed directly to `AGENTS.md`/`CLAUDE.md` in `f49ae9e` ("### Frontend Design Skill Routing" — see "Current Branch / History Note"), the four recommended skills were invoked in sequence against the existing, already-implemented Logo Pack UI (`welcome.blade.php`'s `#logo-pack-panel`, `controller.ts`'s `renderLogoPack()`). This was an audit of shipped work, not new design — no redesign was performed to "prove a skill was used"; only genuine findings would have produced changes.
-
-| Skill | Scope reviewed | Outcome |
-|---|---|---|
-| `ui-ux-pro-max` | Workflow clarity, information hierarchy, accessibility, warning-vs-blocking distinction, touch/mobile interaction | No defect found. Confirmed: severity-differentiated suitability issues (`role="alert"` for blocking, `role="status"` for warning/info, distinct red/amber/neutral text color — never color-only), `min-h-11` (44px) touch targets throughout, 8px+ gaps between adjacent controls, primary CTA visually distinct from secondary downloads. |
-| `design-taste-frontend` | Composition, typography, spacing, restraint, generic-AI-styling avoidance | No defect found. Confirmed `#logo-pack-review`/`#logo-pack-result` reuse the *exact* card styling every sibling panel already uses (`rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900`) — one shape system, one palette, no new visual language introduced. This skill's rules are largely scoped to marketing/landing pages (its own "Out of Scope" section); the Logo Pack panel is a functional tool surface, so only its restraint/consistency guidance was applicable, and it passed. |
-| `21st-ui-review` | Component-level defects: semantic controls, keyboard/focus, touch targets, responsive overflow, duplicate primitives, hardcoded values vs. tokens | The skill's own `21st` CLI (`21st review <path>`) is not installed in this environment and there is no `.21st/design.json` in this repository — this is recorded honestly rather than silently skipped. Its documented fallback (steps 3–5 of its own workflow: inspect composition and runtime states directly against code) was performed instead: confirmed reuse of shared `formatBytes`/`formatLabel` formatting helpers (no duplicated formatting logic), no duplicate list-item primitive introduced beyond the existing imperative-DOM pattern `controller.ts` already uses elsewhere, `aria-label` present on every download control. The skill's own mechanical detector (below, via `impeccable detect`) independently corroborated a clean result. |
-| `impeccable` | Final polish: consistency, accessibility, responsiveness, interaction finish | `impeccable context --target resources/views/welcome.blade.php` reported no product/design authority file exists for this skill specifically (`NO_PRODUCT_MD`); per its own routing rules this does not block a scoped review of existing code, only its `init`/`new-work` flows. Ran its mechanical detector directly: `impeccable detect --json resources/views/welcome.blade.php resources/js/quick-fit/controller.ts` → `[]` (zero findings). Manual polish-pass review (its `polish.md` playbook §4–5: flow/hierarchy, layout/type, color/imagery, interaction/state) found every control already has default/hover/focus/active/disabled states, dark-mode variants throughout, and no accidental churn. |
-
-**Material findings:** none. **Changes made because of findings:** none — the existing implementation already satisfied every check across all four skills. **Deferred to FSG-006:** real-browser/device confirmation of keyboard focus order, touch interaction, and responsive stacking (unchanged from this sprint's pre-existing "Known Limitations" entry below — no design skill raised anything new requiring deferral). **Final review outcome:** the shipped Logo Pack UI passes the governed design review without modification.
+No physical device or real Safari instance was available to, or used by, this agent — including in the GitHub Actions run used to obtain a real WebKit result (a Linux CI runner executing Playwright's automated WebKit browser engine, not Safari and not a physical device). This limitation is stated plainly, in every place WebKit is discussed in this report, rather than worked around or implied away. No claim of physical-device or Safari certification appears anywhere in this report.
 
 ## Known Limitations
 
-- **Browser automation was not exercised this sprint**, consistent with the pattern recorded since FSG-003 — all verification here is automated-test- and build-inspection-based, per ADR-013. Mode-tab keyboard cycling across three tabs, suitability-review rendering, and responsive stacking are implemented to spec and covered by DOM-free logic/orchestration tests, but not independently confirmed by a real browser session.
-- **The `21st` CLI is not installed in this environment** (see "Design Skill Review"); its deterministic scan step was substituted with a manual code-level review per the skill's own documented fallback, and independently corroborated by `impeccable`'s mechanical detector returning zero findings.
-- Per directive §75, `docs/product/PRODUCT.md` was updated to accurately record that Website Logo Pack shipped as its own peer product-mode tab (per directive §7) rather than as a Guided Fit preset, which is how the pre-existing product framing originally described it. This is recorded as a factual update, not silently smoothed over.
+- **This local macOS 12 environment cannot run a current, non-CVE-affected Playwright WebKit build** (see "Browser Engine Matrix" and ADR-019) — a real, documented environment constraint, addressed by obtaining WebKit execution from a supported GitHub Actions runner rather than treated as a reason to redefine the engine matrix.
+- **3 Firefox lazy-load tests, and one Firefox Logo Pack cancellation assertion, are skipped/adapted** due to the same Playwright/Firefox worker-request-visibility tooling limitation (see "Browser Engine Matrix") — the underlying product facts (lazy loading, and shared cancellation architecture) are independently proven elsewhere (unchanged bundle hashes; the Quick Fit cancellation test).
+- **No physical device or real Safari testing** — see "Physical Device Limitation."
+- **HEIC decoder-failure simulation** (directive §52) was not added — reliable simulation would require invasive test-only code paths in the decoder; existing unit coverage (`heic-decode.test.ts`) already exercises corrupt/truncated/empty HEIC payloads at the decode-function level with clean catchable errors, which was not touched this sprint.
 
-## FSG-005B Acceptance Audit (directive §74)
+## FSG-006 Acceptance Audit (directive §71)
 
 | # | Criterion | Status |
 |---|---|---|
-| 1 | Logo Pack is a real public product mode | Met |
-| 2 | Shares selected source with Quick/Guided Fit | Met (tested) |
-| 3 | No unnecessary re-preflight on mode changes | Met (tested) |
-| 4 | Suitability review occurs before processing | Met |
-| 5 | >2.5 aspect-ratio guidance works | Met (tested, exact boundary) |
-| 6 | Controlled icon upscaling is assessed | Met (tested) |
-| 7 | >4× required icon upscale blocks generation | Met (tested) |
-| 8 | No automatic crop exists | Met |
-| 9 | No automatic trim exists | Met |
-| 10 | No background removal exists | Met |
-| 11 | Generic fixed-canvas contain exists | Met (tested) |
-| 12 | 90% icon content scale is enforced, deterministically floor-rounded | Met (tested — 32/180/192/512px evidence; see "Fixed-Canvas Contain") |
-| 13 | Header standard output is correct | Met (tested) |
-| 14 | Header high-density output is correct | Met (tested) |
-| 15 | favicon-32x32.png is exactly 32×32 | Met (tested) |
-| 16 | apple-touch-icon.png is exactly 180×180 | Met (tested) |
-| 17 | icon-192x192.png is exact | Met (tested) |
-| 18 | icon-512x512.png is exact | Met (tested) |
-| 19 | favicon.ico is valid | Met (tested) |
-| 20 | favicon.ico contains 16/32/48 PNG entries | Met (tested) |
-| 21 | ICO validation exists | Met (tested, 11 corruption cases) |
-| 22 | Full source decodes only once | Met (tested) |
-| 23 | Rendering remains sequential | Met |
-| 24 | Exactly seven public assets are returned | Met (tested) |
-| 25 | ZIP contains exactly those seven assets | Met (tested, real unzip) |
-| 26 | No transient ICO PNGs leak into ZIP | Met (tested) |
-| 27 | Individual files can be downloaded locally | Met |
-| 28 | ZIP can be downloaded locally | Met |
-| 29 | Blob URLs are cleaned up | Met |
-| 30 | Cancellation works | Met (inherited + re-verified) |
-| 31 | Stale result protection works | Met (tested) |
-| 32 | HEIC input works | Met (tested) |
-| 33 | HEIC remains lazy-loaded | Met (re-verified) |
-| 34 | fflate remains lazy-loaded | Met (re-verified) |
-| 35 | No server upload/package endpoint exists | Met (audited + tested) |
-| 36 | Privacy boundary remains intact | Met (audited) |
-| 37 | No manifest is generated | Met |
-| 38 | No FSG-006 work begins | Met |
-| 39 | Existing core tests remain green | Met (304/304, no pre-existing behavior regressed) |
-| 40 | Existing UI tests remain green | Met (217/217) |
-| 41 | New core/Logo Pack tests pass | Met (39 new core [34 original + 5 floor-rounding evidence] + 46 new UI) |
-| 42 | Laravel tests pass | Met (10/10) |
-| 43 | Typecheck passes | Met |
-| 44 | Production build passes | Met |
-| 45 | FSG-005 parent acceptance audit is completed | Met — see below |
-| 46 | No project-owner manual QA is required | Met |
-| 47 | Governed design-skill review completed (`ui-ux-pro-max`, `design-taste-frontend`, `21st-ui-review`, `impeccable`) | Met — see "Design Skill Review"; no defects found, no changes required |
-| 48 | Primary ZIP CTA downloads the archive Blob returned by `processImageSet()` directly, not a UI-rebuilt ZIP | Met (tested — object-identity assertions; see "Primary ZIP Experience") |
+| 1 | Existing core baseline remains green | Met (307/307) |
+| 2 | Existing UI baseline remains green | Met (217/217) |
+| 3 | Existing Laravel baseline remains green | Met (10/10, 22 assertions) |
+| 4 | Typecheck passes | Met |
+| 5 | Production build passes | Met |
+| 6 | Chromium compatibility passes | Met (45/45 local) |
+| 7 | Firefox compatibility passes | Met (42/45 local, 3 documented tooling skips, 0 failed) |
+| 8 | WebKit compatibility passes | **Pending real result from the triggered GitHub Actions run** — this local environment cannot execute it; not marked Met until that real result is in (see "GitHub Actions WebKit Result") |
+| 9 | Mobile viewport compatibility passes | Met (20/20 across 4 projects) |
+| 10 | 320px layout remains functional | Met (tested directly, one real defect found and fixed) |
+| 11 | Quick Fit browser flow passes | Met |
+| 12 | Guided Fit browser flow passes | Met |
+| 13 | Logo Pack browser flow passes | Met (was broken before this sprint's P0 fix) |
+| 14 | Target-size processing browser flow passes | Met |
+| 15 | HEIC path is browser-tested | Met (Chromium + Firefox) |
+| 16 | ZIP generation/download is browser-tested | Met |
+| 17 | Invalid-file recovery works | Met |
+| 18 | Cancellation recovery works | Met |
+| 19 | Rapid replacement stale protection works | Met |
+| 20 | Reset recovery works | Met |
+| 21 | Already-ready Guided Fit works | Met |
+| 22 | Wide-logo warning works | Met |
+| 23 | Too-small Logo Pack block works | Met |
+| 24 | JPEG background guidance remains truthful | Met |
+| 25 | Mode keyboard navigation works | Met |
+| 26 | No horizontal overflow in governed mobile viewports | Met (after fix) |
+| 27 | Critical controls have adequate touch targets | Met (after fix) |
+| 28 | No unexplained browser console/page exceptions remain | Met |
+| 29 | Source/output files are not uploaded | Met |
+| 30 | HEIC decoder remains lazy | Met |
+| 31 | ZIP adapter remains lazy | Met |
+| 32 | No persistent user-file browser storage exists | Met |
+| 33 | Security boundaries remain intact | Met |
+| 34 | No P0/P1 compatibility defects remain | Met (the one found was fixed) |
+| 35 | P2/P3 issues are resolved or explicitly dispositioned | Met (both P2s fixed; no P3s found) |
+| 36 | Bundle regression is understood | Met (+0.22 kB app.js, all lazy chunks byte-identical) |
+| 37 | Physical-device limitation, if any, is stated truthfully | Met |
+| 38 | No project-owner manual QA is required | Met |
+| 39 | FSG-007 work has not begun | Met |
 
-Mode-tab keyboard cycling and responsive stacking are implemented to spec but were not independently confirmed by browser automation this sprint — recorded honestly in Known Limitations rather than claimed as verified.
+## Launch-Readiness Recommendation
 
-## FSG-005 Parent Acceptance Audit (directive §73)
-
-| Parent requirement | Status |
-|---|---|
-| Generic image-set processing | Met (FSG-005A) |
-| One-decode multi-output architecture | Met (FSG-005A, extended by FSG-005B's contain/ico kinds) |
-| JPEG/PNG/WebP raster assets | Met |
-| Generic fixed-canvas contain | Met (FSG-005B) |
-| ICO output capability | Met (FSG-005B) |
-| Worker-side ZIP creation | Met (FSG-005A) |
-| Safe archive filenames | Met (FSG-005A) |
-| Deterministic package ordering | Met (FSG-005A, re-verified for the 3-kind mix) |
-| Package limits | Met (FSG-005A limits remain authoritative, unmodified) |
-| Individual output metadata | Met |
-| Local ZIP result | Met |
-| Website Logo Pack public workflow | Met (FSG-005B) |
-| Favicon suite | Met (FSG-005B) |
-| Individual local downloads | Met (FSG-005B) |
-| Package local download | Met (FSG-005B) |
-| Cancellation | Met |
-| Stale-result protection | Met |
-| Local-only processing | Met |
-
-## FSG-005 Closure Recommendation
-
-Every parent requirement above is satisfied. **FSG-005 — Packaging & Export Systems is CLOSED**, alongside FSG-005B itself, by explicit Product Office approval.
+**FSG-006 remains OPEN pending the real WebKit result.** Not READY FOR FSG-007 and not NOT READY — genuinely undetermined until "GitHub Actions WebKit Result" above is filled in with the actual outcome. Every other required item is Met: Chromium/Firefox/mobile certification, the same-session stress test, the real browser-level unsupported-runtime test, and the one real severity-P0 defect this milestone exists to catch (found, root-caused, fixed, and regression-tested).
 
 ## Next Milestone
 
-**FSG-006 — Hardening, Mobile QA & Compatibility is NEXT and has not begun.** No FSG-006 work exists in this sprint's changes.
+FSG-007 — SEO Acquisition Surfaces & Public Launch. **Not started, and will not start before FSG-006 actually closes** — no FSG-007 work exists in this sprint's changes.
 
 ## Commit Reference
 
-This report is included in the FSG-005B / FSG-005 closeout commit:
-
-`feat(web): add Website Logo Pack`
-
-The authoritative commit SHA is recorded in Git history and in the post-commit closeout response. `skills-lock.json` is already committed (in `4ddb1c7`, below the closeout commit) and required no staging action of its own; the gitignored skill *payload* directories (`.agents/skills/`, `.claude/skills/<name>/`) were not staged.
+**Not the FSG-006 closure commit.** A narrow, explicitly non-closure verification checkpoint was pushed to `fsg-006-hardening-compatibility` solely to let GitHub Actions execute the WebKit (and cross-validation Chromium/Firefox) run this local environment cannot perform — per Product Office's explicit authorization for exactly this. It contains the complete FSG-006 browser-test infrastructure, the two responsive/accessibility fixes, the P0 protocol fix, the new stress/unsupported-runtime specs, and this report/governance documentation. **FSG-006 is not marked CLOSED in it, and ROADMAP.md is not touched by it.** Commit SHA and the triggered workflow run are reported in the closeout response accompanying this report.

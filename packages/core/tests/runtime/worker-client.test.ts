@@ -356,6 +356,50 @@ function createSetResult(): import('../../src/processing/image-set-contracts').I
   return { assets: [asset], assetCount: 1, totalOutputBytes: asset.byteSize };
 }
 
+/**
+ * A `JOB_COMPLETE_SET` result whose `assets` include a real `IcoAssetResult`
+ * (`kind: 'ico'`) alongside a raster asset — the exact shape every real
+ * Website Logo Pack job produces (favicon.ico is always present). Regression
+ * fixture for the real-browser bug `isImageSetAssetResult()` had: validating
+ * every asset against the raster-only shape unconditionally silently
+ * rejected the whole message whenever an ICO asset was present, leaving the
+ * UI stuck in "processing" forever (see docs/governance/DECISIONS.md
+ * ADR-019, found via FSG-006 Chromium/Firefox browser certification).
+ */
+function createSetResultWithIco(): import('../../src/processing/image-set-contracts').ImageSetResult {
+  const rasterBlob = new Blob([Uint8Array.of(1, 2, 3)], { type: 'image/png' });
+  const raster = {
+    kind: 'raster' as const,
+    id: 'header',
+    filename: 'logo-header.png',
+    blob: rasterBlob,
+    width: 400,
+    height: 120,
+    format: 'png' as const,
+    mimeType: 'image/png',
+    byteSize: rasterBlob.size,
+    sourceDimensions: { width: 400, height: 120 },
+    normalizedDimensions: { width: 400, height: 120 },
+    resized: false,
+  };
+  const icoBlob = new Blob([Uint8Array.of(4, 5, 6)], { type: 'image/x-icon' });
+  const ico = {
+    kind: 'ico' as const,
+    id: 'favicon-ico',
+    filename: 'favicon.ico',
+    blob: icoBlob,
+    mimeType: 'image/x-icon',
+    byteSize: icoBlob.size,
+    sizes: [16, 32, 48],
+  };
+
+  return {
+    assets: [raster, ico],
+    assetCount: 2,
+    totalOutputBytes: raster.byteSize + ico.byteSize,
+  };
+}
+
 describe('ImageProcessingRuntime shared job slot (processImageSet)', () => {
   it('posts PROCESS_IMAGE_SET and resolves a complete image-set outcome', async () => {
     const { runtime, workers } = createRuntime();
@@ -376,6 +420,26 @@ describe('ImageProcessingRuntime shared job slot (processImageSet)', () => {
       status: 'complete',
       result: { assetCount: 1 },
     });
+  });
+
+  it('resolves a result whose assets include an ICO entry (real Logo Pack shape)', async () => {
+    const { runtime, workers } = createRuntime();
+    const job = runtime.processImageSet(createPngBlob(), {
+      outputs: [
+        { kind: 'raster', id: 'header', filename: 'logo-header.png', output: { format: 'png' } },
+        { kind: 'ico', id: 'favicon-ico', filename: 'favicon.ico', entries: [{ size: 16, contentScale: 0.9, allowUpscale: false }] },
+      ],
+    });
+    const worker = await waitForAnyWorker(workers);
+
+    worker.emit({ type: 'JOB_COMPLETE_SET', jobId: job.jobId, result: createSetResultWithIco() });
+
+    const outcome = await job.result;
+    expect(outcome.status).toBe('complete');
+    if (outcome.status === 'complete') {
+      expect(outcome.result.assetCount).toBe(2);
+      expect(outcome.result.assets.map((asset) => asset.kind)).toEqual(['raster', 'ico']);
+    }
   });
 
   it('reports asset index/count through progress events', async () => {
