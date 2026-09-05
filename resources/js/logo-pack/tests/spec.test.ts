@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildArchiveFilename,
   buildLogoPackOutputSpecs,
+  buildLogoPackPrimaryFilenames,
   GEOMETRY_WARNING_ASPECT_RATIO,
   HEADER_HIGH_DENSITY_BOUNDS,
   HEADER_STANDARD_BOUNDS,
@@ -13,16 +14,16 @@ import {
 } from '../spec';
 
 describe('buildLogoPackOutputSpecs', () => {
-  const specs = buildLogoPackOutputSpecs();
+  const specs = buildLogoPackOutputSpecs('transparent', 'acme-logo.png');
 
   it('produces exactly seven public outputs (favicon.ico counted once)', () => {
     expect(specs).toHaveLength(7);
   });
 
-  it('orders the outputs exactly as governed (directive §13)', () => {
+  it('orders the outputs exactly as governed, with mode-aware primary filenames (directive §13/§32)', () => {
     expect(specs.map((spec) => spec.filename)).toEqual([
-      'logo-header.png',
-      'logo-header@2x.png',
+      'acme-logo-transparent.png',
+      'acme-logo-transparent@2x.png',
       'favicon.ico',
       'favicon-32x32.png',
       'apple-touch-icon.png',
@@ -50,7 +51,7 @@ describe('buildLogoPackOutputSpecs', () => {
   });
 
   it('bounds the standard header to 400×120', () => {
-    const header = specs.find((spec) => spec.filename === 'logo-header.png');
+    const header = specs.find((spec) => spec.filename === 'acme-logo-transparent.png');
     expect(header?.kind).toBe('raster');
     if (header?.kind === 'raster') {
       expect(header.resize).toEqual({ maxWidth: 400, maxHeight: 120 });
@@ -59,7 +60,7 @@ describe('buildLogoPackOutputSpecs', () => {
   });
 
   it('bounds the high-density header to 800×240', () => {
-    const header2x = specs.find((spec) => spec.filename === 'logo-header@2x.png');
+    const header2x = specs.find((spec) => spec.filename === 'acme-logo-transparent@2x.png');
     expect(header2x?.kind).toBe('raster');
     if (header2x?.kind === 'raster') {
       expect(header2x.resize).toEqual({ maxWidth: 800, maxHeight: 240 });
@@ -112,23 +113,78 @@ describe('buildLogoPackOutputSpecs', () => {
     expect(GEOMETRY_WARNING_ASPECT_RATIO).toBe(2.5);
     expect(MAX_ICON_UPSCALE_FACTOR).toBe(4);
   });
+
+  it('never generates favicon.ico or the fixed icon filenames as mode-dependent (directive §34: conventional names unchanged)', () => {
+    const original = buildLogoPackOutputSpecs('original', 'acme-logo.png');
+    const fixedFilenames = (list: typeof specs) => list.slice(2).map((spec) => spec.filename);
+    expect(fixedFilenames(specs)).toEqual(fixedFilenames(original));
+  });
 });
 
-describe('buildArchiveFilename', () => {
-  it('appends -filesetgo-logo-pack.zip to the source basename', () => {
-    expect(buildArchiveFilename('acme-logo.png')).toBe('acme-logo-filesetgo-logo-pack.zip');
+describe('buildLogoPackPrimaryFilenames', () => {
+  it('produces {basename}-transparent.png / {basename}-transparent@2x.png for transparent mode', () => {
+    expect(buildLogoPackPrimaryFilenames('transparent', 'brand-logo.jpg')).toEqual({
+      standard: 'brand-logo-transparent.png',
+      highDensity: 'brand-logo-transparent@2x.png',
+    });
+  });
+
+  it('produces {basename}-original.png / {basename}-original@2x.png for original mode', () => {
+    expect(buildLogoPackPrimaryFilenames('original', 'brand-logo.jpg')).toEqual({
+      standard: 'brand-logo-original.png',
+      highDensity: 'brand-logo-original@2x.png',
+    });
   });
 
   it('strips only the final extension', () => {
-    expect(buildArchiveFilename('acme.brand.logo.svg.png')).toBe('acme.brand.logo.svg-filesetgo-logo-pack.zip');
+    expect(buildLogoPackPrimaryFilenames('transparent', 'acme.brand.logo.svg.png')).toEqual({
+      standard: 'acme.brand.logo.svg-transparent.png',
+      highDensity: 'acme.brand.logo.svg-transparent@2x.png',
+    });
   });
 
   it('falls back to "logo" for a name with no usable basename', () => {
-    expect(buildArchiveFilename('.png')).toBe('logo-filesetgo-logo-pack.zip');
-    expect(buildArchiveFilename('')).toBe('logo-filesetgo-logo-pack.zip');
+    expect(buildLogoPackPrimaryFilenames('transparent', '.png').standard).toBe('logo-transparent.png');
+    expect(buildLogoPackPrimaryFilenames('transparent', '').standard).toBe('logo-transparent.png');
   });
 
-  it('never includes a path separator', () => {
-    expect(buildArchiveFilename('acme-logo.png')).not.toMatch(/[/\\]/);
+  it('never includes a path separator, even from an adversarial source filename', () => {
+    const result = buildLogoPackPrimaryFilenames('transparent', '../../etc/passwd.png');
+    expect(result.standard).not.toMatch(/[/\\]/);
+    expect(result.highDensity).not.toMatch(/[/\\]/);
+  });
+
+  it('falls back to "logo" for a traversal-only name (".." after sanitization)', () => {
+    expect(buildLogoPackPrimaryFilenames('transparent', '../..').standard).toBe('logo-transparent.png');
+  });
+
+  it('rejects null bytes', () => {
+    const result = buildLogoPackPrimaryFilenames('transparent', `acme${String.fromCharCode(0)}logo.png`);
+    expect(result.standard).not.toContain(String.fromCharCode(0));
+  });
+});
+
+describe('buildArchiveFilename', () => {
+  it('appends -filesetgo-transparent-logo-pack.zip in transparent mode', () => {
+    expect(buildArchiveFilename('transparent', 'acme-logo.png')).toBe('acme-logo-filesetgo-transparent-logo-pack.zip');
+  });
+
+  it('appends -filesetgo-original-logo-pack.zip in original mode', () => {
+    expect(buildArchiveFilename('original', 'acme-logo.png')).toBe('acme-logo-filesetgo-original-logo-pack.zip');
+  });
+
+  it('strips only the final extension', () => {
+    expect(buildArchiveFilename('transparent', 'acme.brand.logo.svg.png')).toBe(
+      'acme.brand.logo.svg-filesetgo-transparent-logo-pack.zip',
+    );
+  });
+
+  it('falls back to "logo" for a name with no usable basename', () => {
+    expect(buildArchiveFilename('transparent', '.png')).toBe('logo-filesetgo-transparent-logo-pack.zip');
+    expect(buildArchiveFilename('transparent', '')).toBe('logo-filesetgo-transparent-logo-pack.zip');
+  });
+
+  it('never includes a path separator, even from an adversarial source filename', () => {
+    expect(buildArchiveFilename('transparent', '../../etc/passwd.png')).not.toMatch(/[/\\]/);
   });
 });

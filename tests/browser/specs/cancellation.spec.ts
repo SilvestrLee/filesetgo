@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoApp, selectMode, uploadFile, waitForStatus } from '../helpers/app';
+import { gotoApp, selectLogoPackBackgroundMode, selectMode, uploadFile, waitForStatus } from '../helpers/app';
 
 test.describe('Cancellation certification (directive §30/§31)', () => {
   test('cancelling a Quick Fit job stops it, and a subsequent job can still complete', async ({ page }) => {
@@ -58,6 +58,7 @@ test.describe('Cancellation certification (directive §30/§31)', () => {
     await uploadFile(page, 'large.jpg');
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
+    await selectLogoPackBackgroundMode(page, 'original');
 
     await page.locator('#logo-pack-create-button').click();
 

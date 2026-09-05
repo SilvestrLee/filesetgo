@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoApp, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
+import { gotoApp, selectLogoPackBackgroundMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
 
 test.describe('Accessibility / keyboard audit (directive §40-§42)', () => {
   test('exactly one H1 exists on the page', async ({ page }) => {
@@ -53,6 +53,7 @@ test.describe('Accessibility / keyboard audit (directive §40-§42)', () => {
     await uploadFile(page, 'good-logo.png');
     await waitForStatus(page, 'ready');
     await page.locator('#mode-tab-logo-pack').click();
+    await selectLogoPackBackgroundMode(page, 'original');
     await page.locator('#logo-pack-create-button').click();
     await waitForStatus(page, 'success', 30_000);
 

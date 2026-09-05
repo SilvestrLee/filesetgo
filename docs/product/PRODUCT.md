@@ -66,6 +66,8 @@ Guided Fit's first realized presets (FSG-004) are three FileSetGo-authored gener
 
 **Website Logo Pack (FSG-005B) shipped as its own first-class public workspace tab — "Logo Pack" — alongside Quick Fit and Guided Fit, rather than as a preset selectable from within the Guided Fit tab.** This was an explicit product decision recorded in `docs/directives/FSG-005B.md` §7. It remains conceptually a "guided" experience (the user states what a file is for; FileSetGo supplies the technical requirements and packaging) — only its information architecture differs from the original three-Guided-Fit-workflow framing above. Web Image Optimizer remains unimplemented and unassigned to either shape.
 
+**Website Logo Pack asks an explicit background question (FSG-005C).** A user creating a logo pack chooses *Transparent background* or *Keep existing background* before anything is generated — never inferred from the source's file format. Choosing Transparent runs deterministic, browser-local background removal on an opaque source (or preserves genuine existing transparency untouched) and requires the user to review a real preview of the actual generated result before packaging; a background that cannot be cleanly separated is reported as needing review or as failed, never silently masqueraded as a clean success. This exists because FSG-005B's original contract — preserve whatever background was uploaded, only preserve transparency that already existed — did not satisfy what users actually mean by "I want a transparent logo." See `docs/directives/FSG-005C.md` and `docs/governance/DECISIONS.md` ADR-020.
+
 ## Initial V1 Workflows
 
 V1 is initially organized around:

@@ -21,12 +21,18 @@ import type {
   ImageProcessingTargetOutcome,
   ProcessImageToTargetOptions,
 } from '../processing/target-size-contracts';
+import type {
+  PrepareTransparentMasterOptions,
+  TransparentMasterJob,
+  TransparentMasterOutcome,
+} from '../processing/transparent-master-contracts';
 import { validateProcessImageOptions } from '../processing/validate-request';
 import { validateProcessImageSetOptions } from '../processing/validate-image-set-request';
 import {
   validateProcessImageToTargetOptions,
   type ResolvedTargetOptions,
 } from '../processing/validate-target-request';
+import { validatePrepareTransparentMasterOptions } from '../processing/validate-transparent-master-request';
 import { createImageJobId } from './job-id';
 import {
   isImageWorkerEvent,
@@ -45,12 +51,13 @@ export interface ImageWorkerLike {
 export type ImageWorkerFactory = () => ImageWorkerLike;
 
 /**
- * The three job kinds (`processImage`, `processImageToTarget`, and
- * `processImageSet`) share this single-slot runtime so
- * `MAX_ACTIVE_HEAVY_JOBS = 1` holds across all of them — starting any kind
- * cancels whichever job (of any kind) is currently active (FSG-002
+ * The four job kinds (`processImage`, `processImageToTarget`,
+ * `processImageSet`, and `prepareTransparentMaster`) share this single-slot
+ * runtime so `MAX_ACTIVE_HEAVY_JOBS = 1` holds across all of them — starting
+ * any kind cancels whichever job (of any kind) is currently active (FSG-002
  * directive §15; FSG-005A directive §11 extends this invariant to
- * `processImageSet`).
+ * `processImageSet`; FSG-005C directive §20 extends it again to
+ * `prepareTransparentMaster`).
  */
 type JobVariant =
   | {
@@ -67,6 +74,11 @@ type JobVariant =
       kind: 'set';
       options: ProcessImageSetOptions;
       resolve: (outcome: ImageProcessingSetOutcome) => void;
+    }
+  | {
+      kind: 'transparent-master';
+      options: PrepareTransparentMasterOptions;
+      resolve: (outcome: TransparentMasterOutcome) => void;
     };
 
 interface ActiveJob {
@@ -145,8 +157,32 @@ export class ImageProcessingRuntime {
     };
   }
 
+  /** FSG-005C directive §20: shares the same single active-heavy-job slot as the other three job kinds. */
+  public prepareTransparentMaster(
+    file: Blob,
+    options: PrepareTransparentMasterOptions,
+  ): TransparentMasterJob {
+    const job = this.beginJob<TransparentMasterOutcome>(file, {
+      kind: 'transparent-master',
+      options,
+      resolve: () => {},
+    });
+
+    return {
+      jobId: job.id,
+      result: job.result,
+      cancel: () => {
+        this.cancelImageJob(job.id);
+      },
+    };
+  }
+
   private beginJob<
-    TOutcome extends ImageProcessingOutcome | ImageProcessingTargetOutcome | ImageProcessingSetOutcome,
+    TOutcome extends
+      | ImageProcessingOutcome
+      | ImageProcessingTargetOutcome
+      | ImageProcessingSetOutcome
+      | TransparentMasterOutcome,
   >(
     file: Blob,
     variant: JobVariant,
@@ -172,7 +208,9 @@ export class ImageProcessingRuntime {
         ? { ...variant, resolve: resolveResult as unknown as (outcome: ImageProcessingOutcome) => void }
         : variant.kind === 'target'
           ? { ...variant, resolve: resolveResult as unknown as (outcome: ImageProcessingTargetOutcome) => void }
-          : { ...variant, resolve: resolveResult as unknown as (outcome: ImageProcessingSetOutcome) => void };
+          : variant.kind === 'set'
+            ? { ...variant, resolve: resolveResult as unknown as (outcome: ImageProcessingSetOutcome) => void }
+            : { ...variant, resolve: resolveResult as unknown as (outcome: TransparentMasterOutcome) => void };
     const activeJob: ActiveJob = {
       id: jobId,
       file,
@@ -229,11 +267,18 @@ export class ImageProcessingRuntime {
       }
 
       resolvedTargetOptions = validation.resolved;
-    } else {
+    } else if (job.variant.kind === 'set') {
       const validation = validateProcessImageSetOptions(job.variant.options);
 
       if (validation.error !== undefined) {
         this.finish(job, { status: 'failed', error: validation.error });
+        return;
+      }
+    } else {
+      const validationError = validatePrepareTransparentMasterOptions(job.variant.options);
+
+      if (validationError !== undefined) {
+        this.finish(job, { status: 'failed', error: validationError });
         return;
       }
     }
@@ -348,7 +393,7 @@ export class ImageProcessingRuntime {
             qualityRange: resolved.qualityRange,
           },
         });
-      } else {
+      } else if (job.variant.kind === 'set') {
         worker.postMessage({
           type: 'PROCESS_IMAGE_SET',
           jobId: job.id,
@@ -357,6 +402,16 @@ export class ImageProcessingRuntime {
             preflight: preflight.result,
             outputs: job.variant.options.outputs,
             ...(job.variant.options.archive === undefined ? {} : { archive: job.variant.options.archive }),
+          },
+        });
+      } else {
+        worker.postMessage({
+          type: 'PROCESS_TRANSPARENT_MASTER',
+          jobId: job.id,
+          request: {
+            file: job.file,
+            preflight: preflight.result,
+            strength: job.variant.options.strength,
           },
         });
       }
@@ -408,6 +463,10 @@ export class ImageProcessingRuntime {
         this.reportProgress(job, 'complete');
         this.finish(job, { status: 'complete', result: event.result });
         break;
+      case 'JOB_COMPLETE_TRANSPARENT_MASTER':
+        this.reportProgress(job, 'complete');
+        this.finish(job, { status: 'complete', result: event.result });
+        break;
       case 'JOB_FAILED':
         this.finish(job, { status: 'failed', error: event.error });
         break;
@@ -452,7 +511,11 @@ export class ImageProcessingRuntime {
 
   private finish(
     job: ActiveJob,
-    outcome: ImageProcessingOutcome | ImageProcessingTargetOutcome | ImageProcessingSetOutcome,
+    outcome:
+      | ImageProcessingOutcome
+      | ImageProcessingTargetOutcome
+      | ImageProcessingSetOutcome
+      | TransparentMasterOutcome,
   ): void {
     if (job.settled) {
       return;
@@ -476,8 +539,10 @@ export class ImageProcessingRuntime {
       job.variant.resolve(outcome as ImageProcessingOutcome);
     } else if (job.variant.kind === 'target') {
       job.variant.resolve(outcome as ImageProcessingTargetOutcome);
-    } else {
+    } else if (job.variant.kind === 'set') {
       job.variant.resolve(outcome as ImageProcessingSetOutcome);
+    } else {
+      job.variant.resolve(outcome as TransparentMasterOutcome);
     }
   }
 }
@@ -503,6 +568,13 @@ export function processImageSet(
   options: ProcessImageSetOptions,
 ): ImageProcessingSetJob {
   return defaultRuntime.processImageSet(file, options);
+}
+
+export function prepareTransparentMaster(
+  file: Blob,
+  options: PrepareTransparentMasterOptions,
+): TransparentMasterJob {
+  return defaultRuntime.prepareTransparentMaster(file, options);
 }
 
 export function cancelImageJob(jobId: string): boolean {

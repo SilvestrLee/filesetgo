@@ -124,6 +124,69 @@ describe('image worker protocol validation', () => {
         },
       },
     ],
+    [
+      // FSG-005C: TransparentMasterResult is a distinct shape (no
+      // sourceDimensions/normalizedDimensions/resized) — it must be
+      // recognized by its own dedicated validator, not silently rejected
+      // the way isImageSetAssetResult() once rejected every real Logo Pack
+      // ICO asset (see the regression case above and ADR-019).
+      'transparent-master completion (verified, removal applied)',
+      {
+        type: 'JOB_COMPLETE_TRANSPARENT_MASTER',
+        jobId: 'fsgjob_test',
+        result: {
+          blob: new Blob([Uint8Array.of(1)]),
+          width: 40,
+          height: 40,
+          format: 'png',
+          mimeType: 'image/png',
+          byteSize: 1,
+          alphaInspection: {
+            sampledPixels: 1600,
+            fullyTransparentPixels: 200,
+            semiTransparentPixels: 50,
+            minAlpha: 0,
+            maxAlpha: 255,
+            transparentRatio: 0.125,
+            classification: 'transparency-present',
+          },
+          removalApplied: true,
+          strength: 'balanced',
+          status: 'verified',
+        },
+      },
+    ],
+    [
+      // A "needs-review" outcome still carries a real, mechanically-verified
+      // alphaInspection — it must validate exactly like "verified" (directive
+      // §16: a genuine result with an ambiguity signal, not a malformed one).
+      'transparent-master completion (needs-review, with reason)',
+      {
+        type: 'JOB_COMPLETE_TRANSPARENT_MASTER',
+        jobId: 'fsgjob_test',
+        result: {
+          blob: new Blob([Uint8Array.of(1)]),
+          width: 40,
+          height: 40,
+          format: 'png',
+          mimeType: 'image/png',
+          byteSize: 1,
+          alphaInspection: {
+            sampledPixels: 1600,
+            fullyTransparentPixels: 100,
+            semiTransparentPixels: 20,
+            minAlpha: 0,
+            maxAlpha: 255,
+            transparentRatio: 0.0625,
+            classification: 'transparency-present',
+          },
+          removalApplied: true,
+          strength: 'strong',
+          status: 'needs-review',
+          reason: 'non-flat-background',
+        },
+      },
+    ],
   ])('recognizes a valid %s event', (_, event) => {
     expect(isImageWorkerEvent(event)).toBe(true);
   });
@@ -156,6 +219,73 @@ describe('image worker protocol validation', () => {
         ],
         assetCount: 1,
         totalOutputBytes: 1,
+      },
+    },
+    {
+      // Missing alphaInspection entirely — this must not silently pass as
+      // "verified" just because the top-level fields look right (directive
+      // §24: real mechanical verification, never merely a status flag).
+      type: 'JOB_COMPLETE_TRANSPARENT_MASTER',
+      jobId: 'fsgjob_test',
+      result: {
+        blob: new Blob([Uint8Array.of(1)]),
+        width: 40,
+        height: 40,
+        format: 'png',
+        mimeType: 'image/png',
+        byteSize: 1,
+        removalApplied: true,
+        status: 'verified',
+      },
+    },
+    {
+      // An invented status value must be rejected — status is a closed
+      // tri-state (verified | needs-review | failed), not an open string.
+      type: 'JOB_COMPLETE_TRANSPARENT_MASTER',
+      jobId: 'fsgjob_test',
+      result: {
+        blob: new Blob([Uint8Array.of(1)]),
+        width: 40,
+        height: 40,
+        format: 'png',
+        mimeType: 'image/png',
+        byteSize: 1,
+        alphaInspection: {
+          sampledPixels: 1600,
+          fullyTransparentPixels: 200,
+          semiTransparentPixels: 50,
+          minAlpha: 0,
+          maxAlpha: 255,
+          transparentRatio: 0.125,
+          classification: 'transparency-present',
+        },
+        removalApplied: true,
+        status: 'success',
+      },
+    },
+    {
+      // A non-PNG format on a transparent-master result is not a valid
+      // shape — this pipeline is PNG-only by contract (directive §23).
+      type: 'JOB_COMPLETE_TRANSPARENT_MASTER',
+      jobId: 'fsgjob_test',
+      result: {
+        blob: new Blob([Uint8Array.of(1)]),
+        width: 40,
+        height: 40,
+        format: 'jpeg',
+        mimeType: 'image/jpeg',
+        byteSize: 1,
+        alphaInspection: {
+          sampledPixels: 1600,
+          fullyTransparentPixels: 200,
+          semiTransparentPixels: 50,
+          minAlpha: 0,
+          maxAlpha: 255,
+          transparentRatio: 0.125,
+          classification: 'transparency-present',
+        },
+        removalApplied: true,
+        status: 'verified',
       },
     },
   ])('rejects a malformed event envelope', (value) => {

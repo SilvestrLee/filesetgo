@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoApp, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
+import { gotoApp, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
 
 /**
  * Dedicated mobile viewport / responsive-layout suite (directive §11-§14).
@@ -69,6 +69,13 @@ test.describe('Mobile viewport / responsive audit (directive §11-§14)', () => 
     await assertNoHorizontalOverflow(page);
 
     await expect(page.locator('#logo-pack-review')).toBeVisible();
+
+    // The background-choice labels are the real tap targets — the radio
+    // inputs themselves are visually styled, not literally 44px boxes.
+    await assertTouchTarget(page.locator('label:has(#logo-pack-mode-transparent)'));
+    await assertTouchTarget(page.locator('label:has(#logo-pack-mode-original)'));
+
+    await selectLogoPackBackgroundMode(page, 'original');
     await assertTouchTarget(page.locator('#logo-pack-create-button'));
 
     await page.locator('#logo-pack-create-button').click();

@@ -9,3 +9,22 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+/*
+ * A real CSS checkerboard, visible through the actual transparent PNG
+ * pixels rendered above it (FSG-005C directive §27) — never a baked-in
+ * checkerboard image. The transparent-preview <img> sits on top of this
+ * background; only the background image itself changes between the three
+ * preview contexts (checkerboard/light/dark), the underlying Blob never
+ * does.
+ */
+.fsg-checkerboard {
+    background-image: conic-gradient(#e4e4e7 90deg, transparent 90deg 180deg, #e4e4e7 180deg 270deg, transparent 270deg 360deg);
+    background-size: 20px 20px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .fsg-checkerboard {
+        background-image: conic-gradient(#3f3f46 90deg, transparent 90deg 180deg, #3f3f46 180deg 270deg, transparent 270deg 360deg);
+    }
+}

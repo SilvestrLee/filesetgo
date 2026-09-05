@@ -66,13 +66,23 @@ export function assessGeometry(preflight: Pick<ImagePreflightResult, 'width' | '
   return undefined;
 }
 
-/** Truthful transparency guidance (directive §11) — never claims the source definitely has/lacks transparency. */
+/**
+ * Truthful transparency guidance (directive §11) — never claims the source
+ * definitely has/lacks transparency.
+ *
+ * FSG-005C directive §48: this used to say FileSetGo "won't remove the
+ * existing background automatically" for JPEG sources. That claim is no
+ * longer true — choosing Transparent background now attempts deterministic
+ * background removal for any opaque source, JPEG included — so the copy is
+ * corrected here rather than left to quietly mislead users toward Keep
+ * existing background. See docs/governance/DECISIONS.md ADR-020.
+ */
 export function assessTransparencyGuidance(format: ImageFormat): SuitabilityIssue | undefined {
   if (format === 'jpeg') {
     return {
       id: 'transparency-jpeg',
       severity: 'info',
-      message: "JPEG doesn't support transparency. FileSetGo won't remove the existing background automatically.",
+      message: "JPEG doesn't support transparency in the file itself, but choosing Transparent background below will attempt to remove this logo's background automatically.",
     };
   }
 
@@ -80,7 +90,7 @@ export function assessTransparencyGuidance(format: ImageFormat): SuitabilityIssu
     return {
       id: 'transparency-maybe',
       severity: 'info',
-      message: 'If your source already contains transparency, PNG outputs can preserve it.',
+      message: 'If your source already contains transparency, choosing Transparent background will preserve it. Otherwise, FileSetGo can remove a flat background automatically.',
     };
   }
 

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { fixturePath, gotoApp, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
+import { fixturePath, gotoApp, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
 
 const ITERATIONS = 5;
 
@@ -78,6 +78,7 @@ test.describe('Same-session resource-lifecycle stress test (directive §50)', ()
     for (let i = 0; i < ITERATIONS; i += 1) {
       await uploadFile(page, 'good-logo.png');
       await waitForStatus(page, 'ready');
+      await selectLogoPackBackgroundMode(page, 'original');
 
       await page.locator('#logo-pack-create-button').click();
       await waitForStatus(page, 'success', 30_000);

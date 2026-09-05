@@ -12,6 +12,7 @@ import {
 } from './process-image';
 import { processImageSetInWorker } from './process-image-set';
 import { processImageToTargetInWorker } from './process-image-to-target';
+import { processTransparentMasterInWorker } from './process-transparent-master';
 
 const workerScope: DedicatedWorkerGlobalScope = self;
 const cancelledJobIds = new Set<string>();
@@ -193,6 +194,64 @@ async function handleProcessImageSet(
   }
 }
 
+/** FSG-005C directive §20: same accept/run/complete-or-fail-or-cancel/cleanup shape as the other three job handlers. */
+async function handleProcessTransparentMaster(
+  command: Extract<ImageWorkerCommand, { type: 'PROCESS_TRANSPARENT_MASTER' }>,
+): Promise<void> {
+  if (activeJobId !== undefined) {
+    post({
+      type: 'JOB_FAILED',
+      jobId: command.jobId,
+      error: createProcessingError(
+        IMAGE_PROCESSING_ERROR_CODES.WorkerFailed,
+        'The worker already owns an active image job.',
+      ),
+    });
+
+    return;
+  }
+
+  activeJobId = command.jobId;
+  post({ type: 'JOB_ACCEPTED', jobId: command.jobId });
+
+  try {
+    const result = await processTransparentMasterInWorker(command.request, {
+      isCancelled: () => cancelledJobIds.has(command.jobId),
+      onProgress: (stage) => {
+        post({
+          type: 'JOB_PROGRESS',
+          jobId: command.jobId,
+          stage,
+        });
+      },
+    });
+
+    if (cancelledJobIds.has(command.jobId)) {
+      post({ type: 'JOB_CANCELLED', jobId: command.jobId });
+    } else {
+      post({ type: 'JOB_COMPLETE_TRANSPARENT_MASTER', jobId: command.jobId, result });
+    }
+  } catch (error) {
+    const processingError = toWorkerProcessingError(error);
+
+    if (
+      processingError.code ===
+      IMAGE_PROCESSING_ERROR_CODES.ProcessingCancelled
+    ) {
+      post({ type: 'JOB_CANCELLED', jobId: command.jobId });
+    } else {
+      post({
+        type: 'JOB_FAILED',
+        jobId: command.jobId,
+        error: processingError,
+      });
+    }
+  } finally {
+    cancelledJobIds.delete(command.jobId);
+    activeJobId = undefined;
+  }
+}
+
 workerScope.addEventListener('message', (event: MessageEvent<ImageWorkerCommand>) => {
   if (event.data.type === 'CANCEL_JOB') {
     if (activeJobId === event.data.jobId) {
@@ -209,6 +268,11 @@ workerScope.addEventListener('message', (event: MessageEvent<ImageWorkerCommand>
 
   if (event.data.type === 'PROCESS_IMAGE_SET') {
     void handleProcessImageSet(event.data);
+    return;
+  }
+
+  if (event.data.type === 'PROCESS_TRANSPARENT_MASTER') {
+    void handleProcessTransparentMaster(event.data);
     return;
   }
 

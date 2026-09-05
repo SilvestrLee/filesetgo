@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { fixturePath, gotoApp, selectMode, waitForStatus } from '../helpers/app';
+import { fixturePath, gotoApp, selectLogoPackBackgroundMode, selectMode, waitForStatus } from '../helpers/app';
 
 test.describe('Rapid file replacement / stale-result certification (directive §28)', () => {
   test('Quick Fit: File B becomes authoritative even if File A is still inspecting', async ({ page }) => {
@@ -34,13 +34,15 @@ test.describe('Rapid file replacement / stale-result certification (directive §
     await input.setInputFiles(fixturePath('good-logo.png')); // immediately replaced with an adequate source
 
     await waitForStatus(page, 'ready');
-    await expect(page.locator('#logo-pack-create-button')).toBeEnabled();
     // good-logo.png is a PNG; assessTransparencyGuidance() always attaches an
     // info-level transparency note for png/webp sources, so "This logo looks
     // ready to prepare." (issues.length === 0) is not reached by any real
     // jpeg/png/webp source — see SPRINT_REPORT.md "Defects Found" P3 note.
     await expect(page.locator('#logo-pack-issues')).toContainText(
-      'If your source already contains transparency, PNG outputs can preserve it.',
+      'choosing Transparent background will preserve it',
     );
+
+    await selectLogoPackBackgroundMode(page, 'original');
+    await expect(page.locator('#logo-pack-create-button')).toBeEnabled();
   });
 });

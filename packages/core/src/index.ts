@@ -45,6 +45,7 @@ export {
 } from './runtime/capabilities';
 export {
   cancelImageJob,
+  prepareTransparentMaster,
   processImage,
   processImageSet,
   processImageToTarget,
@@ -104,3 +105,35 @@ export {
   MIN_DIMENSION_PX,
   MIN_TARGET_BYTES,
 } from './processing/target-size-limits';
+export {
+  type PrepareTransparentMasterOptions,
+  type SafeTransparentMasterRequest,
+  type TransparentMasterCancelled,
+  type TransparentMasterComplete,
+  type TransparentMasterFailed,
+  type TransparentMasterJob,
+  type TransparentMasterOutcome,
+  type TransparentMasterResult,
+  type TransparentMasterStatus,
+} from './processing/transparent-master-contracts';
+export {
+  inspectAlpha,
+  type AlphaClassification,
+  type AlphaInspectionResult,
+  type RgbaRaster,
+} from './transforms/alpha-inspection';
+export {
+  BACKGROUND_REMOVAL_THRESHOLDS,
+  removeConnectedBackground,
+  type BackgroundRemovalResult,
+  type BackgroundRemovalStrength,
+  type RgbColor,
+} from './transforms/background-removal';
+export {
+  assessBackgroundTransparency,
+  computeBoundaryConnectedTransparency,
+  MAX_RESIDUAL_FOREGROUND_RATIO_FOR_CONFIRMATION,
+  MIN_BOUNDARY_TRANSPARENT_RATIO,
+  type BackgroundTransparencyAssessment,
+  type ExistingTransparencyStatus,
+} from './transforms/background-transparency';

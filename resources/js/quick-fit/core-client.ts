@@ -6,6 +6,7 @@
  */
 export {
   getRuntimeCapabilities,
+  prepareTransparentMaster,
   preflightImage,
   processImage,
   processImageSet,

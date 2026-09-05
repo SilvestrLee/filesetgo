@@ -4,19 +4,23 @@ import { compileLogoPackRequest } from '../compiler';
 import { buildLogoPackOutputSpecs } from '../spec';
 
 describe('compileLogoPackRequest', () => {
-  it('includes the exact governed output specs', () => {
-    const request = compileLogoPackRequest('acme-logo.png');
-    expect(request.outputs).toEqual(buildLogoPackOutputSpecs());
+  it('includes the exact governed output specs for the requested mode', () => {
+    const request = compileLogoPackRequest('transparent', 'acme-logo.png');
+    expect(request.outputs).toEqual(buildLogoPackOutputSpecs('transparent', 'acme-logo.png'));
   });
 
-  it('derives the archive filename from the source filename', () => {
-    const request = compileLogoPackRequest('acme-logo.png');
-    expect(request.archive?.filename).toBe('acme-logo-filesetgo-logo-pack.zip');
+  it('derives the mode-aware archive filename from the source filename', () => {
+    expect(compileLogoPackRequest('transparent', 'acme-logo.png').archive?.filename).toBe(
+      'acme-logo-filesetgo-transparent-logo-pack.zip',
+    );
+    expect(compileLogoPackRequest('original', 'acme-logo.png').archive?.filename).toBe(
+      'acme-logo-filesetgo-original-logo-pack.zip',
+    );
   });
 
   it('forwards the onProgress callback', () => {
     const onProgress = () => {};
-    const request = compileLogoPackRequest('acme-logo.png', onProgress);
+    const request = compileLogoPackRequest('transparent', 'acme-logo.png', onProgress);
     expect(request.onProgress).toBe(onProgress);
   });
 });

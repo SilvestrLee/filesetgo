@@ -19,6 +19,34 @@ technique already used and documented for
 macOS's built-in `sips` and `cwebp` — format conversion only, not a source
 of external image content.
 
+`flat-logo.png` (FSG-005C) is produced by the same struct+zlib technique,
+deliberately with a **flat** (not gradient) white background — the
+existing gradient-ramp fixtures are unsuitable for demonstrating a clean
+`verified` Transparent Logo Pack outcome, since a gradient background is
+itself one of the intentional `needs-review` ambiguity signals (directive
+§16). It draws a solid navy square mark with a white "counter" cut from its
+centre — an interior element that must survive background removal
+unmodified. `flat-logo.jpg` is the same image converted to JPEG via macOS's
+built-in `sips` (format conversion only) — used to exercise Transparent
+Logo Pack background removal from a JPEG source, the exact scenario
+FSG-005C's motivating defect report ([directive §1](../../../docs/directives/FSG-005C.md)) was about.
+
+`flat-logo-black.png`/`.jpg` (FSG-005C Product Office correction) is the
+same technique with a flat **black** background and a gold mark, so the
+JPEG-source background-removal evidence covers both a white-background and
+a black-background real encoded JPEG (directive §11 of the correction),
+not only white.
+
+`transparent-padding-regression.png` (FSG-005C Product Office correction)
+is a real, valid RGBA PNG (colour type 6, a genuine alpha channel) built
+with the same struct+zlib technique: a fully transparent margin wrapping
+an opaque white rectangle, with a small differently-coloured artwork block
+inside that rectangle. This is the exact regression geometry the
+correction directive describes — real alpha exists, but the artwork's
+actual background (the white rectangle) has not been removed — used to
+prove the browser-level product correctly continues through background
+preparation rather than treating the source as already transparent.
+
 `sample.heic` is the exact same real, valid, self-generated HEIC fixture
 already committed and documented at
 `packages/core/tests/workers/heic-fixture.ts` (a 64×48 PNG color ramp
@@ -46,5 +74,10 @@ signature with no image data, for truncated/malformed-file rejection tests.
 | `corrupted.jpg` | Not an image at all — invalid-file rejection fixture |
 | `truncated.jpg` | Valid JPEG signature, no data — truncated-file rejection fixture |
 | `large.jpg` | 4800×3200 (15.36 MP) real, decodable JPEG — directive §51's "large representative image" stress case, and gives cancellation tests a real processing window a tiny fixture completes too fast to reliably interrupt |
+| `flat-logo.png` | 400×400 — flat white background, solid navy mark, white interior counter — FSG-005C Transparent Logo Pack success-path fixture |
+| `flat-logo.jpg` | Same image as `flat-logo.png`, converted to JPEG — FSG-005C white-background JPEG-source background-removal fixture |
+| `flat-logo-black.png` | 400×400 — flat black background, gold mark, black interior counter — FSG-005C black-background counterpart to `flat-logo.png` |
+| `flat-logo-black.jpg` | Same image as `flat-logo-black.png`, converted to JPEG — FSG-005C black-background JPEG-source background-removal fixture |
+| `transparent-padding-regression.png` | 400×400, real RGBA (has alpha) — transparent margin wrapping an opaque white rectangle with coloured artwork inside — FSG-005C Product Office correction regression fixture |
 
 No file exceeds ~452 KB. No fixture is downloaded from a network source.

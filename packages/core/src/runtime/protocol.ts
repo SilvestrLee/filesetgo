@@ -13,6 +13,10 @@ import type {
   ImageSetResult,
   SafeImageProcessingSetRequest,
 } from '../processing/image-set-contracts';
+import type {
+  SafeTransparentMasterRequest,
+  TransparentMasterResult,
+} from '../processing/transparent-master-contracts';
 
 export interface ProcessImageCommand {
   type: 'PROCESS_IMAGE';
@@ -32,6 +36,13 @@ export interface ProcessImageSetCommand {
   request: SafeImageProcessingSetRequest;
 }
 
+/** FSG-005C: prepares a transparent PNG master (§8/§20) — see `workers/process-transparent-master.ts`. */
+export interface ProcessTransparentMasterCommand {
+  type: 'PROCESS_TRANSPARENT_MASTER';
+  jobId: string;
+  request: SafeTransparentMasterRequest;
+}
+
 export interface CancelJobCommand {
   type: 'CANCEL_JOB';
   jobId: string;
@@ -41,6 +52,7 @@ export type ImageWorkerCommand =
   | ProcessImageCommand
   | ProcessImageToTargetCommand
   | ProcessImageSetCommand
+  | ProcessTransparentMasterCommand
   | CancelJobCommand;
 
 export interface JobAcceptedEvent {
@@ -88,6 +100,13 @@ export interface JobCompleteSetEvent {
   result: ImageSetResult;
 }
 
+/** Terminal event for a successful transparent-master job (FSG-005C). */
+export interface JobCompleteTransparentMasterEvent {
+  type: 'JOB_COMPLETE_TRANSPARENT_MASTER';
+  jobId: string;
+  result: TransparentMasterResult;
+}
+
 export interface JobFailedEvent {
   type: 'JOB_FAILED';
   jobId: string;
@@ -105,6 +124,7 @@ export type ImageWorkerEvent =
   | JobCompleteEvent
   | JobCompleteTargetEvent
   | JobCompleteSetEvent
+  | JobCompleteTransparentMasterEvent
   | JobFailedEvent
   | JobCancelledEvent;
 
@@ -241,6 +261,38 @@ function isImageSetResult(value: unknown): boolean {
   );
 }
 
+/**
+ * `TransparentMasterResult` is NOT an `ImageSetAssetResult`/`ProcessedImageResult`
+ * shape (no `sourceDimensions`/`normalizedDimensions`/`resized`) — it gets
+ * its own explicit validator rather than being run through
+ * `isProcessedImageResult()`, precisely to avoid repeating the FSG-006 P0
+ * defect class (a validator silently rejecting a real result shape it was
+ * never updated to recognize). See docs/governance/DECISIONS.md ADR-019.
+ */
+function isTransparentMasterResult(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (
+    value.blob instanceof Blob &&
+    typeof value.width === 'number' &&
+    typeof value.height === 'number' &&
+    value.format === 'png' &&
+    value.mimeType === 'image/png' &&
+    typeof value.byteSize === 'number' &&
+    typeof value.removalApplied === 'boolean' &&
+    (value.status === 'verified' || value.status === 'needs-review' || value.status === 'failed')
+  ) {
+    return isRecord(value.alphaInspection)
+      && typeof value.alphaInspection.sampledPixels === 'number'
+      && typeof value.alphaInspection.transparentRatio === 'number'
+      && (value.alphaInspection.classification === 'opaque' || value.alphaInspection.classification === 'transparency-present');
+  }
+
+  return false;
+}
+
 export function isImageWorkerEvent(value: unknown): value is ImageWorkerEvent {
   if (!isRecord(value) || typeof value.jobId !== 'string') {
     return false;
@@ -261,6 +313,8 @@ export function isImageWorkerEvent(value: unknown): value is ImageWorkerEvent {
       return isTargetSizeOutcome(value.outcome);
     case 'JOB_COMPLETE_SET':
       return isImageSetResult(value.result);
+    case 'JOB_COMPLETE_TRANSPARENT_MASTER':
+      return isTransparentMasterResult(value.result);
     case 'JOB_FAILED':
       return isProcessingError(value.error);
     default:

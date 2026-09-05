@@ -74,8 +74,11 @@ FSG-005 — Packaging & Export Systems
 ├── FSG-005A — Multi-Output Packaging Foundation
 │   ✅ CLOSED — see `docs/directives/FSG-005A.md`, `docs/governance/DECISIONS.md` ADR-017, and `SPRINT_REPORT.md`.
 │
-└── FSG-005B — Website Logo Pack & Favicon Suite
-    ✅ CLOSED — see `docs/directives/FSG-005B.md`, `docs/governance/DECISIONS.md` ADR-018, and `SPRINT_REPORT.md`.
+├── FSG-005B — Website Logo Pack & Favicon Suite
+│   ✅ CLOSED — see `docs/directives/FSG-005B.md`, `docs/governance/DECISIONS.md` ADR-018, and `SPRINT_REPORT.md`.
+│
+└── FSG-005C — Logo Transparency & Verification
+    ✅ CLOSED — see `docs/directives/FSG-005C.md`, `docs/governance/DECISIONS.md` ADR-020, and `SPRINT_REPORT.md`.
 ```
 
 Deliver:
@@ -89,7 +92,7 @@ Deliver:
 
 ## FSG-006 — Hardening, Mobile QA & Compatibility
 
-**Status: ⏭ NEXT.** Not started.
+**Status: ⏸ PAUSED — delta recertification required.** Its existing browser certification (Chromium/Firefox/WebKit/mobile) is preserved as the pre-FSG-005C baseline and is not invalidated; FSG-005C changed the Logo Pack workflow this milestone certified, so final closure awaits a separate Product Office "FSG-006 Resume & Delta Recertification" directive covering the affected Logo Pack paths. See `docs/directives/FSG-006.md` and `SPRINT_REPORT.md`.
 
 Complete launch-blocking testing for:
 

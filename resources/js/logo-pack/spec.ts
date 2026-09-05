@@ -7,6 +7,14 @@ import type { ImageSetOutputSpec } from '@filesetgo/core';
  * worker request is compiled from it, and tests import it directly.
  */
 
+/**
+ * The user's explicit background choice for the header assets (FSG-005C
+ * directive §5) — never inferred from source format/PNG/JPEG. `'original'`
+ * means "keep the background exactly as uploaded," not "no processing" —
+ * the existing governed resize/re-encode pipeline still runs.
+ */
+export type LogoBackgroundMode = 'transparent' | 'original';
+
 export const ICON_CONTENT_SCALE = 0.9;
 export const MAX_ICON_UPSCALE_FACTOR = 4;
 export const GEOMETRY_WARNING_ASPECT_RATIO = 2.5;
@@ -45,24 +53,63 @@ export const LOGO_PACK_ASSET_EXPLANATIONS: Record<string, string> = {
 };
 
 /**
- * The exact seven public assets, in the exact governed order (directive
- * §13/§36). `favicon.ico` is a single `'ico'` output built from three
- * independently CONTAIN-rendered entries — its 16/48 px intermediates are
- * never exposed as separate assets.
+ * Extracts a safe, filename-usable basename from a source filename
+ * (FSG-005C directive §34): strips the final extension, then removes any
+ * character that could enable path traversal or an unsafe archive entry
+ * (slashes, backslashes, null bytes) rather than attempting to normalize a
+ * path — this basename must never carry directory structure. Falls back to
+ * `"logo"` when nothing safe remains (an empty name, an all-dots name, or a
+ * name that becomes empty once unsafe characters are removed).
  */
-export function buildLogoPackOutputSpecs(): ImageSetOutputSpec[] {
+function extractSafeBasename(sourceFileName: string): string {
+  const trimmed = sourceFileName.trim();
+  const withoutExtension = trimmed.replace(/\.[^./\\]+$/, '');
+  const withoutUnsafeCharacters = withoutExtension.replace(/[\\/\0]/g, '');
+  const sanitized = /^\.+$/.test(withoutUnsafeCharacters) ? '' : withoutUnsafeCharacters;
+
+  return sanitized.length > 0 ? sanitized : 'logo';
+}
+
+/**
+ * The mode-aware primary header filenames (FSG-005C directive §32/§33):
+ * `{basename}-transparent.png` / `{basename}-transparent@2x.png` for
+ * Transparent mode, `{basename}-original.png` / `{basename}-original@2x.png`
+ * for Original mode — replacing the old fixed `logo-header.png` naming so
+ * the two modes are never visually or nominally confusable.
+ */
+export function buildLogoPackPrimaryFilenames(
+  mode: LogoBackgroundMode,
+  sourceFileName: string,
+): { standard: string; highDensity: string } {
+  const basename = extractSafeBasename(sourceFileName);
+
+  return {
+    standard: `${basename}-${mode}.png`,
+    highDensity: `${basename}-${mode}@2x.png`,
+  };
+}
+
+/**
+ * The exact seven public assets, in the exact governed order (directive
+ * §13/§36, filenames per §32/§33). `favicon.ico` is a single `'ico'` output
+ * built from three independently CONTAIN-rendered entries — its 16/48 px
+ * intermediates are never exposed as separate assets.
+ */
+export function buildLogoPackOutputSpecs(mode: LogoBackgroundMode, sourceFileName: string): ImageSetOutputSpec[] {
+  const primaryFilenames = buildLogoPackPrimaryFilenames(mode, sourceFileName);
+
   return [
     {
       kind: 'raster',
       id: LOGO_PACK_ASSET_IDS.headerStandard,
-      filename: 'logo-header.png',
+      filename: primaryFilenames.standard,
       output: { format: 'png' },
       resize: { maxWidth: HEADER_STANDARD_BOUNDS.maxWidth, maxHeight: HEADER_STANDARD_BOUNDS.maxHeight },
     },
     {
       kind: 'raster',
       id: LOGO_PACK_ASSET_IDS.headerHighDensity,
-      filename: 'logo-header@2x.png',
+      filename: primaryFilenames.highDensity,
       output: { format: 'png' },
       resize: { maxWidth: HEADER_HIGH_DENSITY_BOUNDS.maxWidth, maxHeight: HEADER_HIGH_DENSITY_BOUNDS.maxHeight },
     },
@@ -111,11 +158,13 @@ export function buildLogoPackOutputSpecs(): ImageSetOutputSpec[] {
   ];
 }
 
-/** `<safe-basename>-filesetgo-logo-pack.zip` (directive §14) — no path, no traversal, no source path disclosure. */
-export function buildArchiveFilename(sourceFileName: string): string {
-  const trimmed = sourceFileName.trim();
-  const withoutExtension = trimmed.replace(/\.[^./\\]+$/, '');
-  const base = withoutExtension.length > 0 ? withoutExtension : 'logo';
+/**
+ * `<safe-basename>-filesetgo-transparent-logo-pack.zip` /
+ * `<safe-basename>-filesetgo-original-logo-pack.zip` (directive §32/§33) —
+ * no path, no traversal, no source path disclosure.
+ */
+export function buildArchiveFilename(mode: LogoBackgroundMode, sourceFileName: string): string {
+  const basename = extractSafeBasename(sourceFileName);
 
-  return `${base}-filesetgo-logo-pack.zip`;
+  return `${basename}-filesetgo-${mode}-logo-pack.zip`;
 }

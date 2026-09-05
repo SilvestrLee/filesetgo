@@ -213,6 +213,55 @@
                                 <p class="text-sm font-semibold">Suitability review</p>
                                 <ul id="logo-pack-issues" class="flex flex-col gap-2 text-sm"></ul>
 
+                                <fieldset id="logo-pack-mode-fieldset" class="flex flex-col gap-3">
+                                    <legend class="text-sm font-semibold">How should we prepare your logo?</legend>
+                                    <label class="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-zinc-200 p-3 transition has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 dark:border-zinc-800 dark:has-[:checked]:border-blue-500 dark:has-[:checked]:bg-blue-950/40">
+                                        <input type="radio" name="logo-pack-mode" id="logo-pack-mode-transparent" value="transparent" class="mt-1 h-4 w-4 shrink-0 accent-blue-700">
+                                        <span>
+                                            <span class="block text-sm font-semibold">Transparent background</span>
+                                            <span class="block text-xs text-zinc-600 dark:text-zinc-400">Best for website headers, navigation, overlays and footers — works on light or dark backgrounds.</span>
+                                        </span>
+                                    </label>
+                                    <label class="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-zinc-200 p-3 transition has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 dark:border-zinc-800 dark:has-[:checked]:border-blue-500 dark:has-[:checked]:bg-blue-950/40">
+                                        <input type="radio" name="logo-pack-mode" id="logo-pack-mode-original" value="original" class="mt-1 h-4 w-4 shrink-0 accent-blue-700">
+                                        <span>
+                                            <span class="block text-sm font-semibold">Keep existing background</span>
+                                            <span class="block text-xs text-zinc-600 dark:text-zinc-400">Preserves the uploaded artwork/background as supplied.</span>
+                                        </span>
+                                    </label>
+                                </fieldset>
+
+                                <fieldset id="logo-pack-strength-fieldset" class="hidden flex-col gap-2">
+                                    <legend class="text-sm font-semibold">Background removal</legend>
+                                    <div class="flex flex-wrap gap-2">
+                                        <label class="flex min-h-11 cursor-pointer items-center rounded-lg border border-zinc-200 px-4 text-sm font-medium transition has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-800 dark:border-zinc-800 dark:has-[:checked]:border-blue-500 dark:has-[:checked]:bg-blue-950/40 dark:has-[:checked]:text-blue-300">
+                                            <input type="radio" name="logo-pack-strength" id="logo-pack-strength-gentle" value="gentle" class="sr-only">Gentle
+                                        </label>
+                                        <label class="flex min-h-11 cursor-pointer items-center rounded-lg border border-zinc-200 px-4 text-sm font-medium transition has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-800 dark:border-zinc-800 dark:has-[:checked]:border-blue-500 dark:has-[:checked]:bg-blue-950/40 dark:has-[:checked]:text-blue-300">
+                                            <input type="radio" name="logo-pack-strength" id="logo-pack-strength-balanced" value="balanced" class="sr-only">Balanced
+                                        </label>
+                                        <label class="flex min-h-11 cursor-pointer items-center rounded-lg border border-zinc-200 px-4 text-sm font-medium transition has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-800 dark:border-zinc-800 dark:has-[:checked]:border-blue-500 dark:has-[:checked]:bg-blue-950/40 dark:has-[:checked]:text-blue-300">
+                                            <input type="radio" name="logo-pack-strength" id="logo-pack-strength-strong" value="strong" class="sr-only">Strong
+                                        </label>
+                                    </div>
+                                </fieldset>
+
+                                <p id="logo-pack-preview-status" class="hidden text-sm text-zinc-600 dark:text-zinc-400" role="status"></p>
+
+                                <div id="logo-pack-preview" class="hidden flex-col gap-3">
+                                    <div class="flex flex-wrap items-center justify-between gap-3">
+                                        <p id="logo-pack-preview-confidence" class="text-sm font-semibold"></p>
+                                        <div role="group" aria-label="Preview background" class="flex gap-1 rounded-lg border border-zinc-200 p-1 dark:border-zinc-800">
+                                            <button type="button" id="logo-pack-preview-bg-checkerboard" class="min-h-11 whitespace-nowrap rounded-md px-3 text-xs font-semibold transition" aria-pressed="true">Checkerboard</button>
+                                            <button type="button" id="logo-pack-preview-bg-light" class="min-h-11 whitespace-nowrap rounded-md px-3 text-xs font-semibold transition" aria-pressed="false">Light</button>
+                                            <button type="button" id="logo-pack-preview-bg-dark" class="min-h-11 whitespace-nowrap rounded-md px-3 text-xs font-semibold transition" aria-pressed="false">Dark</button>
+                                        </div>
+                                    </div>
+                                    <div id="logo-pack-preview-frame" class="fsg-checkerboard flex min-h-40 items-center justify-center rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+                                        <img id="logo-pack-preview-image" alt="Preview of your logo with the prepared transparent background" class="max-h-32 max-w-full">
+                                    </div>
+                                </div>
+
                                 <div class="flex flex-wrap items-center gap-3">
                                     <button id="logo-pack-create-button" type="button" class="min-h-11 whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px disabled:cursor-not-allowed disabled:bg-zinc-400 dark:focus:ring-offset-zinc-950">Create logo pack</button>
                                 </div>

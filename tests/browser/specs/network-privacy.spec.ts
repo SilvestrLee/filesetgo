@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { collectRequests, gotoApp, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
+import { collectRequests, gotoApp, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
 
 test.describe('Network boundary / privacy audit (directive §23/§46)', () => {
   test('normal JPEG/PNG/WebP processing sends no upload request and stays same-origin', async ({ page, baseURL }) => {
@@ -44,6 +44,7 @@ test.describe('Network boundary / privacy audit (directive §23/§46)', () => {
     await uploadFile(page, 'good-logo.png');
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
+    await selectLogoPackBackgroundMode(page, 'original');
     await page.locator('#logo-pack-create-button').click();
     await waitForStatus(page, 'success', 30_000);
 

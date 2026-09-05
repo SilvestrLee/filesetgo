@@ -400,6 +400,31 @@ function createSetResultWithIco(): import('../../src/processing/image-set-contra
   };
 }
 
+function createTransparentMasterResult(): import('../../src/processing/transparent-master-contracts').TransparentMasterResult {
+  const blob = new Blob([Uint8Array.of(1, 2, 3)], { type: 'image/png' });
+
+  return {
+    blob,
+    width: 40,
+    height: 40,
+    format: 'png',
+    mimeType: 'image/png',
+    byteSize: blob.size,
+    alphaInspection: {
+      sampledPixels: 1600,
+      fullyTransparentPixels: 200,
+      semiTransparentPixels: 50,
+      minAlpha: 0,
+      maxAlpha: 255,
+      transparentRatio: 0.125,
+      classification: 'transparency-present',
+    },
+    removalApplied: true,
+    strength: 'balanced',
+    status: 'verified',
+  };
+}
+
 describe('ImageProcessingRuntime shared job slot (processImageSet)', () => {
   it('posts PROCESS_IMAGE_SET and resolves a complete image-set outcome', async () => {
     const { runtime, workers } = createRuntime();
@@ -658,6 +683,128 @@ describe('ImageProcessingRuntime shared job slot (processImage / processImageToT
     await expect(secondJob.result).resolves.toMatchObject({
       status: 'complete',
       result: { targetBytes: 200_000 },
+    });
+  });
+});
+
+describe('ImageProcessingRuntime shared job slot (prepareTransparentMaster)', () => {
+  it('posts PROCESS_TRANSPARENT_MASTER and resolves a complete transparent-master outcome', async () => {
+    const { runtime, workers } = createRuntime();
+    const job = runtime.prepareTransparentMaster(createPngBlob(), { strength: 'balanced' });
+    const worker = await waitForAnyWorker(workers);
+
+    expect(worker.messages[0]).toMatchObject({
+      type: 'PROCESS_TRANSPARENT_MASTER',
+      jobId: job.jobId,
+      request: { strength: 'balanced' },
+    });
+
+    worker.emit({
+      type: 'JOB_COMPLETE_TRANSPARENT_MASTER',
+      jobId: job.jobId,
+      result: createTransparentMasterResult(),
+    });
+
+    await expect(job.result).resolves.toMatchObject({
+      status: 'complete',
+      result: { status: 'verified', removalApplied: true },
+    });
+  });
+
+  it('reports progress through onProgress', async () => {
+    const { runtime, workers } = createRuntime();
+    const progress: string[] = [];
+    const job = runtime.prepareTransparentMaster(createPngBlob(), {
+      strength: 'gentle',
+      onProgress: (event) => progress.push(event.stage),
+    });
+    const worker = await waitForAnyWorker(workers);
+
+    worker.emit({ type: 'JOB_PROGRESS', jobId: job.jobId, stage: 'optimizing' });
+    worker.emit({
+      type: 'JOB_COMPLETE_TRANSPARENT_MASTER',
+      jobId: job.jobId,
+      result: createTransparentMasterResult(),
+    });
+    await job.result;
+
+    expect(progress).toContain('optimizing');
+  });
+
+  it('rejects an invalid strength before ever posting to the worker', async () => {
+    const { runtime, workers } = createRuntime();
+    const job = runtime.prepareTransparentMaster(createPngBlob(), {
+      // @ts-expect-error deliberately invalid for this test
+      strength: 'extreme',
+    });
+
+    await expect(job.result).resolves.toMatchObject({ status: 'failed' });
+    expect(workers).toHaveLength(0);
+  });
+
+  it('starting a prepareTransparentMaster job cancels an in-flight processImageSet job (shared single-job slot)', async () => {
+    const { runtime, workers } = createRuntime();
+    const setJob = runtime.processImageSet(createPngBlob(), {
+      outputs: [{ kind: 'raster', id: 'a', filename: 'a.webp', output: { format: 'webp' } }],
+    });
+    const firstWorker = await waitForAnyWorker(workers);
+
+    const masterJob = runtime.prepareTransparentMaster(createPngBlob(), { strength: 'balanced' });
+    const secondWorker = await waitForAnyWorker(workers, 1);
+
+    await expect(setJob.result).resolves.toMatchObject({ status: 'cancelled' });
+    expect(firstWorker.terminateCount).toBe(1);
+
+    secondWorker.emit({
+      type: 'JOB_COMPLETE_TRANSPARENT_MASTER',
+      jobId: masterJob.jobId,
+      result: createTransparentMasterResult(),
+    });
+    await expect(masterJob.result).resolves.toMatchObject({ status: 'complete' });
+  });
+
+  it('starting a processImage job cancels an in-flight prepareTransparentMaster job', async () => {
+    const { runtime, workers } = createRuntime();
+    const masterJob = runtime.prepareTransparentMaster(createPngBlob(), { strength: 'strong' });
+    const firstWorker = await waitForAnyWorker(workers);
+
+    const standardJob = runtime.processImage(createPngBlob(), { output: { format: 'webp' } });
+    const secondWorker = await waitForWorker(workers, 1);
+
+    await expect(masterJob.result).resolves.toMatchObject({ status: 'cancelled' });
+    expect(firstWorker.terminateCount).toBe(1);
+
+    secondWorker.emit({ type: 'JOB_COMPLETE', jobId: standardJob.jobId, result: createResult() });
+    await expect(standardJob.result).resolves.toMatchObject({ status: 'complete' });
+  });
+
+  it('ignores a stale transparent-master result from a replaced job', async () => {
+    const { runtime, workers } = createRuntime();
+    const firstJob = runtime.prepareTransparentMaster(createPngBlob(), { strength: 'gentle' });
+    const firstWorker = await waitForAnyWorker(workers);
+    const staleHandler = firstWorker.onmessage;
+
+    const secondJob = runtime.prepareTransparentMaster(createPngBlob(), { strength: 'strong' });
+    const secondWorker = await waitForAnyWorker(workers, 1);
+
+    staleHandler?.({
+      data: {
+        type: 'JOB_COMPLETE_TRANSPARENT_MASTER',
+        jobId: firstJob.jobId,
+        result: createTransparentMasterResult(),
+      },
+    } as MessageEvent<unknown>);
+
+    secondWorker.emit({
+      type: 'JOB_COMPLETE_TRANSPARENT_MASTER',
+      jobId: secondJob.jobId,
+      result: { ...createTransparentMasterResult(), strength: 'strong' },
+    });
+
+    await expect(firstJob.result).resolves.toMatchObject({ status: 'cancelled' });
+    await expect(secondJob.result).resolves.toMatchObject({
+      status: 'complete',
+      result: { strength: 'strong' },
     });
   });
 });

@@ -26,6 +26,14 @@ export async function selectMode(page: Page, mode: ProductMode): Promise<void> {
 }
 
 /**
+ * Chooses Logo Pack's explicit background mode (FSG-005C directive §5) —
+ * never inferred, always a real radio-input click through the actual UI.
+ */
+export async function selectLogoPackBackgroundMode(page: Page, mode: 'transparent' | 'original'): Promise<void> {
+  await page.locator(`#logo-pack-mode-${mode}`).check();
+}
+
+/**
  * Selects a file through the real `<input type="file">` FileSetGo's own
  * drop-zone/change-event wiring listens on (`resources/js/quick-fit/controller.ts`)
  * — this exercises the actual product code path, not a synthetic shortcut.

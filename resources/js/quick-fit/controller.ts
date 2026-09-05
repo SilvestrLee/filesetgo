@@ -1,6 +1,6 @@
-import type { ImageFormat, ImageSetResult, OutputImageFormat } from '@filesetgo/core';
+import type { BackgroundRemovalStrength, ImageFormat, ImageProcessingStage, ImageSetResult, OutputImageFormat, TransparentMasterResult } from '@filesetgo/core';
 
-import { LOGO_PACK_ASSET_EXPLANATIONS } from '../logo-pack/spec';
+import { LOGO_PACK_ASSET_EXPLANATIONS, type LogoBackgroundMode } from '../logo-pack/spec';
 import type { SuitabilityIssue } from '../logo-pack/suitability';
 import { LogoPackController } from '../logo-pack/logo-pack-controller';
 import { getAllPresets } from '../presets/registry';
@@ -73,6 +73,20 @@ const logoPackPanel = requireElement<HTMLElement>('#logo-pack-panel');
 const logoPackNoFileHint = requireElement<HTMLElement>('#logo-pack-no-file-hint');
 const logoPackReview = requireElement<HTMLElement>('#logo-pack-review');
 const logoPackIssues = requireElement<HTMLElement>('#logo-pack-issues');
+const logoPackModeTransparent = requireElement<HTMLInputElement>('#logo-pack-mode-transparent');
+const logoPackModeOriginal = requireElement<HTMLInputElement>('#logo-pack-mode-original');
+const logoPackStrengthFieldset = requireElement<HTMLFieldSetElement>('#logo-pack-strength-fieldset');
+const logoPackStrengthGentle = requireElement<HTMLInputElement>('#logo-pack-strength-gentle');
+const logoPackStrengthBalanced = requireElement<HTMLInputElement>('#logo-pack-strength-balanced');
+const logoPackStrengthStrong = requireElement<HTMLInputElement>('#logo-pack-strength-strong');
+const logoPackPreviewStatus = requireElement<HTMLElement>('#logo-pack-preview-status');
+const logoPackPreview = requireElement<HTMLElement>('#logo-pack-preview');
+const logoPackPreviewConfidence = requireElement<HTMLElement>('#logo-pack-preview-confidence');
+const logoPackPreviewFrame = requireElement<HTMLElement>('#logo-pack-preview-frame');
+const logoPackPreviewImage = requireElement<HTMLImageElement>('#logo-pack-preview-image');
+const logoPackPreviewBgCheckerboard = requireElement<HTMLButtonElement>('#logo-pack-preview-bg-checkerboard');
+const logoPackPreviewBgLight = requireElement<HTMLButtonElement>('#logo-pack-preview-bg-light');
+const logoPackPreviewBgDark = requireElement<HTMLButtonElement>('#logo-pack-preview-bg-dark');
 const logoPackCreateButton = requireElement<HTMLButtonElement>('#logo-pack-create-button');
 const logoPackResult = requireElement<HTMLElement>('#logo-pack-result');
 const logoPackDownloadZip = requireElement<HTMLAnchorElement>('#logo-pack-download-zip');
@@ -109,6 +123,10 @@ let originalFileUrl: string | undefined;
 let logoPackZipUrl: string | undefined;
 let logoPackAssetUrls: string[] = [];
 let lastRenderedLogoPackResult: ImageSetResult | undefined;
+let logoPackPreviewUrl: string | undefined;
+let lastRenderedLogoPackMaster: TransparentMasterResult | undefined;
+type LogoPackPreviewBackground = 'checkerboard' | 'light' | 'dark';
+let logoPackPreviewBackground: LogoPackPreviewBackground = 'checkerboard';
 
 function currentOutputChoice(): OutputFormatChoice {
   return outputFormatSelect.value as OutputFormatChoice;
@@ -238,6 +256,16 @@ function releaseLogoPackUrls(): void {
   logoPackAssetUrls = [];
 }
 
+/** Revoked on regeneration, strength/mode change, source replacement, reset, and pagehide (directive §30). */
+function releaseLogoPackPreviewUrl(): void {
+  if (logoPackPreviewUrl !== undefined) {
+    URL.revokeObjectURL(logoPackPreviewUrl);
+    logoPackPreviewUrl = undefined;
+  }
+
+  lastRenderedLogoPackMaster = undefined;
+}
+
 const MODE_DESCRIPTIONS: Record<string, string> = {
   'quick-fit': 'Enter the requirement yourself.',
   'guided-fit': 'Choose what you’re preparing.',
@@ -328,10 +356,65 @@ function issueTextClass(severity: SuitabilityIssue['severity']): string {
   return 'text-zinc-600 dark:text-zinc-400';
 }
 
+/** Understandable progress copy (directive §29) — never worker/protocol stage names. */
+const LOGO_PACK_PREVIEW_STAGE_COPY: Partial<Record<ImageProcessingStage, string>> = {
+  decoding: 'Checking your logo...',
+  normalizing: 'Checking your logo...',
+  resizing: 'Checking your logo...',
+  optimizing: 'Preparing transparent background...',
+  encoding: 'Cleaning up the edges...',
+  finalizing: 'Verifying transparency...',
+};
+
+function describeLogoPackPreviewStage(stage: ImageProcessingStage | undefined): string {
+  return (stage !== undefined ? LOGO_PACK_PREVIEW_STAGE_COPY[stage] : undefined) ?? 'Preparing transparent background...';
+}
+
+/** undefined outside a ready preview — kept as a helper so callers narrow safely instead of relying on a separately-computed boolean. */
+function logoPackPreviewMaster(state: ReturnType<typeof logoPack.getState>): TransparentMasterResult | undefined {
+  return state.status === 'preview-ready' ? state.master : undefined;
+}
+
+/** A FAILED transparent master must never be packaged (directive §28); needs-review/verified may proceed. */
+function isTransparentPackagingBlocked(state: ReturnType<typeof logoPack.getState>): boolean {
+  if (state.status !== 'preview-ready') {
+    return true;
+  }
+
+  return state.master.status === 'failed';
+}
+
+function applyLogoPackPreviewBackground(): void {
+  const isCheckerboard = logoPackPreviewBackground === 'checkerboard';
+  const isLight = logoPackPreviewBackground === 'light';
+  const isDark = logoPackPreviewBackground === 'dark';
+
+  logoPackPreviewFrame.classList.toggle('fsg-checkerboard', isCheckerboard);
+  logoPackPreviewFrame.classList.toggle('bg-white', isLight);
+  logoPackPreviewFrame.classList.toggle('bg-zinc-900', isDark);
+
+  logoPackPreviewBgCheckerboard.setAttribute('aria-pressed', String(isCheckerboard));
+  logoPackPreviewBgLight.setAttribute('aria-pressed', String(isLight));
+  logoPackPreviewBgDark.setAttribute('aria-pressed', String(isDark));
+
+  for (const [button, active] of [
+    [logoPackPreviewBgCheckerboard, isCheckerboard],
+    [logoPackPreviewBgLight, isLight],
+    [logoPackPreviewBgDark, isDark],
+  ] as const) {
+    button.classList.toggle('bg-blue-700', active);
+    button.classList.toggle('text-white', active);
+    button.classList.toggle('text-zinc-600', !active);
+    button.classList.toggle('dark:text-zinc-400', !active);
+  }
+}
+
 function renderLogoPack(): void {
   const source = currentSource(workflow.getState());
   const logoPackState = logoPack.getState();
+  const mode = logoPack.getMode();
   const processing = logoPackState.status === 'processing';
+  const preparingPreview = logoPackState.status === 'preparing-preview';
 
   logoPackNoFileHint.classList.toggle('hidden', source !== undefined);
   logoPackReview.classList.toggle('hidden', source === undefined);
@@ -361,7 +444,80 @@ function renderLogoPack(): void {
     }
   }
 
-  logoPackCreateButton.disabled = source === undefined || processing || blocked;
+  // Background-mode choice (directive §5) — reflected, never re-selected by rendering.
+  logoPackModeTransparent.checked = mode === 'transparent';
+  logoPackModeOriginal.checked = mode === 'original';
+  logoPackModeTransparent.disabled = source === undefined || processing || preparingPreview;
+  logoPackModeOriginal.disabled = source === undefined || processing || preparingPreview;
+
+  // Removal strength — hidden entirely for an already-transparent source, where it would be meaningless (directive §15).
+  const previewMaster = logoPackPreviewMaster(logoPackState);
+  const showStrength = mode === 'transparent' && previewMaster?.removalApplied !== false;
+  logoPackStrengthFieldset.classList.toggle('hidden', !showStrength);
+  logoPackStrengthFieldset.classList.toggle('flex', showStrength);
+
+  const strength = logoPack.getStrength();
+  logoPackStrengthGentle.checked = strength === 'gentle';
+  logoPackStrengthBalanced.checked = strength === 'balanced';
+  logoPackStrengthStrong.checked = strength === 'strong';
+  const strengthDisabled = processing || preparingPreview;
+  logoPackStrengthGentle.disabled = strengthDisabled;
+  logoPackStrengthBalanced.disabled = strengthDisabled;
+  logoPackStrengthStrong.disabled = strengthDisabled;
+
+  // Preview progress / failure copy (directive §29).
+  if (logoPackState.status === 'preparing-preview') {
+    logoPackPreviewStatus.textContent = describeLogoPackPreviewStage(logoPackState.stage);
+    logoPackPreviewStatus.classList.remove('hidden');
+  } else if (logoPackState.status === 'preview-failed') {
+    logoPackPreviewStatus.textContent = describeProcessingError(logoPackState.error);
+    logoPackPreviewStatus.classList.remove('hidden');
+  } else {
+    logoPackPreviewStatus.classList.add('hidden');
+  }
+
+  // The transparent preview — one real generated Blob, three background
+  // contexts (checkerboard/light/dark), never three different images
+  // (directive §27).
+  logoPackPreview.classList.toggle('hidden', previewMaster === undefined);
+  logoPackPreview.classList.toggle('flex', previewMaster !== undefined);
+
+  if (previewMaster !== undefined && previewMaster !== lastRenderedLogoPackMaster) {
+    releaseLogoPackPreviewUrl();
+    lastRenderedLogoPackMaster = previewMaster;
+    logoPackPreviewUrl = URL.createObjectURL(previewMaster.blob);
+    logoPackPreviewImage.src = logoPackPreviewUrl;
+  } else if (previewMaster === undefined) {
+    releaseLogoPackPreviewUrl();
+  }
+
+  if (previewMaster !== undefined) {
+    // Mechanical verification vocabulary only — never "perfect"/"flawless"
+    // claims, and status is never conveyed by colour alone (icon + text
+    // together (directive §25)).
+    if (previewMaster.status === 'verified') {
+      logoPackPreviewConfidence.textContent = '✓ Transparent background verified';
+      logoPackPreviewConfidence.className = 'text-sm font-semibold text-emerald-700 dark:text-emerald-400';
+    } else if (previewMaster.status === 'needs-review') {
+      logoPackPreviewConfidence.textContent = '⚠ Please review the edges before continuing';
+      logoPackPreviewConfidence.className = 'text-sm font-semibold text-amber-700 dark:text-amber-400';
+    } else {
+      logoPackPreviewConfidence.textContent = '✕ We couldn’t produce a clean transparent background';
+      logoPackPreviewConfidence.className = 'text-sm font-semibold text-red-700 dark:text-red-400';
+    }
+  }
+
+  applyLogoPackPreviewBackground();
+
+  // The CTA's label reflects the chosen mode; it stays disabled until
+  // packaging is actually allowed to proceed (directive §28).
+  logoPackCreateButton.textContent = mode === 'transparent' ? 'Create transparent logo pack' : 'Create logo pack';
+  logoPackCreateButton.disabled =
+    source === undefined ||
+    mode === undefined ||
+    processing ||
+    blocked ||
+    (mode === 'transparent' && isTransparentPackagingBlocked(logoPackState));
 
   if (logoPackState.status !== 'success' || logoPackState.result !== lastRenderedLogoPackResult) {
     releaseLogoPackUrls();
@@ -554,11 +710,28 @@ function render(state: QuickFitState): void {
   // while a Logo Pack job runs (directive §38/§39).
   if (guidedFit.getMode() === 'logo-pack') {
     const logoPackState = logoPack.getState();
+    const logoPackBusy = logoPackState.status === 'processing' || logoPackState.status === 'preparing-preview';
 
-    cancelButton.classList.toggle('hidden', logoPackState.status !== 'processing');
+    cancelButton.classList.toggle('hidden', !logoPackBusy);
     resetButton.classList.toggle('hidden', currentSource(state) === undefined);
 
-    if (logoPackState.status === 'processing') {
+    if (logoPackState.status === 'preparing-preview') {
+      setStatus(describeLogoPackPreviewStage(logoPackState.stage), 'processing');
+    } else if (logoPackState.status === 'preview-ready') {
+      if (logoPackState.master.status === 'verified') {
+        setStatus('Transparent background verified. Review the preview, then create your logo pack.', 'ready');
+      } else if (logoPackState.master.status === 'needs-review') {
+        setStatus('Preview ready — please review the edges before creating your logo pack.', 'ready');
+        announce('Preview ready. Please review the edges before continuing.');
+      } else {
+        setStatus('We couldn’t produce a clean transparent background. Try Gentle strength, or keep the existing background.', 'error');
+        announce('We couldn’t produce a clean transparent background.');
+      }
+    } else if (logoPackState.status === 'preview-failed') {
+      const message = describeProcessingError(logoPackState.error);
+      setStatus(message, 'error');
+      announce(message);
+    } else if (logoPackState.status === 'processing') {
       setStatus('Creating your logo pack...', 'processing');
     } else if (logoPackState.status === 'success') {
       setStatus('Your logo pack is ready.', 'success');
@@ -570,6 +743,8 @@ function render(state: QuickFitState): void {
     } else if (logoPackState.status === 'cancelled') {
       setStatus('Logo pack creation cancelled. You can try again.', 'cancelled');
       announce('Logo pack creation cancelled.');
+    } else if (currentSource(state) !== undefined && logoPack.getMode() === undefined) {
+      setStatus('Choose how to prepare your logo to continue.', 'ready');
     } else if (currentSource(state) !== undefined) {
       setStatus('Review the suitability notes, then create your logo pack.', 'ready');
     }
@@ -756,6 +931,45 @@ unreachableAdjustButton.addEventListener('click', () => {
 logoPackCreateButton.addEventListener('click', () => {
   logoPack.createLogoPack();
 });
+
+logoPackModeTransparent.addEventListener('change', () => {
+  if (logoPackModeTransparent.checked) {
+    logoPack.selectBackgroundMode('transparent');
+  }
+});
+
+logoPackModeOriginal.addEventListener('change', () => {
+  if (logoPackModeOriginal.checked) {
+    logoPack.selectBackgroundMode('original');
+  }
+});
+
+const logoPackStrengthRadios: Array<[HTMLInputElement, BackgroundRemovalStrength]> = [
+  [logoPackStrengthGentle, 'gentle'],
+  [logoPackStrengthBalanced, 'balanced'],
+  [logoPackStrengthStrong, 'strong'],
+];
+
+for (const [radio, strength] of logoPackStrengthRadios) {
+  radio.addEventListener('change', () => {
+    if (radio.checked) {
+      logoPack.setRemovalStrength(strength);
+    }
+  });
+}
+
+const logoPackPreviewBackgroundButtons: Array<[HTMLButtonElement, LogoPackPreviewBackground]> = [
+  [logoPackPreviewBgCheckerboard, 'checkerboard'],
+  [logoPackPreviewBgLight, 'light'],
+  [logoPackPreviewBgDark, 'dark'],
+];
+
+for (const [button, background] of logoPackPreviewBackgroundButtons) {
+  button.addEventListener('click', () => {
+    logoPackPreviewBackground = background;
+    applyLogoPackPreviewBackground();
+  });
+}
 
 window.addEventListener('pagehide', () => {
   workflow.reset();
