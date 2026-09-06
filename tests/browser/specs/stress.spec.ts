@@ -167,7 +167,12 @@ test.describe('Same-session resource-lifecycle stress test (directive §50)', ()
     await uploadFile(page, 'large.jpg');
     await waitForStatus(page, 'ready');
     await selectLogoPackBackgroundMode(page, 'transparent');
-    await page.locator('#cancel-button').click({ timeout: 10_000 });
+    // A more generous action timeout than the dedicated cancellation spec
+    // uses: by this point in the test, several prior heavy jobs have
+    // already run in the same session/worker, and real CI hardware
+    // (observed directly on a WebKit GitHub Actions run) can need more
+    // than 10s for the cancel control to become actionable here.
+    await page.locator('#cancel-button').click({ timeout: 20_000 });
     await waitForStatus(page, 'cancelled', 15_000);
     // Real "Try again" button — clicking an already-selected radio fires no
     // change event in any real browser.
