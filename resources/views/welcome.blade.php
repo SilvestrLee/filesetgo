@@ -248,6 +248,10 @@
 
                                 <p id="logo-pack-preview-status" class="hidden text-sm text-zinc-600 dark:text-zinc-400" role="status"></p>
 
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <button id="logo-pack-retry-preview-button" type="button" class="hidden min-h-11 whitespace-nowrap rounded-xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 dark:focus:ring-offset-zinc-950">Try again</button>
+                                </div>
+
                                 <div id="logo-pack-preview" class="hidden flex-col gap-3">
                                     <div class="flex flex-wrap items-center justify-between gap-3">
                                         <p id="logo-pack-preview-confidence" class="text-sm font-semibold"></p>

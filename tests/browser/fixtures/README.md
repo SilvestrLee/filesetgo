@@ -47,6 +47,28 @@ actual background (the white rectangle) has not been removed — used to
 prove the browser-level product correctly continues through background
 preparation rather than treating the source as already transparent.
 
+`flat-color-only.png` (FSG-006 delta recertification) is a uniform,
+single-colour 400×400 PNG with no distinguishable foreground at all —
+used to exercise Transparent mode's genuine `FAILED` path (no removable
+background/foreground distinction exists to prepare), never a false
+`verified`/`needs-review` success.
+
+`gradient-logo.png` (FSG-006 delta recertification) is a 600×600 PNG with
+a genuine horizontal colour-ramp background (the same gradient formula as
+`sample.png`) and a real solid dark foreground block drawn on top — used
+to exercise Transparent mode's genuine `NEEDS REVIEW` path with a source
+that also passes Logo Pack's geometry/resolution suitability checks. The
+existing gradient-ramp fixtures (`good-logo.png` etc.) have no drawn
+foreground at all, so they exercise the unrelated `FAILED` path
+(no remaining foreground) rather than `NEEDS REVIEW`.
+
+`flat-logo.heic` (FSG-006 delta recertification) is `flat-logo.png`
+converted to HEIC via macOS's built-in `sips -s format heic` — the same
+technique already used and documented for `sample.heic`, at a larger,
+Logo-Pack-suitable resolution (`sample.heic`'s 64×48 requires a >4×
+icon upscale and is correctly blocked by Logo Pack's own suitability
+check, unrelated to HEIC support itself).
+
 `sample.heic` is the exact same real, valid, self-generated HEIC fixture
 already committed and documented at
 `packages/core/tests/workers/heic-fixture.ts` (a 64×48 PNG color ramp
@@ -79,5 +101,8 @@ signature with no image data, for truncated/malformed-file rejection tests.
 | `flat-logo-black.png` | 400×400 — flat black background, gold mark, black interior counter — FSG-005C black-background counterpart to `flat-logo.png` |
 | `flat-logo-black.jpg` | Same image as `flat-logo-black.png`, converted to JPEG — FSG-005C black-background JPEG-source background-removal fixture |
 | `transparent-padding-regression.png` | 400×400, real RGBA (has alpha) — transparent margin wrapping an opaque white rectangle with coloured artwork inside — FSG-005C Product Office correction regression fixture |
+| `flat-color-only.png` | 400×400 — uniform single colour, no foreground at all — FSG-006 delta recertification FAILED-transparency fixture |
+| `gradient-logo.png` | 600×600 — real gradient background + solid foreground block — FSG-006 delta recertification NEEDS-REVIEW-transparency fixture |
+| `flat-logo.heic` | `flat-logo.png` converted to HEIC — FSG-006 delta recertification Logo-Pack-suitable HEIC fixture |
 
 No file exceeds ~452 KB. No fixture is downloaded from a network source.

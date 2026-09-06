@@ -80,6 +80,7 @@ const logoPackStrengthGentle = requireElement<HTMLInputElement>('#logo-pack-stre
 const logoPackStrengthBalanced = requireElement<HTMLInputElement>('#logo-pack-strength-balanced');
 const logoPackStrengthStrong = requireElement<HTMLInputElement>('#logo-pack-strength-strong');
 const logoPackPreviewStatus = requireElement<HTMLElement>('#logo-pack-preview-status');
+const logoPackRetryPreviewButton = requireElement<HTMLButtonElement>('#logo-pack-retry-preview-button');
 const logoPackPreview = requireElement<HTMLElement>('#logo-pack-preview');
 const logoPackPreviewConfidence = requireElement<HTMLElement>('#logo-pack-preview-confidence');
 const logoPackPreviewFrame = requireElement<HTMLElement>('#logo-pack-preview-frame');
@@ -475,6 +476,14 @@ function renderLogoPack(): void {
   } else {
     logoPackPreviewStatus.classList.add('hidden');
   }
+
+  // Retry (directive §22 of FSG-005C): clicking an already-selected radio
+  // fires no `change` event in any real browser, so re-selecting Transparent
+  // is not an available retry path once it is already the current mode —
+  // this explicit button is the real one. Shown whenever Transparent mode
+  // is not currently mid-preparation and has no ready preview to show.
+  const canRetryPreview = mode === 'transparent' && (logoPackState.status === 'cancelled' || logoPackState.status === 'preview-failed');
+  logoPackRetryPreviewButton.classList.toggle('hidden', !canRetryPreview);
 
   // The transparent preview — one real generated Blob, three background
   // contexts (checkerboard/light/dark), never three different images
@@ -930,6 +939,10 @@ unreachableAdjustButton.addEventListener('click', () => {
 
 logoPackCreateButton.addEventListener('click', () => {
   logoPack.createLogoPack();
+});
+
+logoPackRetryPreviewButton.addEventListener('click', () => {
+  logoPack.retryTransparentPreview();
 });
 
 logoPackModeTransparent.addEventListener('change', () => {

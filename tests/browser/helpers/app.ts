@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { expect, type ConsoleMessage, type Page } from '@playwright/test';
+import { unzipSync } from 'fflate';
+import { expect, type ConsoleMessage, type Download, type Page } from '@playwright/test';
 
 export const FIXTURES_DIR = path.join(import.meta.dirname, '..', 'fixtures', 'files');
 
@@ -105,4 +106,29 @@ export function collectRequests(page: Page): { urls(): string[] } {
   const urls: string[] = [];
   page.on('request', (request) => urls.push(request.url()));
   return { urls: () => [...urls] };
+}
+
+/**
+ * Reads a real downloaded ZIP's exact entry names via `fflate` (already a
+ * project dependency, reused here rather than adding a second archive
+ * library) — test-side confirmation of package asset integrity (FSG-006
+ * delta recertification directive §27/§28), not merely a downloaded-file
+ * count or filename pattern.
+ */
+export async function zipEntryNames(download: Download): Promise<string[]> {
+  const stream = await download.createReadStream();
+
+  if (stream === null) {
+    throw new Error('Download did not produce a readable stream.');
+  }
+
+  const chunks: Buffer[] = [];
+
+  for await (const chunk of stream) {
+    chunks.push(chunk as Buffer);
+  }
+
+  const buffer = Buffer.concat(chunks);
+  const entries = unzipSync(new Uint8Array(buffer));
+  return Object.keys(entries).sort();
 }

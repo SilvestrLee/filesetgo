@@ -121,4 +121,61 @@ test.describe('Same-session resource-lifecycle stress test (directive §50)', ()
     await page.locator('#process-button').click();
     await waitForStatus(page, 'success', 30_000);
   });
+
+  test(`${ITERATIONS} repeated Transparent Logo Pack cycles (preview → package → reset, plus a strength change, an Original-mode cycle, and a cancel/retry) leave no stuck state`, async ({ page }) => {
+    // Real, cumulative processing work (5× preview+strength-change+package,
+    // plus an Original-mode cycle and a large.jpg cancel/retry cycle)
+    // genuinely exceeds Playwright's default 30s per-test timeout.
+    test.setTimeout(120_000);
+    await installBlobUrlTracker(page);
+    await gotoApp(page);
+    await selectMode(page, 'logo-pack');
+
+    for (let i = 0; i < ITERATIONS; i += 1) {
+      await uploadFile(page, 'flat-logo.png');
+      await waitForStatus(page, 'ready');
+      await selectLogoPackBackgroundMode(page, 'transparent');
+      await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
+
+      // A strength change replaces the preview, not accumulates a second one.
+      await page.locator('#logo-pack-strength-gentle').check({ force: true });
+      await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
+
+      await page.locator('#logo-pack-create-button').click();
+      await waitForStatus(page, 'success', 30_000);
+      await expect(page.locator('#logo-pack-assets li')).toHaveCount(7);
+
+      await page.locator('#reset-button').click();
+      await waitForStatus(page, 'idle');
+      await expect(page.locator('#logo-pack-result')).toBeHidden();
+      await expect(page.locator('#logo-pack-preview')).toBeHidden();
+      await selectMode(page, 'logo-pack');
+    }
+
+    // One Original-mode cycle — the simpler single-stage path must still work
+    // interleaved with repeated Transparent-mode cycles.
+    await uploadFile(page, 'good-logo.png');
+    await waitForStatus(page, 'ready');
+    await selectLogoPackBackgroundMode(page, 'original');
+    await page.locator('#logo-pack-create-button').click();
+    await waitForStatus(page, 'success', 30_000);
+    await page.locator('#reset-button').click();
+    await waitForStatus(page, 'idle');
+    await selectMode(page, 'logo-pack');
+
+    // One cancel/retry cycle against the preview-preparation stage.
+    await uploadFile(page, 'large.jpg');
+    await waitForStatus(page, 'ready');
+    await selectLogoPackBackgroundMode(page, 'transparent');
+    await page.locator('#cancel-button').click({ timeout: 10_000 });
+    await waitForStatus(page, 'cancelled', 15_000);
+    // Real "Try again" button — clicking an already-selected radio fires no
+    // change event in any real browser.
+    await page.locator('#logo-pack-retry-preview-button').click();
+    await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 30_000 });
+
+    // No unbounded accumulation across the whole sequence above.
+    const finalLiveCount = await liveBlobUrlCount(page);
+    expect(finalLiveCount).toBeLessThanOrEqual(2);
+  });
 });

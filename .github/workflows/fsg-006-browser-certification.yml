@@ -11,12 +11,19 @@ name: FSG-006 Browser Compatibility Certification
 # not publish anything, does not touch production, and only exercises the
 # same local, browser-only processing architecture the rest of the test
 # suite already exercises.
+#
+# FSG-006 delta recertification: the Node dependency install step uses a
+# governed `npm ci` against the committed lockfile — the lockfile itself
+# was corrected (a completeness gap in its optional platform-dependency
+# entries, not a version change) so this now installs reproducibly on this
+# runner. See the step's own comment and docs/governance/DECISIONS.md ADR-021.
 
 on:
   workflow_dispatch:
   push:
     branches:
       - fsg-006-hardening-compatibility
+      - fsg-006-delta-recertification
 
 jobs:
   browser-certification:
@@ -25,6 +32,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Print certification commit
+        run: |
+          echo "Certification commit: $GITHUB_SHA"
+          git log -1 --oneline
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -42,16 +54,31 @@ jobs:
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
       - name: Install Node dependencies
-        # Both `npm ci` and a lockfile-respecting `npm install` hit the
-        # documented npm optional-dependency bug (npm/cli#4828) here: the
-        # lockfile committed from a macOS dev environment does not resolve
-        # Vite's rolldown bundler's Linux-x64 native binding on this runner.
-        # This is CI-only verification infrastructure, not the governed dev
-        # install — per the error's own suggested workaround, the lockfile
-        # is ignored for this one install so npm re-resolves optional
-        # platform packages fresh; the repository's committed
-        # package-lock.json is never modified (checkout is not re-committed).
-        run: rm -f package-lock.json && npm install
+        # FSG-006 delta recertification (Product Office directive §8-§11):
+        # the previous `rm -f package-lock.json && npm install` workaround
+        # is retired. The actual root cause was traced (not guessed): the
+        # committed lockfile was missing several of rolldown's declared
+        # platform-optional bindings — including `@rolldown/binding-linux-x64-gnu`,
+        # the exact one this runner needs — because it had been regenerated
+        # at some point without first removing a stale `node_modules/`, which
+        # silently narrowed npm's written optional-dependency set to only
+        # what was already present locally rather than the full declared
+        # multi-platform graph. A clean regeneration (`rm -rf node_modules
+        # package-lock.json && npm install` on the governed dev machine)
+        # restored all 15 declared rolldown platform bindings to the lockfile
+        # — verified directly: `npm ci` against the corrected lockfile now
+        # installs cleanly and the full local baseline (typecheck/build/
+        # test:core/test:ui) passes unchanged. No dependency version,
+        # package manager, or Node/Vite major version was changed to reach
+        # this fix — see docs/governance/DECISIONS.md ADR-021.
+        run: npm ci
+
+      - name: Print tool versions
+        run: |
+          node --version
+          npm --version
+          npm ls @playwright/test
+          npx playwright --version
 
       - name: Install the governed Playwright browsers (Chromium, Firefox, WebKit)
         run: npx playwright install --with-deps chromium firefox webkit

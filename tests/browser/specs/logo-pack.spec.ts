@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { collectConsoleProblems, gotoApp, selectLogoPackBackgroundMode, selectMode, uploadFile, waitForStatus } from '../helpers/app';
+import { collectConsoleProblems, gotoApp, selectLogoPackBackgroundMode, selectMode, uploadFile, waitForStatus, zipEntryNames } from '../helpers/app';
 
 function expectedAssets(mode: 'transparent' | 'original', basename: string): string[] {
   return [
@@ -77,6 +77,13 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     ]);
     expect(zipDownload.suggestedFilename()).toBe('good-logo-filesetgo-original-logo-pack.zip');
 
+    // Test-side ZIP inspection: the exact entry set, not merely a count or
+    // a downloaded filename pattern (FSG-006 delta recertification §27/§28).
+    // No README/manifest/wrong-mode primary file among the real entries.
+    expect(await zipEntryNames(zipDownload)).toEqual(
+      [...expectedAssets('original', 'good-logo')].sort(),
+    );
+
     console_.assertClean();
   });
 
@@ -139,6 +146,12 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
       page.locator('#logo-pack-download-zip').click(),
     ]);
     expect(zipDownload.suggestedFilename()).toBe('flat-logo-filesetgo-transparent-logo-pack.zip');
+
+    // Test-side ZIP inspection: the exact entry set, not merely a count or
+    // a downloaded filename pattern (FSG-006 delta recertification §27/§28).
+    expect(await zipEntryNames(zipDownload)).toEqual(
+      [...expectedAssets('transparent', 'flat-logo')].sort(),
+    );
 
     console_.assertClean();
   });
@@ -215,6 +228,50 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
 
     const srcAfterChange = await previewImage.getAttribute('src');
     expect(srcAfterChange).not.toBe(srcBeforeChange);
+  });
+
+  test('a gradient-background source truthfully reports NEEDS REVIEW, never a false clean success (FSG-006 delta recertification §23)', async ({ page }) => {
+    await gotoApp(page);
+    await uploadFile(page, 'gradient-logo.png');
+    await waitForStatus(page, 'ready');
+    await selectMode(page, 'logo-pack');
+    await selectLogoPackBackgroundMode(page, 'transparent');
+
+    await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
+    // Visually distinct from VERIFIED — not colour alone, real different text.
+    await expect(page.locator('#logo-pack-preview-confidence')).toHaveText('⚠ Please review the edges before continuing');
+    await expect(page.locator('#logo-pack-preview-confidence')).not.toHaveText(/verified/i);
+
+    // Checkerboard/light/dark remain available and package remains eligible
+    // under the governed NEEDS REVIEW policy (directive §28 of FSG-005C).
+    await expect(page.locator('#logo-pack-preview-bg-light')).toBeEnabled();
+    await expect(page.locator('#logo-pack-preview-bg-dark')).toBeEnabled();
+    await expect(page.locator('#logo-pack-create-button')).toBeEnabled();
+
+    // The algorithm is not tuned merely to turn this case green — the real
+    // status is used, not silently upgraded.
+    await page.locator('#logo-pack-create-button').click();
+    await waitForStatus(page, 'success', 30_000);
+  });
+
+  test('a source with no removable background truthfully reports FAILED and blocks packaging (FSG-006 delta recertification §24)', async ({ page }) => {
+    await gotoApp(page);
+    await uploadFile(page, 'flat-color-only.png'); // uniform colour, no distinguishable foreground at all
+    await waitForStatus(page, 'ready');
+    await selectMode(page, 'logo-pack');
+    await selectLogoPackBackgroundMode(page, 'transparent');
+
+    await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#logo-pack-preview-confidence')).toHaveText('✕ We couldn’t produce a clean transparent background');
+
+    // Package creation must remain blocked — no ZIP, no falsely-labelled
+    // "*-transparent.png" result may be presented.
+    await expect(page.locator('#logo-pack-create-button')).toBeDisabled();
+    await expect(page.locator('#logo-pack-result')).toBeHidden();
+
+    // A recovery action remains available: keep the existing background instead.
+    await selectLogoPackBackgroundMode(page, 'original');
+    await expect(page.locator('#logo-pack-create-button')).toBeEnabled();
   });
 
   test('reset returns cleanly from a successful Logo Pack result and clears the background-mode choice', async ({ page }) => {

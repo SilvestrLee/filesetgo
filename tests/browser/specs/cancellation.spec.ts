@@ -92,4 +92,40 @@ test.describe('Cancellation certification (directive §30/§31)', () => {
     await page.locator('#logo-pack-create-button').click();
     await waitForStatus(page, 'success', 30_000);
   });
+
+  test('cancelling transparent-preview preparation stops it, and retry succeeds (FSG-006 delta recertification §35)', async ({ page }) => {
+    // Two full large.jpg decodes (the cancelled attempt, then the retry)
+    // sequentially can exceed Playwright's default 30s per-test timeout
+    // under real CPU contention — a genuine processing cost, not a stall.
+    test.setTimeout(60_000);
+    await gotoApp(page);
+    // large.jpg (4800x3200) gives real decode/normalize work a genuine
+    // processing window before the bounded 1024px working raster is even
+    // reached — the same "real processing window, not an artificial sleep"
+    // pattern already established above and in quick-fit cancellation.
+    await uploadFile(page, 'large.jpg');
+    await waitForStatus(page, 'ready');
+    await selectMode(page, 'logo-pack');
+
+    await selectLogoPackBackgroundMode(page, 'transparent');
+    await page.locator('#cancel-button').click({ timeout: 10_000 });
+    await waitForStatus(page, 'cancelled', 15_000);
+
+    // The cancelled job never later surfaces a stale preview.
+    await page.waitForTimeout(500);
+    await expect(page.locator('#status-message')).toHaveAttribute('data-state', 'cancelled');
+    await expect(page.locator('#logo-pack-preview')).toBeHidden();
+
+    // Retry without a page refresh (directive §22 of FSG-005C) — the real
+    // "Try again" button, since clicking an already-selected radio fires no
+    // change event in any real browser.
+    await expect(page.locator('#logo-pack-retry-preview-button')).toBeVisible();
+    await page.locator('#logo-pack-retry-preview-button').click();
+    // "Retry succeeds" means the retried job reaches a real, mechanically
+    // verified terminal preview state (not necessarily VERIFIED — large.jpg
+    // is a decode-time stress fixture, not a quality fixture, and was never
+    // asserted to produce a clean background-removal result).
+    await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('#logo-pack-preview-confidence')).not.toHaveText('');
+  });
 });

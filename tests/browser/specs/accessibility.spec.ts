@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoApp, selectLogoPackBackgroundMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
+import { gotoApp, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
 
 test.describe('Accessibility / keyboard audit (directive §40-§42)', () => {
   test('exactly one H1 exists on the page', async ({ page }) => {
@@ -102,5 +102,64 @@ test.describe('Accessibility / keyboard audit (directive §40-§42)', () => {
         }),
       )
       .toBe(true);
+  });
+
+  test('the background-choice fieldset is grouped/labelled, keyboard-operable, and exposes real selection state (FSG-006 delta recertification §16/§43/§44)', async ({ page }) => {
+    await gotoApp(page);
+    await uploadFile(page, 'flat-logo.png');
+    await waitForStatus(page, 'ready');
+    await selectMode(page, 'logo-pack');
+
+    // A real <fieldset>/<legend> grouping — not merely two unrelated radios.
+    const fieldset = page.locator('#logo-pack-mode-fieldset');
+    await expect(fieldset).toHaveJSProperty('tagName', 'FIELDSET');
+    await expect(fieldset.locator('legend')).toHaveText('How should we prepare your logo?');
+
+    const transparentInput = page.locator('#logo-pack-mode-transparent');
+    const originalInput = page.locator('#logo-pack-mode-original');
+    await expect(transparentInput).toHaveAttribute('type', 'radio');
+    await expect(originalInput).toHaveAttribute('type', 'radio');
+    // Both share one native radio group — the platform itself enforces
+    // mutual exclusivity and exposes selection state to assistive tech,
+    // never a custom ARIA re-implementation.
+    await expect(transparentInput).toHaveAttribute('name', await originalInput.getAttribute('name') ?? '');
+
+    // Real keyboard operation: focus the first radio, move with ArrowDown,
+    // the native platform handles selection — no click/pointer event used.
+    await transparentInput.focus();
+    await expect(transparentInput).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(originalInput).toBeChecked();
+    await expect(transparentInput).not.toBeChecked();
+
+    await page.keyboard.press('ArrowUp');
+    await expect(transparentInput).toBeChecked();
+
+    // Strength control is also grouped/labelled once it becomes relevant.
+    await expect(page.locator('#logo-pack-strength-fieldset legend')).toHaveText('Background removal');
+  });
+
+  test('preview background toggles expose pressed state and status is never colour-only (FSG-006 delta recertification §26/§44)', async ({ page }) => {
+    await gotoApp(page);
+    await uploadFile(page, 'flat-logo.png');
+    await waitForStatus(page, 'ready');
+    await selectMode(page, 'logo-pack');
+    await selectLogoPackBackgroundMode(page, 'transparent');
+    await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
+
+    for (const id of ['logo-pack-preview-bg-checkerboard', 'logo-pack-preview-bg-light', 'logo-pack-preview-bg-dark']) {
+      await expect(page.locator(`#${id}`)).toHaveAttribute('aria-pressed', /true|false/);
+    }
+
+    // Keyboard-reachable, real <button> elements — Tab/Enter operable.
+    const lightToggle = page.locator('#logo-pack-preview-bg-light');
+    await lightToggle.focus();
+    await page.keyboard.press('Enter');
+    await expect(lightToggle).toHaveAttribute('aria-pressed', 'true');
+
+    // Verified status is real text, not only a colour class — an
+    // accessible-name/text-content check independent of any CSS colour.
+    const confidenceText = await page.locator('#logo-pack-preview-confidence').textContent();
+    expect(confidenceText ?? '').toMatch(/verified|review|couldn.t produce/i);
   });
 });
