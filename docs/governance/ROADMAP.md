@@ -92,7 +92,7 @@ Deliver:
 
 ## FSG-006 — Hardening, Mobile QA & Compatibility
 
-**Status: ⏸ PAUSED — delta recertification required.** Its existing browser certification (Chromium/Firefox/WebKit/mobile) is preserved as the pre-FSG-005C baseline and is not invalidated; FSG-005C changed the Logo Pack workflow this milestone certified, so final closure awaits a separate Product Office "FSG-006 Resume & Delta Recertification" directive covering the affected Logo Pack paths. See `docs/directives/FSG-006.md` and `SPRINT_REPORT.md`.
+**Status: ✅ CLOSED.** Resumed after FSG-005C for a delta recertification pass, closing the CI dependency-install reproducibility gap and recertifying the affected Logo Pack transparency paths. Final certified closure candidate `09324a6f9c73bae2f66cb40c21d509439ca99a35` (GitHub Actions run `34025426493`): Chromium 60/60, Firefox 57/60 (3 governed skips), Playwright WebKit 57/60 (3 governed skips), mobile 20/20 — 194 passed, 6 accepted skips, 0 failed. See `docs/directives/FSG-006.md`, `docs/governance/DECISIONS.md` ADR-021, and `SPRINT_REPORT.md`.
 
 Complete launch-blocking testing for:
 
