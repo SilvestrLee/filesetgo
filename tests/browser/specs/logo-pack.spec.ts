@@ -212,6 +212,32 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await expect(page.locator('#logo-pack-result')).toBeVisible();
   });
 
+  test('a genuinely already-transparent PNG bypasses background removal and preserves existing alpha (FSG-006 delta recertification §19)', async ({ page }) => {
+    const console_ = collectConsoleProblems(page);
+
+    await gotoApp(page);
+    await uploadFile(page, 'genuine-transparent-logo.png');
+    await waitForStatus(page, 'ready');
+    await selectMode(page, 'logo-pack');
+    await selectLogoPackBackgroundMode(page, 'transparent');
+
+    // A genuinely already-prepared source: background transparency is
+    // confirmed, removal is bypassed, and the result is verified — not
+    // needs-review/failed, since nothing here is ambiguous.
+    await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#logo-pack-preview-confidence')).toHaveText('✓ Transparent background verified');
+
+    // The removal-strength selector is meaningless for an already-transparent
+    // source and must be hidden entirely (directive §15 of FSG-005C).
+    await expect(page.locator('#logo-pack-strength-fieldset')).toBeHidden();
+
+    await page.locator('#logo-pack-create-button').click();
+    await waitForStatus(page, 'success', 30_000);
+    await expect(page.locator('#logo-pack-result')).toBeVisible();
+
+    console_.assertClean();
+  });
+
   test('changing removal strength regenerates the preview (directive §15)', async ({ page }) => {
     await gotoApp(page);
     await uploadFile(page, 'flat-logo.png');

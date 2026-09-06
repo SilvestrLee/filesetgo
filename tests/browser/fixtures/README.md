@@ -62,6 +62,14 @@ existing gradient-ramp fixtures (`good-logo.png` etc.) have no drawn
 foreground at all, so they exercise the unrelated `FAILED` path
 (no remaining foreground) rather than `NEEDS REVIEW`.
 
+`genuine-transparent-logo.png` (FSG-006 delta recertification) is a real,
+valid RGBA PNG: a fully transparent exterior with a single opaque navy
+mark — already a correctly-prepared transparent logo, no un-removed
+background — used to browser-certify that Transparent mode genuinely
+bypasses background removal and preserves existing alpha for a source
+that needs no preparation at all, closing the one core/worker-only gap
+in the FSG-005C browser-certification matrix.
+
 `flat-logo.heic` (FSG-006 delta recertification) is `flat-logo.png`
 converted to HEIC via macOS's built-in `sips -s format heic` — the same
 technique already used and documented for `sample.heic`, at a larger,
@@ -104,5 +112,6 @@ signature with no image data, for truncated/malformed-file rejection tests.
 | `flat-color-only.png` | 400×400 — uniform single colour, no foreground at all — FSG-006 delta recertification FAILED-transparency fixture |
 | `gradient-logo.png` | 600×600 — real gradient background + solid foreground block — FSG-006 delta recertification NEEDS-REVIEW-transparency fixture |
 | `flat-logo.heic` | `flat-logo.png` converted to HEIC — FSG-006 delta recertification Logo-Pack-suitable HEIC fixture |
+| `genuine-transparent-logo.png` | 400×400, real RGBA — transparent exterior + opaque mark, already prepared — FSG-006 delta recertification existing-transparent-PNG-bypass fixture |
 
 No file exceeds ~452 KB. No fixture is downloaded from a network source.
