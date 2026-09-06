@@ -4,7 +4,7 @@ import { LOGO_PACK_ASSET_EXPLANATIONS, type LogoBackgroundMode } from '../logo-p
 import type { SuitabilityIssue } from '../logo-pack/suitability';
 import { LogoPackController } from '../logo-pack/logo-pack-controller';
 import { getAllPresets } from '../presets/registry';
-import { GuidedFitController } from '../presets/guided-fit-controller';
+import { GuidedFitController, type QuickFitMode } from '../presets/guided-fit-controller';
 import { describeRuntimeSupport } from './capabilities';
 import * as coreClient from './core-client';
 import { describeProcessingError, describeUnreachable } from './errors';
@@ -1000,3 +1000,24 @@ void coreClient.getRuntimeCapabilities().then((capabilities) => {
     app.classList.add('hidden');
   }
 });
+
+// --- SEO acquisition deep-linking (FSG-007 directive §9) ---
+//
+// An acquisition landing page's CTA may open the main application with a
+// mode preselected via `?mode=`, e.g. `/?mode=logo-pack`. This deliberately
+// goes no further than `setMode()` already goes for a tab click: it never
+// selects a source, never starts processing, and never chooses a Logo
+// Pack background/removal strength — those remain explicit in-product
+// decisions. An unrecognised or missing value is a no-op, leaving the
+// default Quick Fit mode in place.
+const DEEP_LINK_MODES: ReadonlyArray<QuickFitMode> = ['quick-fit', 'guided-fit', 'logo-pack'];
+
+function applyDeepLinkMode(): void {
+  const requested = new URLSearchParams(window.location.search).get('mode');
+
+  if (requested !== null && (DEEP_LINK_MODES as readonly string[]).includes(requested)) {
+    guidedFit.setMode(requested as QuickFitMode);
+  }
+}
+
+applyDeepLinkMode();

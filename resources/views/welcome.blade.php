@@ -1,36 +1,40 @@
-<!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="description" content="Resize, convert or fit an image under a file-size limit — right in your browser. Your image is never uploaded.">
+@php
+    $title = 'File. Set. Go. | Get your file ready for where it needs to go.';
+    $description = 'Resize, convert or fit an image under a file-size limit, right in your browser. Your image is never uploaded.';
+    $structuredData = [
+        '@context' => 'https://schema.org',
+        '@type' => 'WebApplication',
+        'name' => 'File. Set. Go.',
+        'url' => route('home'),
+        'description' => $description,
+        'applicationCategory' => 'MultimediaApplication',
+        'operatingSystem' => 'Any (runs in a modern web browser)',
+    ];
+@endphp
 
-        <title>File. Set. Go. | Get your file ready for where it needs to go.</title>
+@extends('layouts.public')
 
-        @vite(['resources/css/app.css', 'resources/js/app.ts'])
-    </head>
-    <body class="min-h-[100dvh] bg-zinc-50 text-zinc-950 antialiased dark:bg-zinc-950 dark:text-zinc-100">
-        <a href="#quick-fit" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-blue-700 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to Quick Fit</a>
+@push('scripts')
+    @vite(['resources/js/app.ts'])
+@endpush
 
-        <header class="border-b border-zinc-200/80 dark:border-zinc-800">
-            <div class="mx-auto flex min-h-16 max-w-6xl items-center justify-between gap-6 px-4 py-3 sm:px-6 lg:px-8">
-                <a class="text-lg font-semibold tracking-tight" href="/">File. Set. Go.</a>
-                <nav aria-label="Primary" class="flex items-center gap-6 text-sm font-medium text-zinc-600 dark:text-zinc-400">
-                    <a class="hover:text-zinc-950 dark:hover:text-zinc-100" href="#quick-fit">Quick Fit</a>
-                    <a class="hover:text-zinc-950 dark:hover:text-zinc-100" href="#how-it-works">How it works</a>
-                </nav>
-            </div>
-        </header>
-
-        <main class="mx-auto flex max-w-6xl flex-col gap-16 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+@section('content')
+        <div class="mx-auto flex max-w-6xl flex-col gap-16 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
             <section class="flex flex-col gap-3 text-center sm:text-left">
                 <p class="text-sm font-semibold text-blue-700 dark:text-blue-400">File. Set. Go.</p>
                 <h1 class="max-w-2xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
                     Get your file ready for where it needs to go.
                 </h1>
                 <p class="max-w-[60ch] text-base leading-relaxed text-zinc-600 dark:text-zinc-400 sm:mx-0 mx-auto">
-                    Resize, convert or fit an image under a file-size limit — right in your browser.
+                    Resize, convert or fit an image under a file-size limit, right in your browser.
                 </p>
+                <div class="mt-1 flex items-center justify-center gap-2 text-sm font-medium text-zinc-500 sm:justify-start dark:text-zinc-400" aria-hidden="true">
+                    <span>Your file</span>
+                    <x-icon name="arrow-right" class="size-4 text-zinc-400 dark:text-zinc-600" />
+                    <span class="text-zinc-950 dark:text-zinc-100">FileSetGo</span>
+                    <x-icon name="arrow-right" class="size-4 text-zinc-400 dark:text-zinc-600" />
+                    <span>Ready for your website</span>
+                </div>
             </section>
 
             <section id="quick-fit" class="scroll-mt-20" aria-labelledby="quick-fit-title">
@@ -161,7 +165,7 @@
                         <div id="guided-fit-panel" role="tabpanel" aria-labelledby="mode-tab-guided-fit" class="hidden flex-col gap-6">
                             <div class="flex flex-col gap-3">
                                 <h3 class="text-sm font-semibold">Choose what you're preparing</h3>
-                                <p class="text-sm text-zinc-600 dark:text-zinc-400">These are FileSetGo recommendations — practical starting points for general website use, not platform-specific upload limits.</p>
+                                <p class="text-sm text-zinc-600 dark:text-zinc-400">These are FileSetGo recommendations: practical starting points for general website use, not platform-specific upload limits.</p>
 
                                 <div role="radiogroup" aria-label="What are you preparing?" class="grid gap-4 sm:grid-cols-3">
                                     <label class="preset-card flex cursor-pointer flex-col gap-2 rounded-xl border border-zinc-300 bg-white p-4 transition hover:border-blue-500 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-blue-600 has-[:checked]:border-blue-600 has-[:checked]:ring-2 has-[:checked]:ring-blue-600 dark:border-zinc-700 dark:bg-zinc-900" data-preset-id="web.hero">
@@ -219,7 +223,7 @@
                                         <input type="radio" name="logo-pack-mode" id="logo-pack-mode-transparent" value="transparent" class="mt-1 h-4 w-4 shrink-0 accent-blue-700">
                                         <span>
                                             <span class="block text-sm font-semibold">Transparent background</span>
-                                            <span class="block text-xs text-zinc-600 dark:text-zinc-400">Best for website headers, navigation, overlays and footers — works on light or dark backgrounds.</span>
+                                            <span class="block text-xs text-zinc-600 dark:text-zinc-400">Best for website headers, navigation, overlays and footers. Works on light or dark backgrounds.</span>
                                         </span>
                                     </label>
                                     <label class="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-zinc-200 p-3 transition has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 dark:border-zinc-800 dark:has-[:checked]:border-blue-500 dark:has-[:checked]:bg-blue-950/40">
@@ -328,28 +332,83 @@
 
             <section id="how-it-works" class="scroll-mt-20" aria-labelledby="how-it-works-title">
                 <h2 id="how-it-works-title" class="text-2xl font-semibold tracking-tight">How it works</h2>
-                <ol class="mt-6 grid gap-6 sm:grid-cols-3">
-                    <li class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-                        <p class="text-sm font-semibold text-blue-700 dark:text-blue-400">1. Choose</p>
-                        <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Choose your image.</p>
+                <ol class="mt-8 grid gap-8 sm:grid-cols-3 sm:gap-6">
+                    <li class="relative flex flex-col gap-1 border-l-2 border-blue-700 pl-4 sm:border-l-0 sm:border-t-2 sm:pl-0 sm:pt-4">
+                        <p class="text-xs font-bold tracking-[0.14em] text-blue-700 uppercase dark:text-blue-400">File</p>
+                        <p class="text-sm text-zinc-600 dark:text-zinc-400">Choose your image.</p>
                     </li>
-                    <li class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-                        <p class="text-sm font-semibold text-blue-700 dark:text-blue-400">2. Set</p>
-                        <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Set the requirement — or choose what it's for.</p>
+                    <li class="relative flex flex-col gap-1 border-l-2 border-blue-700 pl-4 sm:border-l-0 sm:border-t-2 sm:pl-0 sm:pt-4">
+                        <p class="text-xs font-bold tracking-[0.14em] text-blue-700 uppercase dark:text-blue-400">Set</p>
+                        <p class="text-sm text-zinc-600 dark:text-zinc-400">Set the requirement, or choose what it's for.</p>
                     </li>
-                    <li class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-                        <p class="text-sm font-semibold text-blue-700 dark:text-blue-400">3. Go</p>
-                        <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Download the ready file.</p>
+                    <li class="relative flex flex-col gap-1 border-l-2 border-blue-700 pl-4 sm:border-l-0 sm:border-t-2 sm:pl-0 sm:pt-4">
+                        <p class="text-xs font-bold tracking-[0.14em] text-blue-700 uppercase dark:text-blue-400">Go</p>
+                        <p class="text-sm text-zinc-600 dark:text-zinc-400">Download the ready file.</p>
                     </li>
                 </ol>
             </section>
-        </main>
 
-        <footer class="border-t border-zinc-200/80 dark:border-zinc-800">
-            <div class="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-8 text-sm text-zinc-500 dark:text-zinc-400 sm:px-6 lg:px-8">
-                <p>File. Set. Go.</p>
-                <p>Get your file ready for where it needs to go.</p>
-            </div>
-        </footer>
-    </body>
-</html>
+            <section aria-labelledby="use-cases-title" class="flex flex-col gap-6">
+                <h2 id="use-cases-title" class="text-2xl font-semibold tracking-tight">What can I use it for?</h2>
+                <div class="grid divide-y divide-zinc-200 border-y border-zinc-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0 dark:divide-zinc-800 dark:border-zinc-800">
+                    <a href="{{ route('prepare-logo') }}" class="group flex items-start gap-4 py-5 transition hover:bg-zinc-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:px-6 dark:hover:bg-zinc-900/60">
+                        <x-icon name="image" class="mt-0.5 size-5 shrink-0 text-blue-700 dark:text-blue-400" />
+                        <span class="flex flex-col gap-0.5">
+                            <span class="font-semibold">Prepare a website logo</span>
+                            <span class="text-sm text-zinc-600 dark:text-zinc-400">Header logo, favicon and app icons in one download.</span>
+                        </span>
+                    </a>
+                    <a href="{{ route('transparent-logo') }}" class="group flex items-start gap-4 py-5 transition hover:bg-zinc-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:px-6 dark:hover:bg-zinc-900/60">
+                        <x-icon name="transparent" class="mt-0.5 size-5 shrink-0 text-blue-700 dark:text-blue-400" />
+                        <span class="flex flex-col gap-0.5">
+                            <span class="font-semibold">Make a transparent logo</span>
+                            <span class="text-sm text-zinc-600 dark:text-zinc-400">Verified transparency, previewed on light and dark.</span>
+                        </span>
+                    </a>
+                    <a href="{{ route('favicon-generator') }}" class="group flex items-start gap-4 py-5 transition hover:bg-zinc-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:px-6 dark:hover:bg-zinc-900/60">
+                        <x-icon name="favicon" class="mt-0.5 size-5 shrink-0 text-blue-700 dark:text-blue-400" />
+                        <span class="flex flex-col gap-0.5">
+                            <span class="font-semibold">Create favicon files</span>
+                            <span class="text-sm text-zinc-600 dark:text-zinc-400">Included as part of the Website Logo Pack.</span>
+                        </span>
+                    </a>
+                    <a href="{{ route('website-image-optimizer') }}" class="group flex items-start gap-4 py-5 transition hover:bg-zinc-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:px-6 dark:hover:bg-zinc-900/60">
+                        <x-icon name="target" class="mt-0.5 size-5 shrink-0 text-blue-700 dark:text-blue-400" />
+                        <span class="flex flex-col gap-0.5">
+                            <span class="font-semibold">Optimize a website image</span>
+                            <span class="text-sm text-zinc-600 dark:text-zinc-400">Sensible dimensions and size for hero, content or card images.</span>
+                        </span>
+                    </a>
+                    <a href="{{ route('compress-image') }}" class="group flex items-start gap-4 py-5 transition hover:bg-zinc-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:px-6 dark:hover:bg-zinc-900/60">
+                        <x-icon name="download" class="mt-0.5 size-5 shrink-0 text-blue-700 dark:text-blue-400" />
+                        <span class="flex flex-col gap-0.5">
+                            <span class="font-semibold">Reduce an image to an upload limit</span>
+                            <span class="text-sm text-zinc-600 dark:text-zinc-400">Enter the KB/MB your website or CMS requires.</span>
+                        </span>
+                    </a>
+                    <a href="{{ route('convert-webp') }}" class="group flex items-start gap-4 py-5 transition hover:bg-zinc-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:px-6 dark:hover:bg-zinc-900/60">
+                        <x-icon name="file" class="mt-0.5 size-5 shrink-0 text-blue-700 dark:text-blue-400" />
+                        <span class="flex flex-col gap-0.5">
+                            <span class="font-semibold">Convert an image to WebP</span>
+                            <span class="text-sm text-zinc-600 dark:text-zinc-400">A modern format commonly used on websites.</span>
+                        </span>
+                    </a>
+                </div>
+            </section>
+
+            <section aria-labelledby="trust-title" class="grid gap-4 rounded-xl bg-blue-50 p-6 sm:grid-cols-[auto_1fr] sm:items-start sm:gap-6 dark:bg-blue-950/30">
+                <p id="trust-title" class="text-lg font-semibold tracking-tight text-zinc-950 sm:pt-0.5 dark:text-zinc-100">Your files stay with you</p>
+                <div class="flex flex-col gap-2 text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
+                    <p>
+                        FileSetGo prepares supported files in your browser. Your source image is not uploaded to a
+                        FileSetGo processing server. Some file types, like HEIC, are decoded using FileSetGo's own
+                        browser processing resources, including a same-origin decoder. That's a normal part of loading
+                        the site, separate from your image itself.
+                    </p>
+                    <p>
+                        Read more on the <a href="{{ route('privacy') }}" class="font-medium text-blue-700 underline dark:text-blue-400">Privacy</a> page.
+                    </p>
+                </div>
+            </section>
+        </div>
+@endsection

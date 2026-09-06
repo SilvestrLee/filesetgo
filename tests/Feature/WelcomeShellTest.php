@@ -45,14 +45,24 @@ class WelcomeShellTest extends TestCase
      * FileSetGo processes images locally in the browser — no upload or
      * conversion endpoint may exist on the server (FSG-003 directive §31/§68 item 24;
      * FSG-004 directive §54 confirms this still holds after Guided Fit).
+     *
+     * FSG-007 added a curated, GET-only `/convert-image-to-webp` content
+     * page (directive §6.G) whose URI contains "convert", so a route only
+     * counts as "suspicious" here if it accepts a verb beyond GET/HEAD —
+     * i.e. it could actually receive an upload, not just render static
+     * marketing copy that links into the existing, already-local tool.
      */
     public function test_no_upload_or_conversion_route_exists(): void
     {
-        $paths = collect(Route::getRoutes())->map(fn ($route) => $route->uri());
+        $suspicious = collect(Route::getRoutes())->first(function ($route) {
+            if (preg_match('/upload|convert|process/i', $route->uri()) !== 1) {
+                return false;
+            }
 
-        $suspicious = $paths->first(fn (string $uri) => preg_match('/upload|convert|process/i', $uri) === 1);
+            return array_diff($route->methods(), ['GET', 'HEAD']) !== [];
+        });
 
-        $this->assertNull($suspicious, "Found an unexpected upload/conversion route: {$suspicious}");
+        $this->assertNull($suspicious, 'Found an unexpected upload/conversion route: '.($suspicious?->uri() ?? ''));
     }
 
     /**
@@ -104,13 +114,23 @@ class WelcomeShellTest extends TestCase
      * No ZIP endpoint, favicon-generation endpoint, or Logo Pack upload
      * route exists — packaging remains entirely local to the browser
      * (FSG-005B directive §35/§64/§70).
+     *
+     * FSG-007 added a curated, GET-only `/favicon-generator` content page
+     * (directive §6.D) whose URI happens to contain "favicon", so a route
+     * only counts as "suspicious" here if it accepts a verb beyond GET/HEAD
+     * — i.e. it could actually receive an upload, not just render static
+     * marketing copy that links into the existing, already-local tool.
      */
     public function test_no_zip_or_favicon_generation_route_exists(): void
     {
-        $paths = collect(Route::getRoutes())->map(fn ($route) => $route->uri());
+        $suspicious = collect(Route::getRoutes())->first(function ($route) {
+            if (preg_match('/zip|favicon|logo-pack|package/i', $route->uri()) !== 1) {
+                return false;
+            }
 
-        $suspicious = $paths->first(fn (string $uri) => preg_match('/zip|favicon|logo-pack|package/i', $uri) === 1);
+            return array_diff($route->methods(), ['GET', 'HEAD']) !== [];
+        });
 
-        $this->assertNull($suspicious, "Found an unexpected packaging route: {$suspicious}");
+        $this->assertNull($suspicious, 'Found an unexpected packaging route: '.($suspicious?->uri() ?? ''));
     }
 }
