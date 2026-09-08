@@ -13,23 +13,23 @@
 @extends('layouts.public')
 
 @section('content')
-    <div class="mx-auto flex max-w-2xl flex-col gap-10 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+    <article class="fsg-prose-shell fsg-legal">
         @include('partials.breadcrumb', ['crumbs' => [
             ['label' => 'Home', 'href' => route('home')],
             ['label' => 'Privacy', 'href' => null],
         ]])
 
-        <section class="flex flex-col gap-4">
-            <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">Privacy</h1>
-            <p class="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+        <header class="fsg-legal__header">
+            <h1>Privacy</h1>
+            <p class="fsg-text-muted mt-5 max-w-[58ch] text-base leading-relaxed">
                 This page describes how FileSetGo actually works today, not a generic privacy template. It separates two
                 different things: your image, and ordinary web request data.
             </p>
-        </section>
+        </header>
 
-        <section aria-labelledby="image-title" class="flex flex-col gap-3">
-            <h2 id="image-title" class="text-xl font-semibold tracking-tight">Your image</h2>
-            <ul class="flex flex-col gap-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+        <section aria-labelledby="image-title">
+            <h2 id="image-title">Your image</h2>
+            <ul class="flex list-disc flex-col gap-3 pl-5 text-sm">
                 <li>Supported image processing (resizing, format conversion, target file size, and Website Logo Pack preparation) happens locally in your browser.</li>
                 <li>Your source image is not uploaded to FileSetGo for this processing.</li>
                 <li>Generated files (your ready-to-use image, or your logo pack ZIP) are produced locally and offered to you as a browser download; FileSetGo does not keep a copy.</li>
@@ -39,24 +39,25 @@
             </ul>
         </section>
 
-        <section aria-labelledby="requests-title" class="flex flex-col gap-3">
-            <h2 id="requests-title" class="text-xl font-semibold tracking-tight">Ordinary web request data</h2>
-            <p class="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+        <section aria-labelledby="requests-title">
+            <h2 id="requests-title">Ordinary web request data</h2>
+            <p class="text-sm">
                 Like any website, FileSetGo's web server may keep ordinary request logs (for example, the page requested
-                and a timestamp) as part of normal web hosting operation. The site also sets a basic session cookie
-                needed for the site to function correctly. This is not used for tracking or advertising.
+                and a timestamp) as part of normal web hosting operation. The site sets a basic session cookie needed
+                for the site to function correctly and a one-year color-theme preference cookie when you choose
+                System, Light or Dark. Neither is used for tracking or advertising.
             </p>
-            <p class="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            <p class="mt-4 text-sm">
                 This is separate from your image, described above, which is not uploaded for processing.
             </p>
         </section>
 
-        <section aria-labelledby="scope-title" class="flex flex-col gap-3">
-            <h2 id="scope-title" class="text-xl font-semibold tracking-tight">What this page doesn't cover</h2>
-            <p class="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+        <section aria-labelledby="scope-title">
+            <h2 id="scope-title">What this page doesn't cover</h2>
+            <p class="text-sm">
                 FileSetGo does not currently run analytics or advertising tracking. If that changes, this page will be
                 updated to reflect it truthfully before it happens.
             </p>
         </section>
-    </div>
+    </article>
 @endsection

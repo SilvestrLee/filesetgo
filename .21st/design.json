@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "project": {
+    "name": "filesetgo",
+    "productType": "browser-local file preparation utility",
+    "stack": [
+      "tailwind-v4",
+      "vite"
+    ]
+  },
+  "sources": {
+    "tokens": [],
+    "components": [],
+    "assets": [],
+    "instructions": [
+      "AGENTS.md",
+      "CLAUDE.md"
+    ]
+  },
+  "design": {
+    "colorMode": "system light and dark",
+    "colors": {
+      "background": "#f3f4ef",
+      "surface": "#fbfcf8",
+      "foreground": "#171916",
+      "muted": "#61665d",
+      "accent": "#f05a3c"
+    },
+    "typography": {
+      "sans": "Instrument Sans",
+      "metadata": "ui-monospace"
+    },
+    "spacing": {
+      "scale": [4, 8, 12, 16, 24, 32, 48, 72, 96]
+    },
+    "radius": {
+      "control": 10,
+      "object": 18
+    },
+    "shadows": {
+      "policy": "one restrained tinted lift for file and result objects only"
+    },
+    "motion": {
+      "duration": "140-220ms",
+      "policy": "state feedback only, reduced-motion safe"
+    },
+    "density": "moderate utility"
+  },
+  "components": {
+    "installed": [],
+    "preferredPrimitives": [
+      "native details and summary",
+      "semantic tabs",
+      "native file input",
+      "Blade partials"
+    ],
+    "patterns": [
+      "staged workbench",
+      "file object",
+      "editorial task index"
+    ]
+  },
+  "constraints": {
+    "must": [
+      "keep the live tool above the fold",
+      "preserve certified processing and SEO contracts",
+      "work at 320px",
+      "keep controls keyboard accessible",
+      "use no new runtime dependencies"
+    ],
+    "avoid": [
+      "generic SaaS card grids",
+      "decorative gradients or glass",
+      "React or shadcn installation",
+      "fake output metrics",
+      "upload-server language"
+    ]
+  },
+  "decisions": [
+    {
+      "name": "FSG-007D direction",
+      "value": "The Staged Workbench",
+      "reason": "Makes FILE, SET, and GO the structure of the real product while preserving immediate utility."
+    },
+    {
+      "name": "21st inspiration",
+      "value": "adapt concepts only",
+      "reason": "Catalog patterns were useful, but their React dependencies and generic card treatment conflict with project governance."
+    }
+  ],
+  "evidence": [
+    {
+      "fact": "project.instructions",
+      "source": "AGENTS.md"
+    },
+    {
+      "fact": "project.instructions",
+      "source": "CLAUDE.md"
+    },
+    {
+      "fact": "project.stack:tailwind-v4",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:vite",
+      "source": "package.json"
+    }
+  ],
+  "generatedAt": "2026-09-08T14:57:27.545Z"
+}

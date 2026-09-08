@@ -9,12 +9,12 @@ import { gotoApp, selectMode } from '../helpers/app';
  */
 
 const ACQUISITION_PAGES: Array<{ path: string; heading: string; cta: string; mode: 'quick-fit' | 'guided-fit' | 'logo-pack' }> = [
-  { path: '/prepare-logo-for-website', heading: 'Prepare your logo for your website', cta: 'Prepare my logo', mode: 'logo-pack' },
-  { path: '/transparent-logo-for-website', heading: 'Get a transparent logo for your website', cta: 'Prepare a transparent logo', mode: 'logo-pack' },
-  { path: '/favicon-generator', heading: 'Create a favicon for your website', cta: 'Create my website logo pack', mode: 'logo-pack' },
-  { path: '/website-image-optimizer', heading: 'Optimize an image for your website', cta: 'Optimize my website image', mode: 'guided-fit' },
-  { path: '/compress-image-for-website', heading: 'Compress an image for your website', cta: 'Reduce my image size', mode: 'quick-fit' },
-  { path: '/convert-image-to-webp', heading: 'Convert an image to WebP', cta: 'Convert my image to WebP', mode: 'quick-fit' },
+  { path: '/prepare-logo-for-website', heading: 'One logo. Seven ready files.', cta: 'Prepare my logo', mode: 'logo-pack' },
+  { path: '/transparent-logo-for-website', heading: 'A logo that belongs on any background.', cta: 'Prepare a transparent logo', mode: 'logo-pack' },
+  { path: '/favicon-generator', heading: 'Give the browser tab an identity.', cta: 'Create my website logo pack', mode: 'logo-pack' },
+  { path: '/website-image-optimizer', heading: 'Fit the image to its place.', cta: 'Optimize my website image', mode: 'guided-fit' },
+  { path: '/compress-image-for-website', heading: 'Meet the file-size limit.', cta: 'Reduce my image size', mode: 'quick-fit' },
+  { path: '/convert-image-to-webp', heading: 'Turn it into WebP.', cta: 'Convert my image to WebP', mode: 'quick-fit' },
 ];
 
 async function assertNoHorizontalOverflow(page: import('@playwright/test').Page): Promise<void> {
@@ -37,6 +37,40 @@ test.describe('Homepage (public surface)', () => {
 
     await selectMode(page, 'quick-fit');
     await expect(page.locator('#mode-tab-quick-fit')).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+test.describe('Theme preference', () => {
+  test('follows the system initially and persists an explicit choice across reloads and navigation', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/');
+
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'system');
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(23, 25, 22)');
+
+    const themeControl = page.locator('.fsg-theme > summary');
+    await themeControl.focus();
+    await expect(themeControl).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.fsg-theme')).toHaveAttribute('open', '');
+
+    await page.getByRole('button', { name: /Light Always light/ }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(243, 244, 239)');
+    expect(await page.evaluate(() => window.localStorage.getItem('filesetgo-theme'))).toBe('light');
+
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await page.goto('/compress-image-for-website');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+    await page.locator('.fsg-theme > summary').click();
+    await page.getByRole('button', { name: /Dark Always dark/ }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(23, 25, 22)');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(23, 25, 22)');
+    await expect(page.locator('.fsg-task-visual')).toHaveCSS('background-color', 'rgb(39, 42, 37)');
   });
 });
 
@@ -98,6 +132,6 @@ test.describe('404 surface', () => {
     const response = await page.goto('/this-page-does-not-exist');
 
     expect(response?.status()).toBe(404);
-    await expect(page.getByRole('link', { name: 'Go to File. Set. Go.' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Go to FileSetGo' })).toBeVisible();
   });
 });

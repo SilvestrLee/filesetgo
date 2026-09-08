@@ -31,6 +31,7 @@ const sourceInput = requireElement<HTMLInputElement>('#source-file');
 const dropZone = requireElement<HTMLElement>('#drop-zone');
 const dropZoneLabel = requireElement<HTMLElement>('#drop-zone-label');
 const sourcePanel = requireElement<HTMLElement>('#source-panel');
+const sourceName = requireElement<HTMLElement>('#source-name');
 const sourceFormat = requireElement<HTMLElement>('#source-format');
 const sourceDimensions = requireElement<HTMLElement>('#source-dimensions');
 const sourceSize = requireElement<HTMLElement>('#source-size');
@@ -101,6 +102,7 @@ const statusAnnouncer = requireElement<HTMLElement>('#status-announcer');
 const resultEmpty = requireElement<HTMLElement>('#result-empty');
 const resultContent = requireElement<HTMLElement>('#result-content');
 const resultHeadline = requireElement<HTMLElement>('#result-headline');
+const resultFilename = requireElement<HTMLElement>('#result-filename');
 const resultPreparedFor = requireElement<HTMLElement>('#result-prepared-for');
 const resultPreparedForValue = requireElement<HTMLElement>('#result-prepared-for-value');
 const resultDetail = requireElement<HTMLElement>('#result-detail');
@@ -632,12 +634,14 @@ function render(state: QuickFitState): void {
 
     case 'inspecting':
       dropZoneLabel.textContent = state.file.name;
+      sourceName.textContent = state.file.name;
       sourceSummary.classList.add('hidden');
       setStatus('Checking file...', 'inspecting');
       break;
 
     case 'file-rejected':
       dropZoneLabel.textContent = state.file.name;
+      sourceName.textContent = state.file.name;
       sourceSummary.classList.add('hidden');
       sourceRejectedMessage.textContent = state.message;
       sourceRejectedMessage.classList.remove('hidden');
@@ -653,6 +657,7 @@ function render(state: QuickFitState): void {
     case 'cancelled': {
       const source = state.status === 'success' ? state.result.source : state.source;
       dropZoneLabel.textContent = source.file.name;
+      sourceName.textContent = source.file.name;
       sourceFormat.textContent = source.preflight.format.toUpperCase();
       sourceDimensions.textContent = `${source.preflight.width} × ${source.preflight.height}`;
       sourceSize.textContent = formatBytes(source.preflight.fileSize);
@@ -671,6 +676,7 @@ function render(state: QuickFitState): void {
       } else if (state.status === 'success') {
         const summary = buildSuccessSummary(source.preflight, state.result.data);
         resultHeadline.textContent = summary.headline;
+        resultFilename.textContent = state.result.filename;
         resultDetail.textContent = summary.reductionLabel === undefined
           ? summary.detail
           : `${summary.detail} ${summary.reductionLabel}.`;

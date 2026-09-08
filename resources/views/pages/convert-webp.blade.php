@@ -24,31 +24,33 @@
 @extends('layouts.public')
 
 @section('content')
-    <div class="mx-auto flex max-w-3xl flex-col gap-14 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+    <div class="fsg-content-shell fsg-task-page fsg-task-page--webp">
         @include('partials.breadcrumb', ['crumbs' => [
             ['label' => 'Home', 'href' => route('home')],
             ['label' => 'Convert image to WebP', 'href' => null],
         ]])
 
-        <section class="grid gap-8 sm:grid-cols-[1.3fr_1fr] sm:items-center">
-            <div class="flex flex-col gap-4">
-                <h1 class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">Convert an image to WebP</h1>
-                <p class="max-w-[48ch] text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
-                    A modern format commonly used on websites. Converted locally, in your browser.
-                </p>
-                <a href="{{ route('home', ['mode' => 'quick-fit']) }}" class="inline-flex min-h-11 w-fit items-center gap-2 whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:focus:ring-offset-zinc-950">
+        <section class="fsg-task-page__hero">
+            <div class="fsg-task-page__copy">
+                <h1>Turn it into WebP.</h1>
+                <p>Convert JPEG, PNG or HEIC into a modern website format, locally in your browser.</p>
+                <a href="{{ route('home', ['mode' => 'quick-fit']) }}" class="fsg-primary-action">
                     Convert my image to WebP
                     <x-icon name="arrow-right" class="size-4" />
                 </a>
             </div>
-            <div class="flex items-center justify-center gap-3" aria-hidden="true">
-                <div class="flex flex-col gap-1.5">
-                    <span class="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">JPEG</span>
-                    <span class="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">PNG</span>
-                    <span class="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">HEIC</span>
+            <div class="fsg-task-visual fsg-format-visual" aria-hidden="true">
+                <div class="fsg-format-visual__sources">
+                    <span>JPEG</span>
+                    <span>PNG</span>
+                    <span>HEIC</span>
                 </div>
-                <x-icon name="arrow-right" class="size-5 shrink-0 text-zinc-400" />
-                <span class="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white">WebP</span>
+                <x-icon name="arrow-right" class="size-6 shrink-0" />
+                <div class="fsg-format-visual__result">
+                    <span>READY FORMAT</span>
+                    <strong>WebP</strong>
+                    <small>Example conversion</small>
+                </div>
             </div>
         </section>
 

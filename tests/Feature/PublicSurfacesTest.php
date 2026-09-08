@@ -247,6 +247,77 @@ class PublicSurfacesTest extends TestCase
         }
     }
 
+    public function test_public_shell_exposes_system_light_and_dark_theme_preferences(): void
+    {
+        $this->get(route('home'))
+            ->assertSee('data-theme="system"', false)
+            ->assertSee('data-theme-choice="system"', false)
+            ->assertSee('data-theme-choice="light"', false)
+            ->assertSee('data-theme-choice="dark"', false);
+
+        $this->withUnencryptedCookie('fsg_theme', 'dark')
+            ->get(route('privacy'))
+            ->assertSee('data-theme="dark"', false);
+
+        $this->withUnencryptedCookie('fsg_theme', 'not-a-theme')
+            ->get(route('terms'))
+            ->assertSee('data-theme="system"', false);
+    }
+
+    public function test_footer_presents_the_product_family_without_dead_links(): void
+    {
+        $html = $this->get(route('home'))->getContent();
+
+        foreach (['File. Set. Go.', 'Site. Set. Go.', 'Brand. Set. Go.', 'Shop. Set. Go.'] as $name) {
+            $this->assertStringContainsString($name, $html);
+        }
+
+        preg_match('/<footer.*?<\/footer>/s', $html, $footer);
+        $this->assertSame(3, substr_count($footer[0] ?? '', 'Coming soon'));
+        $this->assertMatchesRegularExpression('/<span class="fsg-footer__product-name">Site\. Set\. Go\.<\/span>/', $html);
+        $this->assertMatchesRegularExpression('/<span class="fsg-footer__product-name">Brand\. Set\. Go\.<\/span>/', $html);
+        $this->assertMatchesRegularExpression('/<span class="fsg-footer__product-name">Shop\. Set\. Go\.<\/span>/', $html);
+    }
+
+    public function test_a_configured_sister_product_becomes_a_real_link(): void
+    {
+        config()->set('product-family.products.site.url', 'https://sitesetgo.example/products');
+
+        $this->get(route('home'))
+            ->assertSee('<a href="https://sitesetgo.example/products">Site. Set. Go.</a>', false)
+            ->assertSee('Available now');
+    }
+
+    public function test_an_unsafe_sister_product_url_remains_unavailable(): void
+    {
+        config()->set('product-family.products.brand.url', 'javascript:alert(1)');
+
+        $this->get(route('home'))
+            ->assertDontSee('href="javascript:alert(1)"', false)
+            ->assertSee('Brand. Set. Go.')
+            ->assertSee('Coming soon');
+    }
+
+    public function test_contextual_product_discovery_is_part_of_success_states_only(): void
+    {
+        $html = $this->get(route('home'))->getContent();
+
+        $this->assertStringContainsString('id="result-content" class="hidden', $html);
+        $this->assertStringContainsString('Want to know whether the rest of your website is ready?', $html);
+        $this->assertStringContainsString('id="logo-pack-result" class="hidden', $html);
+        $this->assertStringContainsString('Building out the rest of your brand assets?', $html);
+        $this->assertStringNotContainsString('Preparing an online store?', $html);
+    }
+
+    public function test_public_pages_do_not_require_inline_style_attributes(): void
+    {
+        foreach (self::indexableRoutes() as $name) {
+            $this->get(route($name))->assertDontSee(' style=', false);
+        }
+
+        $this->get('/missing-page')->assertDontSee(' style=', false);
+    }
+
     public function test_deep_link_mode_query_parameter_does_not_change_the_canonical_url(): void
     {
         $response = $this->get(route('home', ['mode' => 'logo-pack']));

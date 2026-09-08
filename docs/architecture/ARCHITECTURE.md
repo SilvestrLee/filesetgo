@@ -69,6 +69,10 @@ FSG-003 is the first realized implementation of this layer: the Quick Fit workfl
 
 FSG-004 adds Guided Fit (`resources/js/presets/`) as a second way to arrive at the same requirement shape, not a second processing path. A preset compiler (`compilePreset()`) converts a destination/use-case preset directly into the identical `QuickFitRequirements` shape Quick Fit's own form produces; `GuidedFitController` composes the existing, unmodified `QuickFitWorkflow` (`resources/js/quick-fit/workflow.ts`) by calling its public API, the same way the Quick Fit form's controller does. Destination/product knowledge (preset catalog, categories, provenance) stays entirely in `resources/js/presets/` — `@filesetgo/core` and `QuickFitWorkflow` remain destination-neutral and were not modified.
 
+The FSG-007 public shell keeps presentation concerns outside the processing engine. Theme tokens live in `resources/css/app.css`; the small shared `resources/js/theme.ts` entry is loaded independently of the homepage-only processing entry. First-visit `system` appearance is CSS-driven, while an explicit theme is mirrored to local storage and the allow-listed `fsg_theme` cookie. Laravel validates that cookie to `system|light|dark` before rendering the root attribute, so return visits and navigation start in the chosen theme without an inline bootstrap script or a CSP exception.
+
+Set. Go. family metadata is centralized in `config/product-family.php` and normalized by `App\Support\ProductFamily`. Optional sister-product destinations come from deployment configuration; malformed or absent URLs remain non-interactive `Coming soon` entries. The shared `related-product` Blade component checks a product's governed contexts before rendering, and is mounted only inside existing successful-result containers. Product-family presentation therefore does not create a new processing path or interrupt the current FileSetGo task.
+
 ## Core-package Responsibility
 
 `@filesetgo/core` owns:

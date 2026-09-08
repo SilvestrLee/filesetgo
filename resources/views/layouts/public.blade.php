@@ -1,5 +1,9 @@
+@php
+    $requestedTheme = request()->cookie('fsg_theme');
+    $themePreference = in_array($requestedTheme, ['system', 'light', 'dark'], true) ? $requestedTheme : 'system';
+@endphp
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="{{ $themePreference }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -32,11 +36,11 @@
             <script type="application/ld+json">{!! json_encode($structuredData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
         @endisset
 
-        @vite(['resources/css/app.css'])
+        @vite(['resources/css/app.css', 'resources/js/theme.ts'])
         @stack('head')
     </head>
-    <body class="min-h-[100dvh] bg-zinc-50 text-zinc-950 antialiased dark:bg-zinc-950 dark:text-zinc-100">
-        <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-blue-700 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to content</a>
+    <body class="fsg-site antialiased">
+        <a href="#main-content" class="fsg-skip-link">Skip to content</a>
 
         @include('partials.nav')
 

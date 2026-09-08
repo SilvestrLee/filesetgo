@@ -19,32 +19,35 @@
 @endpush
 
 @section('content')
-        <div class="mx-auto flex max-w-6xl flex-col gap-16 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
-            <section class="flex flex-col gap-3 text-center sm:text-left">
-                <p class="text-sm font-semibold text-blue-700 dark:text-blue-400">File. Set. Go.</p>
-                <h1 class="max-w-2xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-                    Get your file ready for where it needs to go.
-                </h1>
-                <p class="max-w-[60ch] text-base leading-relaxed text-zinc-600 dark:text-zinc-400 sm:mx-0 mx-auto">
-                    Resize, convert or fit an image under a file-size limit, right in your browser.
-                </p>
-                <div class="mt-1 flex items-center justify-center gap-2 text-sm font-medium text-zinc-500 sm:justify-start dark:text-zinc-400" aria-hidden="true">
-                    <span>Your file</span>
-                    <x-icon name="arrow-right" class="size-4 text-zinc-400 dark:text-zinc-600" />
-                    <span class="text-zinc-950 dark:text-zinc-100">FileSetGo</span>
-                    <x-icon name="arrow-right" class="size-4 text-zinc-400 dark:text-zinc-600" />
-                    <span>Ready for your website</span>
+        <div>
+            <section class="fsg-shell fsg-hero">
+                <div>
+                    <p class="fsg-hero__brand">File. Set. Go.</p>
+                    <h1>Get your file ready for where it needs to go.</h1>
+                </div>
+                <div class="fsg-hero__aside">
+                    <p>Choose an image. Tell us what it needs to become. Download the ready file.</p>
+                    <div class="fsg-hero__proof">Prepared in your browser</div>
                 </div>
             </section>
 
-            <section id="quick-fit" class="scroll-mt-20" aria-labelledby="quick-fit-title">
+            <section id="quick-fit" class="fsg-shell fsg-workspace scroll-mt-20" aria-labelledby="quick-fit-title">
                 <h2 id="quick-fit-title" class="sr-only">Quick Fit and Guided Fit</h2>
 
                 <div id="runtime-unsupported" class="hidden rounded-xl border border-amber-300 bg-amber-50 p-5 text-sm font-medium text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200" role="alert"></div>
 
+                <div class="fsg-workspace__topline" aria-hidden="true">
+                    <span>INPUT FILE / REQUIREMENTS / READY FILE</span>
+                    <span class="fsg-workspace__state">Browser-local workspace</span>
+                </div>
+
                 <div id="quick-fit-app" class="grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)]">
-                    <div class="flex flex-col gap-6">
-                        <div role="tablist" aria-label="How would you like to prepare your file?" class="inline-flex w-fit gap-1 rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-800 dark:bg-zinc-900">
+                    <div class="fsg-workflow flex flex-col gap-6">
+                        <div class="fsg-set-stage fsg-stage-label" aria-hidden="true">
+                            <span class="fsg-stage-label__word">SET</span>
+                            <span class="fsg-stage-label__instruction">Choose how to prepare it</span>
+                        </div>
+                        <div role="tablist" aria-label="How would you like to prepare your file?" class="fsg-mode-tabs inline-flex w-fit gap-1 rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-800 dark:bg-zinc-900">
                             <button
                                 id="mode-tab-quick-fit"
                                 type="button"
@@ -72,9 +75,13 @@
                                 class="min-h-11 rounded-lg px-4 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
                             >Logo Pack</button>
                         </div>
-                        <p id="mode-description" class="-mt-4 text-sm text-zinc-500 dark:text-zinc-400">Enter the requirement yourself.</p>
+                        <p id="mode-description" class="fsg-mode-description -mt-4 text-sm text-zinc-500 dark:text-zinc-400">Enter the requirement yourself.</p>
 
-                        <div>
+                        <div class="fsg-source-stage">
+                            <div class="fsg-stage-label" aria-hidden="true">
+                                <span class="fsg-stage-label__word">FILE</span>
+                                <span class="fsg-stage-label__instruction">Choose your source image</span>
+                            </div>
                             <input id="source-file" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" class="sr-only">
                             <div
                                 id="drop-zone"
@@ -84,15 +91,16 @@
                                 class="flex min-h-48 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 bg-white p-8 text-center transition hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:ring-offset-zinc-950"
                             >
                                 <p id="drop-zone-label" class="text-base font-semibold">Drop an image here, or choose a file</p>
-                                <p id="drop-zone-help" class="text-sm text-zinc-500 dark:text-zinc-400">JPEG, PNG, WebP or HEIC · up to 15 MB</p>
+                                <p id="drop-zone-help" class="text-sm text-zinc-500 dark:text-zinc-400">JPEG, PNG, WebP or HEIC. Up to 15 MB.</p>
                             </div>
                         </div>
 
                         <div id="source-panel" class="hidden rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                            <p class="mb-4 text-sm font-semibold" id="source-name"></p>
                             <div id="source-summary" class="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-3">
-                                <div><p class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Format</p><p id="source-format" class="mt-1 font-semibold">—</p></div>
-                                <div><p class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Dimensions</p><p id="source-dimensions" class="mt-1 font-semibold">—</p></div>
-                                <div><p class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Size</p><p id="source-size" class="mt-1 font-semibold">—</p></div>
+                                <div><p class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Format</p><p id="source-format" class="mt-1 font-semibold">-</p></div>
+                                <div><p class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Dimensions</p><p id="source-dimensions" class="mt-1 font-semibold">-</p></div>
+                                <div><p class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Size</p><p id="source-size" class="mt-1 font-semibold">-</p></div>
                             </div>
                             <p id="source-rejected-message" class="hidden mt-3 text-sm font-medium text-red-700 dark:text-red-400"></p>
                         </div>
@@ -279,10 +287,15 @@
                                 <p class="text-lg font-semibold">Your logo pack is ready.</p>
                                 <a id="logo-pack-download-zip" href="#" class="min-h-11 w-fit whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:focus:ring-offset-zinc-950" download>Download logo pack</a>
                                 <ul id="logo-pack-assets" class="flex flex-col gap-3"></ul>
+                                <x-related-product
+                                    product-key="brand"
+                                    context="logo-pack"
+                                    prompt="Building out the rest of your brand assets?"
+                                />
                             </div>
                         </div>
 
-                        <div class="flex flex-wrap items-center gap-3">
+                        <div class="fsg-workflow-actions flex flex-wrap items-center gap-3">
                             <button id="cancel-button" type="button" class="hidden min-h-11 whitespace-nowrap rounded-xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 dark:focus:ring-offset-zinc-950">Cancel</button>
                             <button id="reset-button" type="button" class="hidden min-h-11 whitespace-nowrap rounded-xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 dark:focus:ring-offset-zinc-950">Start again</button>
                         </div>
@@ -291,14 +304,19 @@
                         <p id="status-announcer" class="sr-only" aria-live="polite"></p>
                     </div>
 
-                    <aside class="flex flex-col gap-6" aria-labelledby="result-title">
-                        <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-                            <div class="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800"><h2 id="result-title" class="font-semibold">Ready file</h2></div>
+                    <aside class="fsg-result-stage flex flex-col gap-6" aria-labelledby="result-title">
+                        <div class="fsg-stage-label" aria-hidden="true">
+                            <span class="fsg-stage-label__word">GO</span>
+                            <span class="fsg-stage-label__instruction">Download the prepared result</span>
+                        </div>
+                        <div class="fsg-result-object overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                            <header class="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800"><h2 id="result-title" class="font-semibold">Ready file</h2></header>
 
                             <div id="result-empty" class="flex min-h-72 items-center justify-center p-8 text-center text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">Your ready-to-use file will appear here.</div>
 
                             <div id="result-content" class="hidden flex-col gap-5 p-5">
                                 <p id="result-headline" class="text-lg font-semibold">Your file is ready.</p>
+                                <p id="result-filename" class="font-mono text-sm font-semibold"></p>
                                 <p id="result-prepared-for" class="hidden text-sm font-medium text-blue-700 dark:text-blue-400">Prepared for: <span id="result-prepared-for-value"></span></p>
                                 <p id="result-detail" class="text-sm text-zinc-600 dark:text-zinc-400"></p>
                                 <div class="grid grid-cols-3 gap-4 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-950">
@@ -307,6 +325,11 @@
                                     <div><p class="text-xs text-zinc-500 dark:text-zinc-400">Size</p><p id="result-size" class="mt-1 text-sm font-semibold"></p></div>
                                 </div>
                                 <a id="download-link" class="min-h-11 w-fit whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:focus:ring-offset-zinc-900" href="#" download>Download ready file</a>
+                                <x-related-product
+                                    product-key="site"
+                                    context="quick-fit"
+                                    prompt="Want to know whether the rest of your website is ready?"
+                                />
                             </div>
 
                             <div id="result-unreachable" class="hidden flex-col gap-4 p-5" role="alert">
@@ -322,92 +345,64 @@
                             </div>
                         </div>
 
-                        <div class="rounded-xl border border-zinc-200 bg-white p-5 text-sm leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-                            <h2 class="font-semibold text-zinc-950 dark:text-zinc-100">Your privacy</h2>
-                            <p class="mt-2">Your image stays on your device while FileSetGo prepares it. It isn't uploaded to FileSetGo.</p>
+                        <div class="fsg-workspace__privacy text-sm leading-relaxed">
+                            <span class="fsg-workspace__privacy-mark" aria-hidden="true">✓</span>
+                            <div>
+                                <h2 class="font-semibold">Your image is processed here</h2>
+                                <p class="mt-1">The image itself is not uploaded to FileSetGo for processing.</p>
+                            </div>
                         </div>
                     </aside>
                 </div>
             </section>
 
-            <section id="how-it-works" class="scroll-mt-20" aria-labelledby="how-it-works-title">
-                <h2 id="how-it-works-title" class="text-2xl font-semibold tracking-tight">How it works</h2>
-                <ol class="mt-8 grid gap-8 sm:grid-cols-3 sm:gap-6">
-                    <li class="relative flex flex-col gap-1 border-l-2 border-blue-700 pl-4 sm:border-l-0 sm:border-t-2 sm:pl-0 sm:pt-4">
-                        <p class="text-xs font-bold tracking-[0.14em] text-blue-700 uppercase dark:text-blue-400">File</p>
-                        <p class="text-sm text-zinc-600 dark:text-zinc-400">Choose your image.</p>
-                    </li>
-                    <li class="relative flex flex-col gap-1 border-l-2 border-blue-700 pl-4 sm:border-l-0 sm:border-t-2 sm:pl-0 sm:pt-4">
-                        <p class="text-xs font-bold tracking-[0.14em] text-blue-700 uppercase dark:text-blue-400">Set</p>
-                        <p class="text-sm text-zinc-600 dark:text-zinc-400">Set the requirement, or choose what it's for.</p>
-                    </li>
-                    <li class="relative flex flex-col gap-1 border-l-2 border-blue-700 pl-4 sm:border-l-0 sm:border-t-2 sm:pl-0 sm:pt-4">
-                        <p class="text-xs font-bold tracking-[0.14em] text-blue-700 uppercase dark:text-blue-400">Go</p>
-                        <p class="text-sm text-zinc-600 dark:text-zinc-400">Download the ready file.</p>
-                    </li>
-                </ol>
-            </section>
-
-            <section aria-labelledby="use-cases-title" class="flex flex-col gap-6">
-                <h2 id="use-cases-title" class="text-2xl font-semibold tracking-tight">What can I use it for?</h2>
-                <div class="grid divide-y divide-zinc-200 border-y border-zinc-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0 dark:divide-zinc-800 dark:border-zinc-800">
-                    <a href="{{ route('prepare-logo') }}" class="group flex items-start gap-4 py-5 transition hover:bg-zinc-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:px-6 dark:hover:bg-zinc-900/60">
-                        <x-icon name="image" class="mt-0.5 size-5 shrink-0 text-blue-700 dark:text-blue-400" />
-                        <span class="flex flex-col gap-0.5">
-                            <span class="font-semibold">Prepare a website logo</span>
-                            <span class="text-sm text-zinc-600 dark:text-zinc-400">Header logo, favicon and app icons in one download.</span>
-                        </span>
-                    </a>
-                    <a href="{{ route('transparent-logo') }}" class="group flex items-start gap-4 py-5 transition hover:bg-zinc-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:px-6 dark:hover:bg-zinc-900/60">
-                        <x-icon name="transparent" class="mt-0.5 size-5 shrink-0 text-blue-700 dark:text-blue-400" />
-                        <span class="flex flex-col gap-0.5">
-                            <span class="font-semibold">Make a transparent logo</span>
-                            <span class="text-sm text-zinc-600 dark:text-zinc-400">Verified transparency, previewed on light and dark.</span>
-                        </span>
-                    </a>
-                    <a href="{{ route('favicon-generator') }}" class="group flex items-start gap-4 py-5 transition hover:bg-zinc-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:px-6 dark:hover:bg-zinc-900/60">
-                        <x-icon name="favicon" class="mt-0.5 size-5 shrink-0 text-blue-700 dark:text-blue-400" />
-                        <span class="flex flex-col gap-0.5">
-                            <span class="font-semibold">Create favicon files</span>
-                            <span class="text-sm text-zinc-600 dark:text-zinc-400">Included as part of the Website Logo Pack.</span>
-                        </span>
-                    </a>
-                    <a href="{{ route('website-image-optimizer') }}" class="group flex items-start gap-4 py-5 transition hover:bg-zinc-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:px-6 dark:hover:bg-zinc-900/60">
-                        <x-icon name="target" class="mt-0.5 size-5 shrink-0 text-blue-700 dark:text-blue-400" />
-                        <span class="flex flex-col gap-0.5">
-                            <span class="font-semibold">Optimize a website image</span>
-                            <span class="text-sm text-zinc-600 dark:text-zinc-400">Sensible dimensions and size for hero, content or card images.</span>
-                        </span>
-                    </a>
-                    <a href="{{ route('compress-image') }}" class="group flex items-start gap-4 py-5 transition hover:bg-zinc-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:px-6 dark:hover:bg-zinc-900/60">
-                        <x-icon name="download" class="mt-0.5 size-5 shrink-0 text-blue-700 dark:text-blue-400" />
-                        <span class="flex flex-col gap-0.5">
-                            <span class="font-semibold">Reduce an image to an upload limit</span>
-                            <span class="text-sm text-zinc-600 dark:text-zinc-400">Enter the KB/MB your website or CMS requires.</span>
-                        </span>
-                    </a>
-                    <a href="{{ route('convert-webp') }}" class="group flex items-start gap-4 py-5 transition hover:bg-zinc-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 sm:px-6 dark:hover:bg-zinc-900/60">
-                        <x-icon name="file" class="mt-0.5 size-5 shrink-0 text-blue-700 dark:text-blue-400" />
-                        <span class="flex flex-col gap-0.5">
-                            <span class="font-semibold">Convert an image to WebP</span>
-                            <span class="text-sm text-zinc-600 dark:text-zinc-400">A modern format commonly used on websites.</span>
-                        </span>
-                    </a>
+            <section id="how-it-works" class="fsg-section scroll-mt-20" aria-labelledby="how-it-works-title">
+                <div class="fsg-content-shell">
+                    <h2 id="how-it-works-title">Three decisions. One ready file.</h2>
+                    <ol class="fsg-journey">
+                        <li>
+                            <p class="fsg-journey__verb">File</p>
+                            <p class="fsg-journey__copy">Choose the image you already have. FileSetGo checks it before processing begins.</p>
+                        </li>
+                        <li>
+                            <p class="fsg-journey__verb">Set</p>
+                            <p class="fsg-journey__copy">Enter a requirement, choose a website destination, or make a complete logo pack.</p>
+                        </li>
+                        <li>
+                            <p class="fsg-journey__verb">Go</p>
+                            <p class="fsg-journey__copy">Review the actual format, dimensions and size, then download the ready result.</p>
+                        </li>
+                    </ol>
                 </div>
             </section>
 
-            <section aria-labelledby="trust-title" class="grid gap-4 rounded-xl bg-blue-50 p-6 sm:grid-cols-[auto_1fr] sm:items-start sm:gap-6 dark:bg-blue-950/30">
-                <p id="trust-title" class="text-lg font-semibold tracking-tight text-zinc-950 sm:pt-0.5 dark:text-zinc-100">Your files stay with you</p>
-                <div class="flex flex-col gap-2 text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
-                    <p>
-                        FileSetGo prepares supported files in your browser. Your source image is not uploaded to a
-                        FileSetGo processing server. Some file types, like HEIC, are decoded using FileSetGo's own
-                        browser processing resources, including a same-origin decoder. That's a normal part of loading
-                        the site, separate from your image itself.
-                    </p>
-                    <p>
-                        Read more on the <a href="{{ route('privacy') }}" class="font-medium text-blue-700 underline dark:text-blue-400">Privacy</a> page.
-                    </p>
+            <section class="fsg-section" aria-labelledby="use-cases-title">
+                <div class="fsg-content-shell fsg-task-index">
+                    <div class="fsg-task-index__intro">
+                        <h2 id="use-cases-title">Start with the problem you have.</h2>
+                        <p>You do not need to know which format, dimensions or compression settings to choose first.</p>
+                    </div>
+                    <div class="fsg-task-index__list">
+                        @foreach (\App\Support\PublicPages::taskLinks() as $link)
+                            <a href="{{ $link['href'] }}">
+                                <span>
+                                    <span class="fsg-task-index__title">{{ $link['label'] }}</span>
+                                    <span class="fsg-task-index__copy">{{ $link['hint'] }}</span>
+                                </span>
+                                <x-icon name="arrow-right" class="size-4" />
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            </section>
+
+            <section class="fsg-section" aria-labelledby="trust-title">
+                <div class="fsg-content-shell fsg-trust">
+                    <h2 id="trust-title" class="fsg-trust__statement">Your image itself is not uploaded for processing.</h2>
+                    <div class="fsg-trust__body">
+                        <p>Supported workflows run in your browser. HEIC may load FileSetGo's same-origin decoder resources, which is separate from sending your image to a processing endpoint.</p>
+                        <p class="mt-5"><a href="{{ route('privacy') }}">Read the privacy details</a></p>
+                    </div>
                 </div>
             </section>
         </div>

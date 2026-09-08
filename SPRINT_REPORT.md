@@ -22,6 +22,67 @@ FSG-007D — Complete Public Website Redesign, within the current FSG-007 public
 
 The sections below preserve the pre-redesign FSG-007 checkpoint record for provenance. Product Office has rejected that visual implementation; its design choices are not authoritative for FSG-007D. Its SEO architecture, content truth, routes, and functional contracts remain authoritative where they do not conflict with FSG-006R.
 
+## Pre-Implementation Design Proposal
+
+### Design Read
+
+Reading this as a redesign-overhaul of a consumer file utility for non-experts, with a calm precision and editorial language, leaning on native Blade, semantic HTML, Tailwind v4, the existing Instrument Sans asset, and restrained CSS interaction. Design dials: `DESIGN_VARIANCE 6`, `MOTION_INTENSITY 3`, `VISUAL_DENSITY 5`.
+
+### Existing-Site Diagnosis
+
+- **Visual identity:** the existing page is a competent default Tailwind surface, but the blue rounded-square mark, blue buttons, zinc neutrals, and repeated rounded panels do not form a recognizable FileSetGo language. It could belong to almost any utility.
+- **Hierarchy:** the headline and tool are present immediately, but the tool reads as two neighboring form cards rather than one journey. The large empty result panel has equal visual weight before it contains anything useful.
+- **Typography:** one neutral weight/scale system makes product statements, section headings, interface labels, metadata, and legal copy feel too similar. The site consequently reads like documentation.
+- **Content rhythm:** large blank gaps separate otherwise uniform blocks. Repeated heading, paragraph, divided-list, callout, and CTA patterns create predictable pacing without a strong visual climax.
+- **Product storytelling:** the small text row `Your file -> FileSetGo -> Ready for your website` explains the concept but does not embody it. FILE, SET, and GO are descriptive captions rather than the structure of the live product.
+- **Tool dominance:** the tool is above the fold, which is correct, but it lacks a shared work-surface and a clear source-to-result transition. On mobile, the empty result panel pushes instruction and discovery far down the page.
+- **Task discovery:** all six needs are presented with nearly identical rows. Users can scan the labels, but the design does not distinguish logo, transparency, favicon, destination sizing, compression, and format conversion.
+- **Acquisition pages:** the pages preserve truthful SEO content but resemble short help articles. Their hero, process list, privacy note, related links, and final CTA share nearly identical composition, so each route fails to feel like a focused product entrance.
+- **Navigation:** the native disclosure is accessible and compact, but its dropdown is a generic list, has limited current-page orientation, and the mobile header simply wraps desktop links instead of providing a deliberate small-screen navigation model.
+- **Mobile:** controls meet touch-size requirements and avoid overflow, but the hierarchy is a long collapse of desktop sections. The app does not become a purposeful vertical FILE, SET, GO sequence.
+- **Surface usage:** rounded borders surround the upload zone, result, privacy note, recommendations, review state, and final CTA. Real objects and passive information therefore receive the same material treatment.
+- **Whitespace:** spacing is generous but often unstructured. Empty space separates components without establishing a consistent grid or editorial measure.
+- **Trust communication:** the privacy copy is accurate, but it lives inside a generic pale callout. Trust is stated rather than demonstrated through visible file metadata, clear states, explicit choices, and a local-processing explanation attached to the workflow.
+- **CTA effectiveness:** CTAs are legible and reachable, but repeated blue rounded buttons make every action feel equivalent. Primary progression, secondary adjustment, and contextual links need clearer roles.
+
+### Three Directions Explored
+
+1. **The Staged Workbench:** one continuous workspace organizes the real tool into FILE, SET, and GO columns on wide screens and the same sequence vertically on mobile. File objects have a folded-corner silhouette, requirements occupy a plain editorial control area, and the ready result becomes a distinct output object. This makes the product model visible without adding marketing before the tool. Main risk: the three-part composition must collapse carefully at 320px.
+2. **The Editorial Task Desk:** an asymmetric headline and task index introduce the product, with the full tool immediately below. This provides the strongest acquisition storytelling and the most differentiated task discovery, but weakens the requirement that the real product itself dominate the first viewport.
+3. **The File Ledger:** a denser, largely borderless interface treats source and result metadata as a structured ledger with controls between them. It is highly precise and efficient, but can feel technical to visitors who do not understand formats or dimensions.
+
+**Selected:** The Staged Workbench. It best aligns product comprehension, immediate utility, non-expert sequencing, result satisfaction, and the FILE -> SET -> GO concept. The Editorial Task Desk contributes the grouped task index below the workspace. The File Ledger contributes disciplined metadata typography, but not its technical density.
+
+### Design Thesis
+
+**FileSetGo is a precision workbench where a file visibly moves from source, through plain-language requirements, to a download-ready object.**
+
+### Design System Proposal
+
+- **Theme:** light-first cool mineral surfaces with a complete system-dark counterpart. No section-level theme inversions.
+- **Background:** mineral white `#f3f4ef`; elevated working surface `#fbfcf8`; dark counterpart near-black `#171916`.
+- **Foreground:** carbon `#171916`; muted ink `#61665d`; reverse foreground `#f4f5ef`.
+- **Primary accent:** signal vermilion `#f05a3c`, used as the single brand/action accent with carbon text where required for contrast. Brand recognition also comes from the file-object silhouette and staged grid, not color alone.
+- **Semantic colors:** evergreen for ready/success, amber for unreachable/warning, red for errors. These are state-only colors, not decorative secondary accents.
+- **Typography:** existing self-hosted Instrument Sans. Display 44-64px desktop and 38-46px mobile with tight tracking; section headings 28-40px; body 16-18px at 1.55-1.7; interface labels 12-14px; file metadata in the system monospace stack at 12-13px.
+- **Spacing:** a compact 4/8/12/16/24/32/48/72/96 scale. Page sections use 72-112px desktop and 56-72px mobile only when the section changes purpose.
+- **Radii:** 10px for inputs and buttons, 18px for true file/result/workspace objects, and no rounded shell for ordinary informational sections.
+- **Borders:** one-pixel carbon hairlines at low opacity for structure, never border plus shadow plus tint by default. Dividers organize related rows; they do not box every item.
+- **Shadows:** one restrained, background-tinted shadow for lifted file/result objects. Flat controls and content sections have none.
+- **Containers:** 1240px maximum for the live workspace, 1120px for public content, 720px for legal prose.
+- **Buttons:** signal primary for the next workflow action, neutral outlined secondary for adjustment/reset, and text-link tertiary for related navigation. Labels remain one line and controls remain at least 44px high.
+- **Inputs:** persistent labels above controls, explanatory copy below only when needed, errors adjacent to the field, and visibly different focus, disabled, and complete states.
+- **Icons:** reuse the existing small, consistent inline icon vocabulary only where it improves scanning. Do not add an icon package or decorative icon field.
+- **Motion:** 140-220ms transform/opacity/color transitions only for selection, staged progress, and result reveal. No perpetual animation or scroll spectacle. Reduced-motion collapses transitions to instant state changes.
+- **File object:** a reusable visual grammar with a folded top-right corner, clear `SOURCE`, `PROCESSING`, `READY`, `NEEDS REVIEW`, or `UNREACHABLE` state, filename as the strongest line, and format/dimensions/size as compact metadata.
+
+### 21st.dev Exploration Record
+
+- **Catalog references:** `joyco/file-dropzone` (ID 19201), `cnippet-dev/segmented-control-tabs` (ID 24931), and `shadcnui-blocks/navigation-menu-06` (ID 18191).
+- **Accepted:** a visible choose-file action inside the drop zone; strong selected-state contrast in a compact segmented control; grouping website tasks by user outcome with short explanatory text; generous internal spacing around primary interaction.
+- **Rejected:** React/shadcn implementation, new dependencies, multi-file/upload-server assumptions, oversized empty canvases, generic white cards, icon-heavy tabs, deep nested navigation, and shadow-led hierarchy.
+- **Magic generation:** invoked with three variants and full FileSetGo constraints, but the authenticated account returned `generation_limit_reached`. No generated code was pulled or installed.
+
 ## Design Refinement Pass
 
 A second Product Office pass ("FSG-007 — Launch Surface Design Refinement") sat on top of the accepted engineering baseline below: it did not reopen SEO architecture, metadata, canonical strategy, sitemap, robots, structured data, Privacy/Terms/404, deep-linking, or processing semantics, all of which are unchanged from the sections that follow. It refined presentation only, plus two previously-flagged design items the amendment explicitly brought into scope: a real site favicon and one governed Open Graph/social-preview image (see Favicon & Social Preview below; this resolves the "Known Limitations" item the first pass had flagged and could not resolve on its own).

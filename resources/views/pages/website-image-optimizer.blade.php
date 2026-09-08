@@ -24,26 +24,32 @@
 @extends('layouts.public')
 
 @section('content')
-    <div class="mx-auto flex max-w-3xl flex-col gap-14 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+    <div class="fsg-content-shell fsg-task-page fsg-task-page--optimizer">
         @include('partials.breadcrumb', ['crumbs' => [
             ['label' => 'Home', 'href' => route('home')],
             ['label' => 'Website image optimizer', 'href' => null],
         ]])
 
-        <section class="flex flex-col gap-4">
-            <h1 class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">Optimize an image for your website</h1>
-            <p class="max-w-[52ch] text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
-                A photo straight from a camera or phone is usually much bigger than a website needs. Tell Guided Fit what it's for, and it takes care of the rest.
-            </p>
-            <a href="{{ route('home', ['mode' => 'guided-fit']) }}" class="inline-flex min-h-11 w-fit items-center gap-2 whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:focus:ring-offset-zinc-950">
-                Optimize my website image
-                <x-icon name="arrow-right" class="size-4" />
-            </a>
+        <section class="fsg-task-page__hero">
+            <div class="fsg-task-page__copy">
+                <h1>Fit the image to its place.</h1>
+                <p>Choose where it will appear. Guided Fit applies FileSetGo's practical website recommendation.</p>
+                <a href="{{ route('home', ['mode' => 'guided-fit']) }}" class="fsg-primary-action">
+                    Optimize my website image
+                    <x-icon name="arrow-right" class="size-4" />
+                </a>
+            </div>
+            <div class="fsg-task-visual fsg-destination-visual" aria-hidden="true">
+                <div class="fsg-destination-visual__hero"><span>HERO</span></div>
+                <div class="fsg-destination-visual__content"><span>CONTENT</span></div>
+                <div class="fsg-destination-visual__card"><span>CARD</span></div>
+            </div>
         </section>
 
-        <section aria-labelledby="what-title" class="flex flex-col gap-6">
-            <h2 id="what-title" class="text-xl font-semibold tracking-tight">Choose what you're preparing</h2>
-            <div class="grid gap-6 sm:grid-cols-3">
+        <section aria-labelledby="what-title" class="fsg-task-section">
+            <h2 id="what-title">Choose the destination.</h2>
+            <div class="fsg-task-section__body">
+                <div class="grid gap-6 sm:grid-cols-3">
                 <div class="flex flex-col gap-3">
                     <div class="flex h-16 items-center rounded-lg bg-zinc-200 dark:bg-zinc-800"></div>
                     <p class="font-semibold">Hero</p>
@@ -59,10 +65,9 @@
                     <p class="font-semibold">Card</p>
                     <p class="text-sm text-zinc-600 dark:text-zinc-400">Cards, grids and thumbnails. Up to 800 &times; 800, around 150 KB, WebP.</p>
                 </div>
+                </div>
+                <p class="mt-7 text-sm leading-relaxed">These are FileSetGo recommendations for general website use, not limits imposed by your platform. If the image already fits, FileSetGo says so.</p>
             </div>
-            <p class="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                These are FileSetGo's recommended starting points for general website use, not a rule your specific CMS or platform enforces. If your image already fits, FileSetGo tells you that instead of processing it unnecessarily.
-            </p>
         </section>
 
         @include('partials.privacy-note')

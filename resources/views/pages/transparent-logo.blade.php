@@ -24,32 +24,33 @@
 @extends('layouts.public')
 
 @section('content')
-    <div class="mx-auto flex max-w-3xl flex-col gap-14 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+    <div class="fsg-content-shell fsg-task-page fsg-task-page--transparent">
         @include('partials.breadcrumb', ['crumbs' => [
             ['label' => 'Home', 'href' => route('home')],
             ['label' => 'Transparent logo', 'href' => null],
         ]])
 
-        <section class="grid gap-8 sm:grid-cols-[1.3fr_1fr] sm:items-center">
-            <div class="flex flex-col gap-4">
-                <h1 class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">Get a transparent logo for your website</h1>
-                <p class="max-w-[48ch] text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
-                    One logo that works on a light header, a dark footer, or over a photo.
-                </p>
-                <a href="{{ route('home', ['mode' => 'logo-pack']) }}" class="inline-flex min-h-11 w-fit items-center gap-2 whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:focus:ring-offset-zinc-950">
+        <section class="fsg-task-page__hero">
+            <div class="fsg-task-page__copy">
+                <h1>A logo that belongs on any background.</h1>
+                <p>Prepare transparency, inspect the result on light and dark, then decide whether it is ready.</p>
+                <a href="{{ route('home', ['mode' => 'logo-pack']) }}" class="fsg-primary-action">
                     Prepare a transparent logo
                     <x-icon name="arrow-right" class="size-4" />
                 </a>
             </div>
-            <div class="grid grid-cols-3 gap-2" aria-hidden="true">
-                <div class="fsg-checkerboard flex aspect-square items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-800">
-                    <div class="size-8 rounded-full bg-zinc-700 dark:bg-zinc-300"></div>
+            <div class="fsg-task-visual fsg-transparency-visual" aria-hidden="true">
+                <div class="fsg-transparency-visual__context fsg-checkerboard">
+                    <span>CHECKERBOARD</span>
+                    <strong>FSG</strong>
                 </div>
-                <div class="flex aspect-square items-center justify-center rounded-lg border border-zinc-200 bg-white dark:border-zinc-800">
-                    <div class="size-8 rounded-full bg-zinc-700"></div>
+                <div class="fsg-transparency-visual__context fsg-transparency-visual__context--light">
+                    <span>LIGHT</span>
+                    <strong>FSG</strong>
                 </div>
-                <div class="flex aspect-square items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950">
-                    <div class="size-8 rounded-full bg-zinc-100"></div>
+                <div class="fsg-transparency-visual__context fsg-transparency-visual__context--dark">
+                    <span>DARK</span>
+                    <strong>FSG</strong>
                 </div>
             </div>
         </section>
@@ -59,7 +60,7 @@
             ['label' => 'Remove, if needed', 'body' => "If it doesn't, FileSetGo attempts to remove the existing background for you."],
             ['label' => 'Verify', 'body' => "The result is checked to confirm it's genuinely transparent, not just guessed."],
             ['label' => 'Preview', 'body' => 'You can inspect the result on a checkerboard, a light background and a dark background before downloading.'],
-        ], 'note' => "Some logos are difficult, a busy photo background, or artwork with soft edges, and FileSetGo will mark these for your review rather than silently guessing. We don't promise a perfect result for every image, but we do promise to tell you when a result needs a second look."])
+        ], 'note' => "The tool always asks you to choose Transparent background or Keep existing background. It never makes that decision silently. Busy photographs and soft-edged artwork may still need review; FileSetGo does not promise a perfect result for every image."])
 
         @include('partials.privacy-note')
 

@@ -40,17 +40,17 @@ final class PublicPages
      * footer's task column. Deliberately excludes home/privacy/terms, which
      * are surfaced elsewhere in the same shell (directive §24/§25).
      *
-     * @return array<int, array{href: string, label: string}>
+     * @return array<int, array{href: string, label: string, hint: string}>
      */
     public static function taskLinks(): array
     {
         return [
-            ['href' => route('prepare-logo'), 'label' => 'Prepare a logo'],
-            ['href' => route('transparent-logo'), 'label' => 'Transparent logo'],
-            ['href' => route('favicon-generator'), 'label' => 'Favicon'],
-            ['href' => route('website-image-optimizer'), 'label' => 'Optimize image'],
-            ['href' => route('compress-image'), 'label' => 'Compress image'],
-            ['href' => route('convert-webp'), 'label' => 'Convert to WebP'],
+            ['href' => route('prepare-logo'), 'label' => 'Prepare a logo', 'hint' => 'One source, seven website files'],
+            ['href' => route('transparent-logo'), 'label' => 'Transparent logo', 'hint' => 'Review it on light and dark'],
+            ['href' => route('favicon-generator'), 'label' => 'Create a favicon', 'hint' => 'Included in the Logo Pack'],
+            ['href' => route('website-image-optimizer'), 'label' => 'Optimize an image', 'hint' => 'Choose hero, content or card'],
+            ['href' => route('compress-image'), 'label' => 'Meet a size limit', 'hint' => 'Enter the KB or MB target'],
+            ['href' => route('convert-webp'), 'label' => 'Convert to WebP', 'hint' => 'Prepare a modern web format'],
         ];
     }
 }

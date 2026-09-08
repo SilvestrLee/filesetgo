@@ -24,44 +24,48 @@
 @extends('layouts.public')
 
 @section('content')
-    <div class="mx-auto flex max-w-3xl flex-col gap-14 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+    <div class="fsg-content-shell fsg-task-page fsg-task-page--favicon">
         @include('partials.breadcrumb', ['crumbs' => [
             ['label' => 'Home', 'href' => route('home')],
             ['label' => 'Favicon generator', 'href' => null],
         ]])
 
-        <section class="grid gap-8 sm:grid-cols-[1.3fr_1fr] sm:items-center">
-            <div class="flex flex-col gap-4">
-                <h1 class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">Create a favicon for your website</h1>
-                <p class="max-w-[48ch] text-base leading-relaxed text-zinc-600 dark:text-zinc-400">
-                    The small icon browsers show in a tab, bookmark or search result, generated from your logo.
-                </p>
-                <a href="{{ route('home', ['mode' => 'logo-pack']) }}" class="inline-flex min-h-11 w-fit items-center gap-2 whitespace-nowrap rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 active:translate-y-px dark:focus:ring-offset-zinc-950">
+        <section class="fsg-task-page__hero">
+            <div class="fsg-task-page__copy">
+                <h1>Give the browser tab an identity.</h1>
+                <p>Create favicon and app-icon files from your logo as part of one consistent Website Logo Pack.</p>
+                <a href="{{ route('home', ['mode' => 'logo-pack']) }}" class="fsg-primary-action">
                     Create my website logo pack
                     <x-icon name="arrow-right" class="size-4" />
                 </a>
             </div>
-            <div aria-hidden="true" class="rounded-t-lg border border-zinc-200 bg-zinc-100 pt-2 dark:border-zinc-800 dark:bg-zinc-800">
-                <div class="mx-2 flex items-center gap-2 rounded-t-md bg-white px-3 py-2 dark:bg-zinc-900">
-                    <div class="flex size-4 shrink-0 items-center justify-center rounded-sm bg-blue-700 text-[9px] font-bold text-white">F</div>
-                    <div class="h-2 w-24 rounded-full bg-zinc-200 dark:bg-zinc-700"></div>
+            <div aria-hidden="true" class="fsg-task-visual fsg-favicon-visual">
+                <div class="fsg-favicon-visual__window">
+                    <div class="fsg-favicon-visual__tab">
+                        <span class="fsg-brand__mark">F</span>
+                        <strong>File. Set. Go.</strong>
+                    </div>
+                    <div class="fsg-favicon-visual__page">
+                        <span>favicon.ico</span>
+                        <span>favicon-32x32.png</span>
+                        <span>apple-touch-icon.png</span>
+                    </div>
                 </div>
-                <div class="h-6 rounded-b-lg bg-white dark:bg-zinc-900"></div>
             </div>
         </section>
 
-        <section aria-labelledby="what-title" class="flex flex-col gap-4">
-            <h2 id="what-title" class="text-xl font-semibold tracking-tight">What's included</h2>
-            <p class="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                FileSetGo doesn't run a separate favicon-only tool. Favicon files come from the same Website Logo Pack that also prepares your header logo and app icons, so everything stays consistent:
-            </p>
-            <ul class="flex flex-wrap gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+        <section aria-labelledby="what-title" class="fsg-task-section">
+            <h2 id="what-title">Favicons stay with the pack.</h2>
+            <div class="fsg-task-section__body">
+                <p>FileSetGo does not run a separate favicon engine. The same Logo Pack also prepares your header logo and app icons, keeping the source consistent.</p>
+                <ul class="mt-6 flex flex-wrap gap-2 text-sm">
                 <li class="rounded-full border border-zinc-200 px-3 py-1 dark:border-zinc-800">favicon.ico</li>
                 <li class="rounded-full border border-zinc-200 px-3 py-1 dark:border-zinc-800">favicon-32&times;32.png</li>
                 <li class="rounded-full border border-zinc-200 px-3 py-1 dark:border-zinc-800">apple-touch-icon.png</li>
                 <li class="rounded-full border border-zinc-200 px-3 py-1 dark:border-zinc-800">icon-192&times;192.png</li>
                 <li class="rounded-full border border-zinc-200 px-3 py-1 dark:border-zinc-800">icon-512&times;512.png</li>
-            </ul>
+                </ul>
+            </div>
         </section>
 
         @include('partials.step-list', ['title' => 'How it works', 'steps' => [

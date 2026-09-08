@@ -37,6 +37,20 @@ test.describe('Production security policy (FSG-006R)', () => {
     await gotoApp(page);
     await expect(page.locator('#mode-tab-guided-fit')).toBeEnabled();
     await expect(page.locator('#mode-tab-logo-pack')).toBeEnabled();
+
+    await page.locator('.fsg-theme > summary').click();
+    await page.getByRole('button', { name: /Dark Always dark/ }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    console_.assertClean();
+  });
+
+  test('content and legal surfaces have no CSP console violations', async ({ page }) => {
+    const console_ = collectConsoleProblems(page);
+
+    for (const path of ['/compress-image-for-website', '/convert-image-to-webp', '/privacy', '/terms']) {
+      await page.goto(path);
+    }
+
     console_.assertClean();
   });
 });
