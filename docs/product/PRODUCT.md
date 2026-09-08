@@ -99,3 +99,42 @@ V1 does not initially include:
 FileSetGo is a public, standalone product that is independently useful and broader than Keryon.
 
 Keryon is an integration and an early real-world validation environment. It is not the parent product. Keryon may consume `@filesetgo/core`, but Keryon-specific concepts must not shape or leak into the shared processing package.
+
+## Product Office Strategic Annexes
+
+The FileSetGo Product Office consolidated major product, UX, commercial,
+growth, and Set. Go. family direction on 8 September 2026.
+
+The complete source handover is preserved verbatim in:
+
+- [`PRODUCT-OFFICE-HANDOVER-2026-09-08.md`](PRODUCT-OFFICE-HANDOVER-2026-09-08.md)
+
+Focused continuation documents are:
+
+- [`PRODUCT-STRATEGY.md`](PRODUCT-STRATEGY.md) — product positioning,
+  audience, readiness philosophy, account philosophy, Free/Pro principles,
+  and launch-quality expectations.
+- [`UX-DESIGN-DIRECTION.md`](UX-DESIGN-DIRECTION.md) — front-facing visual
+  direction, Light/Dark behavior, colour/depth/rhythm, workflow UX,
+  Logo Pack, favicon, results, transparency, header, footer, and mobile
+  requirements.
+- [`COMMERCIAL-STRATEGY.md`](COMMERCIAL-STRATEGY.md) — Guest/Free/Pro model,
+  monetization principles, entitlements, billing architecture, subscription
+  lifecycle, pricing proposals, and commercial deferrals.
+- [`GROWTH-ANALYTICS.md`](GROWTH-ANALYTICS.md) — privacy-conscious analytics,
+  North Star metric, funnel, event vocabulary, launch audiences,
+  acquisition, and growth strategy.
+- [`SET-GO-FAMILY.md`](SET-GO-FAMILY.md) — File. Set. Go.,
+  Site. Set. Go., Brand. Set. Go., and Shop. Set. Go. family philosophy
+  and cross-promotion boundaries.
+- [`IMPLEMENTATION-PROGRAMME.md`](IMPLEMENTATION-PROGRAMME.md) — forward
+  implementation sequencing and deliberately deferred capabilities.
+
+These documents preserve both accepted direction and working proposals.
+
+Items explicitly identified as recommendations, provisional values, or
+WORKING PROPOSAL must not be silently promoted into implementation
+decisions.
+
+Repository governance authority remains defined by
+`docs/governance/MASTER-BLUEPRINT.md`.

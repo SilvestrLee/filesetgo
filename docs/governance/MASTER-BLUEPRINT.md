@@ -124,3 +124,43 @@ Required V1 raster input support is JPEG, PNG, WebP, and HEIC/HEIF. Required V1 
 The canonical delivery sequence is the eight-milestone roadmap in [`ROADMAP.md`](ROADMAP.md). Work within a milestone is governed by its active directive. The current implementation directive is [`../directives/FSG-001.md`](../directives/FSG-001.md).
 
 `SPRINT_REPORT.md` is the canonical repository checkpoint report. It is overwritten only when a governed sprint or checkpoint is formally reported; historical reports remain available through Git history.
+
+## Product Office Strategy Set
+
+The 8 September 2026 Product Office consolidation introduced a broader
+strategy set covering FileSetGo's public product experience, UX direction,
+commercial model, growth model, and wider Set. Go. product family.
+
+The complete source record is preserved in:
+
+- `docs/product/PRODUCT-OFFICE-HANDOVER-2026-09-08.md`
+
+Focused strategy documents are:
+
+- `docs/product/PRODUCT-STRATEGY.md`
+- `docs/product/UX-DESIGN-DIRECTION.md`
+- `docs/product/COMMERCIAL-STRATEGY.md`
+- `docs/product/GROWTH-ANALYTICS.md`
+- `docs/product/SET-GO-FAMILY.md`
+- `docs/product/IMPLEMENTATION-PROGRAMME.md`
+
+These documents are required context for future FileSetGo product planning,
+public-interface design, commercial planning, and implementation.
+
+They do not alter the governance hierarchy defined above.
+
+Where one of these strategy documents conflicts with:
+
+- an accepted ADR;
+- the canonical roadmap;
+- a current governed implementation directive; or
+- another higher-authority rule in this Master Blueprint,
+
+implementation must stop and the conflict must be deliberately reconciled.
+
+Working proposals remain proposals until Product Office explicitly promotes
+them into a governed decision or implementation directive.
+
+No coding agent may silently convert a recommended commercial value,
+provider, feature limit, retention period, product-family order, or future
+feature into implementation authority.
