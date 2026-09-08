@@ -118,7 +118,7 @@ This milestone validates or revises provisional safety defaults through real-dev
 
 ## FSG-007 — SEO Acquisition & Public Launch
 
-**Status: ▶ CURRENT / RESUMED AFTER FSG-006R.** Work remains preserved at `1f1ced66ab43f7093efeed4b0aa56a20ad5eafc2` pending a separate Product Office reconciliation directive. This status clears FSG-007 to resume; it does not integrate its divergent lineage from this branch.
+**Status: ▶ CURRENT.** FSG-006R hardening, the preserved FSG-007 public-launch lineage, and the 8 September 2026 Product Office strategy have now been reconciled for continued FSG-007 work. Public deployment remains blocked pending Product Office approval of the complete front-facing redesign and subsequent launch-quality verification.
 
 Deliver:
 

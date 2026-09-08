@@ -25,6 +25,7 @@ import { defineConfig, devices } from '@playwright/test';
  */
 const PORT = 8123;
 const includeWebkit = !!process.env.CI;
+const captureDesignPreview = process.env.FSG_CAPTURE_DESIGN === '1';
 
 export default defineConfig({
   testDir: './tests/browser/specs',
@@ -60,10 +61,10 @@ export default defineConfig({
   projects: [
     // Full functional certification: every spec except the dedicated mobile
     // layout suite (which needs mobile emulation, not desktop viewports).
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: '**/mobile-viewport.spec.ts' },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] }, testIgnore: '**/mobile-viewport.spec.ts' },
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: ['**/mobile-viewport.spec.ts', ...(!captureDesignPreview ? ['**/design-preview.spec.ts'] : [])] },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] }, testIgnore: ['**/mobile-viewport.spec.ts', '**/design-preview.spec.ts'] },
     ...(includeWebkit
-      ? [{ name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: '**/mobile-viewport.spec.ts' }]
+      ? [{ name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: ['**/mobile-viewport.spec.ts', '**/design-preview.spec.ts'] }]
       : []),
 
     // Dedicated mobile viewport/layout suite only (directive §11-§14).

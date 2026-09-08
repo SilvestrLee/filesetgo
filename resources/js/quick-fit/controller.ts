@@ -4,7 +4,7 @@ import { LOGO_PACK_ASSET_EXPLANATIONS, type LogoBackgroundMode } from '../logo-p
 import type { SuitabilityIssue } from '../logo-pack/suitability';
 import { LogoPackController } from '../logo-pack/logo-pack-controller';
 import { getAllPresets } from '../presets/registry';
-import { GuidedFitController } from '../presets/guided-fit-controller';
+import { GuidedFitController, type QuickFitMode } from '../presets/guided-fit-controller';
 import { describeRuntimeSupport } from './capabilities';
 import * as coreClient from './core-client';
 import { describeProcessingError, describeUnreachable } from './errors';
@@ -31,6 +31,7 @@ const sourceInput = requireElement<HTMLInputElement>('#source-file');
 const dropZone = requireElement<HTMLElement>('#drop-zone');
 const dropZoneLabel = requireElement<HTMLElement>('#drop-zone-label');
 const sourcePanel = requireElement<HTMLElement>('#source-panel');
+const sourceName = requireElement<HTMLElement>('#source-name');
 const sourceFormat = requireElement<HTMLElement>('#source-format');
 const sourceDimensions = requireElement<HTMLElement>('#source-dimensions');
 const sourceSize = requireElement<HTMLElement>('#source-size');
@@ -101,6 +102,7 @@ const statusAnnouncer = requireElement<HTMLElement>('#status-announcer');
 const resultEmpty = requireElement<HTMLElement>('#result-empty');
 const resultContent = requireElement<HTMLElement>('#result-content');
 const resultHeadline = requireElement<HTMLElement>('#result-headline');
+const resultFilename = requireElement<HTMLElement>('#result-filename');
 const resultPreparedFor = requireElement<HTMLElement>('#result-prepared-for');
 const resultPreparedForValue = requireElement<HTMLElement>('#result-prepared-for-value');
 const resultDetail = requireElement<HTMLElement>('#result-detail');
@@ -632,12 +634,14 @@ function render(state: QuickFitState): void {
 
     case 'inspecting':
       dropZoneLabel.textContent = state.file.name;
+      sourceName.textContent = state.file.name;
       sourceSummary.classList.add('hidden');
       setStatus('Checking file...', 'inspecting');
       break;
 
     case 'file-rejected':
       dropZoneLabel.textContent = state.file.name;
+      sourceName.textContent = state.file.name;
       sourceSummary.classList.add('hidden');
       sourceRejectedMessage.textContent = state.message;
       sourceRejectedMessage.classList.remove('hidden');
@@ -653,6 +657,7 @@ function render(state: QuickFitState): void {
     case 'cancelled': {
       const source = state.status === 'success' ? state.result.source : state.source;
       dropZoneLabel.textContent = source.file.name;
+      sourceName.textContent = source.file.name;
       sourceFormat.textContent = source.preflight.format.toUpperCase();
       sourceDimensions.textContent = `${source.preflight.width} × ${source.preflight.height}`;
       sourceSize.textContent = formatBytes(source.preflight.fileSize);
@@ -671,6 +676,7 @@ function render(state: QuickFitState): void {
       } else if (state.status === 'success') {
         const summary = buildSuccessSummary(source.preflight, state.result.data);
         resultHeadline.textContent = summary.headline;
+        resultFilename.textContent = state.result.filename;
         resultDetail.textContent = summary.reductionLabel === undefined
           ? summary.detail
           : `${summary.detail} ${summary.reductionLabel}.`;
@@ -1000,3 +1006,24 @@ void coreClient.getRuntimeCapabilities().then((capabilities) => {
     app.classList.add('hidden');
   }
 });
+
+// --- SEO acquisition deep-linking (FSG-007 directive §9) ---
+//
+// An acquisition landing page's CTA may open the main application with a
+// mode preselected via `?mode=`, e.g. `/?mode=logo-pack`. This deliberately
+// goes no further than `setMode()` already goes for a tab click: it never
+// selects a source, never starts processing, and never chooses a Logo
+// Pack background/removal strength — those remain explicit in-product
+// decisions. An unrecognised or missing value is a no-op, leaving the
+// default Quick Fit mode in place.
+const DEEP_LINK_MODES: ReadonlyArray<QuickFitMode> = ['quick-fit', 'guided-fit', 'logo-pack'];
+
+function applyDeepLinkMode(): void {
+  const requested = new URLSearchParams(window.location.search).get('mode');
+
+  if (requested !== null && (DEEP_LINK_MODES as readonly string[]).includes(requested)) {
+    guidedFit.setMode(requested as QuickFitMode);
+  }
+}
+
+applyDeepLinkMode();

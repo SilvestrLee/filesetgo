@@ -12,6 +12,7 @@ test.describe('Quick Fit certification (directive §15)', () => {
     // Preflight facts render truthfully.
     await expect(page.locator('#source-format')).toHaveText(/jpeg/i);
     await expect(page.locator('#source-dimensions')).toHaveText('640 × 480');
+    await expect(page.locator('#source-name')).toHaveText('sample.jpg');
     await expect(page.locator('#source-panel')).toBeVisible();
 
     await page.locator('#target-size-value').fill('50');
@@ -33,6 +34,7 @@ test.describe('Quick Fit certification (directive §15)', () => {
     const downloadName = await downloadLink.getAttribute('download');
     expect(downloadName).toBeTruthy();
     expect(downloadName).toMatch(/^[\w.-]+\.\w+$/);
+    await expect(page.locator('#result-filename')).toHaveText(downloadName ?? '');
 
     console_.assertClean();
   });
