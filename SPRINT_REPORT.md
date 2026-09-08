@@ -1,12 +1,26 @@
-# FSG-007 Sprint Report
+# FSG-007D Sprint Report — Complete Public Website Redesign
 
 ## Milestone
 
-FSG-007 — SEO Acquisition Surfaces & Public Launch.
+FSG-007D — Complete Public Website Redesign, within the current FSG-007 public-launch milestone.
 
 ## Status
 
-**Engineering complete, including the Product Office design refinement pass and the site favicon/social-preview amendment. Returned to Product Office for review before the final closure commit — per directive §72 and the refinement pass's §40, this report itself does not create that commit.**
+**CURRENT — Phase 0 reconciliation complete after Product Office rejected the existing public visual implementation at 3/10. Design reconnaissance precedes all redesign implementation. FSG-008 remains not started.**
+
+## Phase 0 Reconciliation
+
+- Preserved FSG-007 parent: `1f1ced66ab43f7093efeed4b0aa56a20ad5eafc2`.
+- Accepted FSG-006R closure parent: `a00075d5473c40e9aac91af4108e46d2be019e10`.
+- Certified application candidate preserved through that closure: `ffa73d24887ecba9af78b3e09194dca3da1d511b`.
+- `SPRINT_REPORT.md` conflict: the FSG-007 report remains canonical because FSG-007D is the current sprint; FSG-006R's accepted closure report remains intact in its parent history. This report records the reconciliation and will be replaced with the FSG-007D design review at the Product Office preview gate.
+- `docs/governance/DECISIONS.md` conflict: ADR-022 and ADR-023 are both retained in numerical order. Neither decision is rewritten.
+- All FSG-006R runtime, memory, CSP/security, cancellation, malformed-container, ZIP, privacy, and regression files merged without presentation-side overrides.
+- All FSG-007 routes, metadata, canonicals, sitemap, robots, Privacy, Terms, 404, acquisition semantics, and public assets remain present.
+
+## Rejected Previous Visual Implementation
+
+The sections below preserve the pre-redesign FSG-007 checkpoint record for provenance. Product Office has rejected that visual implementation; its design choices are not authoritative for FSG-007D. Its SEO architecture, content truth, routes, and functional contracts remain authoritative where they do not conflict with FSG-006R.
 
 ## Design Refinement Pass
 

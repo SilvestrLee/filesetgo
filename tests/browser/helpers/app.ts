@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { unzipSync } from 'fflate';
-import { expect, type ConsoleMessage, type Download, type Page } from '@playwright/test';
+import { expect, type ConsoleMessage, type Download, type Page, type Request } from '@playwright/test';
 
 export const FIXTURES_DIR = path.join(import.meta.dirname, '..', 'fixtures', 'files');
 
@@ -102,10 +102,24 @@ export function collectConsoleProblems(page: Page): { assertClean(): void; entri
  * distinguish application-asset loads (HEIC WASM, same-origin chunks) from
  * any hypothetical upload endpoint.
  */
-export function collectRequests(page: Page): { urls(): string[] } {
-  const urls: string[] = [];
-  page.on('request', (request) => urls.push(request.url()));
-  return { urls: () => [...urls] };
+export interface ObservedRequest {
+  url: string;
+  method: string;
+  postData: string | null;
+}
+
+export function collectRequests(page: Page): { urls(): string[]; records(): ObservedRequest[] } {
+  const requests: ObservedRequest[] = [];
+  page.on('request', (request: Request) => requests.push({
+    url: request.url(),
+    method: request.method(),
+    postData: request.postData(),
+  }));
+
+  return {
+    urls: () => requests.map(({ url }) => url),
+    records: () => [...requests],
+  };
 }
 
 /**

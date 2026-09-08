@@ -96,6 +96,12 @@ FSG-006 adds no new product feature; it certifies the existing V1 surface agains
 
 FSG-005C adds a fourth heavy-job kind, `'transparent-master'`, and two more genuine core-package generics: `transforms/alpha-inspection.ts` (`inspectAlpha()` — real decoded-pixel alpha classification, never inferred from format) and `transforms/background-removal.ts` (`removeConnectedBackground()` — boundary-informed, connectivity-aware background removal with soft edges and decontamination). Both carry zero "logo"/"transparent background" terminology, matching the same generic-core / product-specific-shell boundary FSG-005B established with `contain.ts`/`icons/ico.ts`. The new job kind is orchestrated by `workers/process-transparent-master.ts` and shares `ImageProcessingRuntime`'s existing single active-job slot (`runtime/worker-client.ts`) alongside `processImage()`/`processImageToTarget()`/`processImageSet()` — starting any one of the four cancels whichever of the other three is active. Its terminal worker-protocol event, `JOB_COMPLETE_TRANSPARENT_MASTER`, has its own dedicated shape validator (`isTransparentMasterResult()`) rather than being routed through the raster-shaped `isProcessedImageResult()` — a deliberate reapplication of the FSG-006 lesson in the paragraph above. Logo Pack's Transparent mode (`resources/js/logo-pack/`) orchestrates this new job kind as an explicit second stage — prepare-and-verify a transparent master, preview it, then package from it — before the existing FSG-005A/FSG-005B packaging pipeline runs unchanged against that master. See `docs/governance/DECISIONS.md` ADR-020.
 
+## FSG-006R Runtime Hardening
+
+FSG-006R hardens the existing target-size path without changing ADR-015's search algorithm. Quality-probe history is metadata-only; only the selected fitting candidate retains encoded bytes, and unreachable closest-miss diagnostics contain no Blob. The source Blob and decoded `ImageBitmap` remain job-scoped, only the current tier's `OffscreenCanvas` is live, the previous canvas is zeroed before replacement, and final cleanup closes the bitmap and zeroes the last canvas.
+
+Host-side cancellation remains immediate. The runtime settles cancellation, detaches handlers, terminates the active worker, and creates a fresh worker for later work without waiting for a decoder or WASM message loop to yield. See ADR-023.
+
 ## Architectural Constraints
 
 - Supported V1 processing is browser-first and requires zero server ingestion.

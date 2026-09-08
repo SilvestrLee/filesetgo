@@ -15,6 +15,20 @@ function monotonicEncode(quality: number): Promise<{ blob: Blob; byteSize: numbe
   return Promise.resolve({ blob: fakeBlob(byteSize), byteSize });
 }
 
+function collectReachableBlobs(value: unknown, seen = new Set<unknown>()): Blob[] {
+  if (value instanceof Blob) {
+    return [value];
+  }
+
+  if (value === null || typeof value !== 'object' || seen.has(value)) {
+    return [];
+  }
+
+  seen.add(value);
+
+  return Object.values(value).flatMap((entry) => collectReachableBlobs(entry, seen));
+}
+
 describe('boundedQualitySearch', () => {
   it('returns immediately with 1 probe when maxQuality already fits', async () => {
     const result = await boundedQualitySearch(1_000_000, RANGE, monotonicEncode, () => {});
@@ -109,6 +123,58 @@ describe('boundedQualitySearch', () => {
 
     // At least 2 checks (before/after) per probe actually taken.
     expect(calls).toBeGreaterThanOrEqual(2);
+  });
+
+  // FSG-006R Workstream A (directive §4/§7): proves reference ownership, not
+  // GC timing — a non-winning probe's Blob must never be reachable through
+  // `result.probes`, only `result.best` may hold one.
+  it('never attaches a Blob to non-winning probe metadata', async () => {
+    const result = await boundedQualitySearch(72_000, RANGE, monotonicEncode, () => {});
+
+    expect(result.probes.length).toBeGreaterThan(1);
+
+    for (const probe of result.probes) {
+      expect(probe).not.toHaveProperty('blob');
+      expect(Object.keys(probe).sort()).toEqual(['byteSize', 'quality']);
+    }
+  });
+
+  it('retains a Blob only on the returned best candidate', async () => {
+    const encoded = new Map<number, Blob>();
+    const result = await boundedQualitySearch(
+      72_000,
+      RANGE,
+      async (quality) => {
+        const byteSize = Math.round(quality * 100_000);
+        const blob = fakeBlob(byteSize);
+        encoded.set(quality, blob);
+
+        return { blob, byteSize };
+      },
+      () => {},
+    );
+
+    expect(result.best).toBeDefined();
+    expect(result.best!.blob).toBe(encoded.get(result.best!.quality));
+    expect(collectReachableBlobs(result)).toEqual([result.best!.blob]);
+
+    for (const [quality, blob] of encoded) {
+      if (quality !== result.best!.quality) {
+        expect(collectReachableBlobs(result)).not.toContain(blob);
+      }
+    }
+  });
+
+  it('does not attach a Blob to any probe metadata even when no candidate fits', async () => {
+    const result = await boundedQualitySearch(1000, RANGE, monotonicEncode, () => {});
+
+    expect(result.best).toBeUndefined();
+
+    for (const probe of result.probes) {
+      expect(probe).not.toHaveProperty('blob');
+    }
+
+    expect(collectReachableBlobs(result)).toEqual([]);
   });
 
   it('propagates a cancellation thrown mid-search and stops probing', async () => {

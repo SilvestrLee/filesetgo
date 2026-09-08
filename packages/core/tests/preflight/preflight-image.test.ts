@@ -356,6 +356,23 @@ describe('preflightImage HEIC/HEIF identification', () => {
     expectRejected(outcome, IMAGE_PREFLIGHT_ERROR_CODES.DimensionsTooLarge);
   });
 
+  it('rejects 0xFFFFFFFF HEIC spatial extents through checked pixel arithmetic', async () => {
+    const outcome = await preflightImage(
+      createImageSource(createHeic(0xffffffff, 0xffffffff)),
+    );
+    const rejection = expectRejected(
+      outcome,
+      IMAGE_PREFLIGHT_ERROR_CODES.DimensionsTooLarge,
+    );
+
+    expect(rejection.result).toMatchObject({
+      width: 0xffffffff,
+      height: 0xffffffff,
+      safeToDecode: false,
+    });
+    expect(Number.isSafeInteger(0xffffffff * 0xffffffff)).toBe(false);
+  });
+
   it('rejects an oversized HEIC source by byte size before reading any bytes', async () => {
     const source = createImageSource(
       createHeic(320, 240),

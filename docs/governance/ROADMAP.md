@@ -92,7 +92,7 @@ Deliver:
 
 ## FSG-006 — Hardening, Mobile QA & Compatibility
 
-**Status: ✅ CLOSED.** Resumed after FSG-005C for a delta recertification pass, closing the CI dependency-install reproducibility gap and recertifying the affected Logo Pack transparency paths. Final certified closure candidate `09324a6f9c73bae2f66cb40c21d509439ca99a35` (GitHub Actions run `34025426493`): Chromium 60/60, Firefox 57/60 (3 governed skips), Playwright WebKit 57/60 (3 governed skips), mobile 20/20 — 194 passed, 6 accepted skips, 0 failed. See `docs/directives/FSG-006.md`, `docs/governance/DECISIONS.md` ADR-021, and `SPRINT_REPORT.md`.
+**Historical status: ✅ CLOSED AT ORIGINAL CHECKPOINT.** Resumed after FSG-005C for a delta recertification pass, closing the CI dependency-install reproducibility gap and recertifying the affected Logo Pack transparency paths. Final certified closure candidate `09324a6f9c73bae2f66cb40c21d509439ca99a35` (GitHub Actions run `34025426493`): Chromium 60/60, Firefox 57/60 (3 governed skips), Playwright WebKit 57/60 (3 governed skips), mobile 20/20 — 194 passed, 6 accepted skips, 0 failed. See `docs/directives/FSG-006.md` and ADR-021.
 
 Complete launch-blocking testing for:
 
@@ -112,7 +112,13 @@ Complete launch-blocking testing for:
 
 This milestone validates or revises provisional safety defaults through real-device benchmarking.
 
+### FSG-006R — External Audit Runtime & Security Hardening
+
+**Status: ✅ CLOSED.** Product Office accepted final certified application candidate `ffa73d24887ecba9af78b3e09194dca3da1d511b` after GitHub Actions run `34234812993` completed with 218 passed, 6 governed skips, and 0 failed. FSG-006R preserves the valid historical FSG-006 closure while recording the post-audit target-size reference-lifetime hardening, host-side HEIC cancellation proof, evidence-based halo decision, and production CSP/security headers. See `docs/directives/FSG-006R.md` and ADR-023.
+
 ## FSG-007 — SEO Acquisition & Public Launch
+
+**Status: ▶ CURRENT / RESUMED AFTER FSG-006R.** Work remains preserved at `1f1ced66ab43f7093efeed4b0aa56a20ad5eafc2` pending a separate Product Office reconciliation directive. This status clears FSG-007 to resume; it does not integrate its divergent lineage from this branch.
 
 Deliver:
 
@@ -133,6 +139,8 @@ Example entry points include:
 - `/website-image-optimizer`.
 
 ## FSG-008 — Ecosystem Integration
+
+**Status: NOT STARTED.**
 
 Deliver:
 
