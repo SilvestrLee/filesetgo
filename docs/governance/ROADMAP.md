@@ -114,11 +114,11 @@ This milestone validates or revises provisional safety defaults through real-dev
 
 ### FSG-006R — External Audit Runtime & Security Hardening
 
-**Status: ▶ CURRENT.** New external evidence arrived after the valid FSG-006 closure. FSG-006R preserves that historical certification while hardening target-size reference lifetimes, proving host-side HEIC cancellation, investigating low-alpha edge quality, and adding production CSP/security headers. See `docs/directives/FSG-006R.md` and ADR-023.
+**Status: ✅ CLOSED.** Product Office accepted final certified application candidate `ffa73d24887ecba9af78b3e09194dca3da1d511b` after GitHub Actions run `34234812993` completed with 218 passed, 6 governed skips, and 0 failed. FSG-006R preserves the valid historical FSG-006 closure while recording the post-audit target-size reference-lifetime hardening, host-side HEIC cancellation proof, evidence-based halo decision, and production CSP/security headers. See `docs/directives/FSG-006R.md` and ADR-023.
 
 ## FSG-007 — SEO Acquisition & Public Launch
 
-**Status: ⏸ PAUSED.** Work is preserved at `1f1ced66ab43f7093efeed4b0aa56a20ad5eafc2` while FSG-006R is current.
+**Status: ▶ CURRENT / RESUMED AFTER FSG-006R.** Work remains preserved at `1f1ced66ab43f7093efeed4b0aa56a20ad5eafc2` pending a separate Product Office reconciliation directive. This status clears FSG-007 to resume; it does not integrate its divergent lineage from this branch.
 
 Deliver:
 
