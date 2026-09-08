@@ -20,13 +20,13 @@ Before implementation, read the applicable governing documents in this order:
 5. architecture, security, and testing documentation
 6. implementation
 
-If lower-level implementation conflicts with a higher-level governing document, stop implementation until the conflict is resolved in the governing layer. The current product milestone is FSG-001 — Core Client Runtime & Safety Foundation, governed by `docs/directives/FSG-001.md`.
+If lower-level implementation conflicts with a higher-level governing document, stop implementation until the conflict is resolved in the governing layer. The current product milestone is FSG-007 — Public Product Experience & Launch. The active implementation sub-directive is FSG-007A — Complete Front-Facing Website Redesign, governed by `docs/directives/FSG-007A.md`.
 
 `SPRINT_REPORT.md` is the canonical current sprint or checkpoint report. Do not overwrite it except when a governed sprint or checkpoint is formally reported.
 
 ## Verification Responsibility
 
-Routine sprint verification (tests, typecheck, build, and browser automation where usable) is the agent's job, not the user's. Do not ask the user to manually open DevTools, click through a proof interface, or otherwise perform routine QA the agent can do itself. A missing manually operated physical-device/cross-browser session does not block a sprint from closing — that certification belongs to FSG-006. See `docs/testing/TESTING.md` ("Verification Responsibility") and `docs/governance/DECISIONS.md` ADR-013 for the full policy.
+Routine sprint verification (tests, typecheck, build, browser automation, and automated visual evidence where usable) is the agent's job, not the user's. Do not ask the user to manually open DevTools, click through a proof interface, or otherwise perform routine QA the agent can do itself. Physical-device limitations must be documented honestly and do not create a project-owner manual-QA requirement. See `docs/testing/TESTING.md` ("Verification Responsibility") and `docs/governance/DECISIONS.md` ADR-013 for the full policy.
 
 <laravel-boost-guidelines>
 === foundation rules ===

@@ -115,13 +115,13 @@ The initial safety defaults are:
 - `MAX_DECODED_PIXELS = 24,000,000`
 - `MAX_ACTIVE_HEAVY_JOBS = 1`
 
-These values are provisional engineering defaults pending FSG-006 device benchmarking. Header-level metadata should be inspected before expensive bitmap allocation wherever the format permits.
+These are the current governed V1 safety limits retained after FSG-006 compatibility certification and FSG-006R post-audit hardening. Browser and physical-device limitations must be reported honestly; the limits must not be silently increased without a new governed technical decision. Header-level metadata should be inspected before expensive bitmap allocation wherever the format permits.
 
 Required V1 raster input support is JPEG, PNG, WebP, and HEIC/HEIF. Required V1 raster output support is JPEG, PNG, and WebP. SVG is deferred unless a dedicated sanitization and rasterization architecture is approved.
 
 ## Delivery Model
 
-The canonical delivery sequence is the eight-milestone roadmap in [`ROADMAP.md`](ROADMAP.md). Work within a milestone is governed by its active directive. The current implementation directive is [`../directives/FSG-001.md`](../directives/FSG-001.md).
+The canonical delivery sequence is governed by [`ROADMAP.md`](ROADMAP.md). Work within a milestone is governed by its active directive. The current implementation directive is [`../directives/FSG-007A.md`](../directives/FSG-007A.md) — Complete Front-Facing Website Redesign.
 
 `SPRINT_REPORT.md` is the canonical repository checkpoint report. It is overwritten only when a governed sprint or checkpoint is formally reported; historical reports remain available through Git history.
 

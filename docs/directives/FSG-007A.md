@@ -1003,4 +1003,3 @@ Return to Product Office for visual review.
 
 The website is not considered visually approved until Product Office
 reviews the actual rendered implementation.
-

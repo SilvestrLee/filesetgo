@@ -118,25 +118,29 @@ This milestone validates or revises provisional safety defaults through real-dev
 
 ## FSG-007 — SEO Acquisition & Public Launch
 
-**Status: ▶ CURRENT.** FSG-006R hardening, the preserved FSG-007 public-launch lineage, and the 8 September 2026 Product Office strategy have now been reconciled for continued FSG-007 work. Public deployment remains blocked pending Product Office approval of the complete front-facing redesign and subsequent launch-quality verification.
+**Status: ▶ CURRENT.** FSG-006R hardening, the preserved FSG-007 public-launch lineage, and the 8 September 2026 Product Office strategy have been reconciled. The active sub-directive is **FSG-007A — Complete Front-Facing Website Redesign**. Public deployment remains blocked pending Product Office visual approval and subsequent launch-quality verification.
 
 Deliver:
 
-- public landing pages;
+- complete front-facing public-product redesign;
+- public landing/acquisition pages;
 - shared-engine SEO entry points;
 - legal and privacy surfaces;
-- production monitoring;
-- analytics; and
+- browser-local trust messaging;
+- launch-readiness verification;
+- operational/error monitoring where separately approved; and
 - public launch.
 
-Example entry points include:
+Approved acquisition entry points include:
 
-- `/compress-image`;
-- `/resize-image`;
-- `/compress-image-to-200kb`;
-- `/website-logo`;
-- `/favicon-generator`; and
-- `/website-image-optimizer`.
+- `/prepare-logo-for-website`;
+- `/transparent-logo-for-website`;
+- `/favicon-generator`;
+- `/website-image-optimizer`;
+- `/compress-image-for-website`; and
+- `/convert-image-to-webp`.
+
+Analytics implementation is not part of FSG-007A and must not be introduced without separate Product Office approval.
 
 ## FSG-008 — Ecosystem Integration
 
