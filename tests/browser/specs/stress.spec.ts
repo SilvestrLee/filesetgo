@@ -1,5 +1,6 @@
+import fs from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { fixturePath, gotoApp, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
+import { collectConsoleProblems, fixturePath, gotoApp, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
 
 const ITERATIONS = 5;
 
@@ -188,5 +189,81 @@ test.describe('Same-session resource-lifecycle stress test (directive §50)', ()
     // No unbounded accumulation across the whole sequence above.
     const finalLiveCount = await liveBlobUrlCount(page);
     expect(finalLiveCount).toBeLessThanOrEqual(2);
+  });
+
+  /**
+   * FSG-006R Workstream A (directive §8): repeated real target-size work
+   * against the largest safe deterministic fixture practical in CI. This is
+   * NOT equivalent to physical iOS memory certification — it proves the
+   * worker/runtime keeps functioning correctly across many large jobs in
+   * one session (no lock leakage, no stale output, no page crash), not a
+   * measured peak-memory ceiling on constrained hardware.
+   */
+  test('10 consecutive large target-size jobs in one session all resolve, and the page keeps working', async ({ page }) => {
+    test.setTimeout(120_000);
+    await installBlobUrlTracker(page);
+    const console_ = collectConsoleProblems(page);
+    const largeJpeg = fs.readFileSync(fixturePath('large.jpg'));
+    const successfulResultUrls = new Set<string>();
+    await gotoApp(page);
+
+    for (let i = 0; i < 10; i += 1) {
+      const sourceName = `large-target-${i}.jpg`;
+      await uploadFile(page, { name: sourceName, mimeType: 'image/jpeg', buffer: largeJpeg });
+      await waitForStatus(page, 'ready');
+      await expect(page.locator('#drop-zone-label')).toHaveText(sourceName);
+      await page.locator('#target-size-value').fill('80');
+      await page.locator('#target-size-unit').selectOption('KB');
+      await page.locator('#output-format').selectOption('jpeg');
+      await page.locator('#process-button').click();
+
+      // Either a real success or a structured unreachable result is an
+      // acceptable terminal state — both prove the job actually completed
+      // rather than hanging or crashing the page. A single wait (rather
+      // than racing two independent `waitForStatus` calls against the same
+      // element) avoids leaving a dangling, still-polling assertion once
+      // the other terminal state is reached.
+      await page.waitForFunction(
+        () => {
+          const state = document.querySelector('#status-message')?.getAttribute('data-state');
+          return state === 'success' || state === 'unreachable';
+        },
+        { timeout: 30_000 },
+      );
+
+      const terminalState = await page.locator('#status-message').getAttribute('data-state');
+      expect(['success', 'unreachable']).toContain(terminalState);
+      await expect(page.locator('#drop-zone-label')).toHaveText(sourceName);
+
+      if (terminalState === 'success') {
+        const downloadLink = page.locator('#download-link');
+        await expect(downloadLink).toHaveAttribute('download', `large-target-${i}-filesetgo.jpg`);
+        const resultUrl = await downloadLink.getAttribute('href');
+        expect(resultUrl).toMatch(/^blob:/);
+        expect(successfulResultUrls.has(resultUrl!)).toBe(false);
+        successfulResultUrls.add(resultUrl!);
+      } else {
+        await expect(page.locator('#result-content')).toBeHidden();
+        await expect(page.locator('#result-unreachable')).toBeVisible();
+      }
+
+      await page.locator('#reset-button').click();
+      await waitForStatus(page, 'idle');
+      await expect(page.locator('#result-content')).toBeHidden();
+      await expect(page.locator('#result-unreachable')).toBeHidden();
+    }
+
+    // The tool is still fully usable after 10 large jobs — no stuck worker
+    // lock, no stale output carried over.
+    await uploadFile(page, 'sample.jpg');
+    await waitForStatus(page, 'ready');
+    await setSimpleRequirement(page);
+    await page.locator('#process-button').click();
+    await waitForStatus(page, 'success', 30_000);
+    await expect(page.locator('#result-content')).toBeVisible();
+    await expect(page.locator('#download-link')).toHaveAttribute('download', 'sample-filesetgo.webp');
+    expect(await page.evaluate(() => document.visibilityState)).toBe('visible');
+    expect(await liveBlobUrlCount(page)).toBeLessThanOrEqual(2);
+    console_.assertClean();
   });
 });

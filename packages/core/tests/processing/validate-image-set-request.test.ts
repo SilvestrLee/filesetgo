@@ -117,6 +117,20 @@ describe('validateProcessImageSetOptions', () => {
     expect(result.error?.code).toBe('UNSAFE_ARCHIVE_ENTRY');
   });
 
+  it.each([
+    '../../../etc/passwd',
+    '..\\..\\evil',
+    '/absolute/path',
+    'C:\\evil',
+    `evil${String.fromCharCode(0)}.png`,
+  ])('rejects %j during request validation before processing', (filename) => {
+    const result = validateProcessImageSetOptions(
+      options({ outputs: [output({ filename })] }),
+    );
+
+    expect(result.error?.code).toBe('UNSAFE_ARCHIVE_ENTRY');
+  });
+
   it('rejects an archive filename not ending in .zip', () => {
     const result = validateProcessImageSetOptions(
       options({ archive: { filename: 'package.tar' } }),

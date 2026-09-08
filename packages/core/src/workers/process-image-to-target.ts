@@ -39,6 +39,21 @@ interface BestCandidate {
   quality?: number;
 }
 
+/**
+ * A candidate retained only for its diagnostic value if every tier misses
+ * the target — deliberately has no `blob` field (FSG-006R Workstream A,
+ * directive §4): an unreachable outcome's `bestAttempt` only ever reports
+ * width/height/byteSize/quality (see the `unreachable` branch below), so
+ * there is no product reason to keep the encoded bytes of a miss alive for
+ * the remainder of a possibly-many-tier search.
+ */
+interface ClosestMissMetadata {
+  byteSize: number;
+  width: number;
+  height: number;
+  quality?: number;
+}
+
 async function encodeCandidate(
   canvas: OffscreenCanvas,
   format: OutputImageFormat,
@@ -120,7 +135,7 @@ export async function processImageToTargetInWorker(
   let bitmap: ImageBitmap | undefined;
   let canvas: OffscreenCanvas | undefined;
   let best: BestCandidate | undefined;
-  let closestMiss: BestCandidate | undefined;
+  let closestMiss: ClosestMissMetadata | undefined;
   let qualityProbeCount = 0;
   let dimensionTierCount = 0;
 
@@ -151,19 +166,22 @@ export async function processImageToTargetInWorker(
         qualityProbeCount += 1;
         const encoded = await encodeCandidate(canvas, 'png', undefined);
         assertNotCancelled(hooks);
-        const candidate: BestCandidate = {
-          blob: encoded.blob,
-          byteSize: encoded.byteSize,
-          width: tierDimensions.width,
-          height: tierDimensions.height,
-        };
 
-        if (closestMiss === undefined || candidate.byteSize < closestMiss.byteSize) {
-          closestMiss = candidate;
+        if (closestMiss === undefined || encoded.byteSize < closestMiss.byteSize) {
+          closestMiss = {
+            byteSize: encoded.byteSize,
+            width: tierDimensions.width,
+            height: tierDimensions.height,
+          };
         }
 
         if (encoded.byteSize <= request.targetBytes) {
-          best = candidate;
+          best = {
+            blob: encoded.blob,
+            byteSize: encoded.byteSize,
+            width: tierDimensions.width,
+            height: tierDimensions.height,
+          };
           break;
         }
 
@@ -178,14 +196,13 @@ export async function processImageToTargetInWorker(
       );
       qualityProbeCount += searchResult.probes.length;
 
-      for (const probe of searchResult.probes) {
-        if (closestMiss === undefined || probe.byteSize < closestMiss.byteSize) {
+      for (const probeMetadata of searchResult.probes) {
+        if (closestMiss === undefined || probeMetadata.byteSize < closestMiss.byteSize) {
           closestMiss = {
-            blob: probe.blob,
-            byteSize: probe.byteSize,
+            byteSize: probeMetadata.byteSize,
             width: tierDimensions.width,
             height: tierDimensions.height,
-            quality: probe.quality,
+            quality: probeMetadata.quality,
           };
         }
       }

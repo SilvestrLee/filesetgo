@@ -2,6 +2,65 @@ import { expect, test } from '@playwright/test';
 import { gotoApp, selectLogoPackBackgroundMode, selectMode, uploadFile, waitForStatus } from '../helpers/app';
 
 test.describe('HEIC certification (directive §20)', () => {
+  test('a cancelled HEIC workflow hard-terminates its stalled worker and recovers with a fresh worker', async ({ page }) => {
+    await page.addInitScript(() => {
+      const NativeWorker = window.Worker;
+      let workerCount = 0;
+      let terminateCount = 0;
+
+      class ObservableWorker extends NativeWorker {
+        private readonly stalled: boolean;
+
+        public constructor(scriptURL: string | URL, options?: WorkerOptions) {
+          super(scriptURL, options);
+          workerCount += 1;
+          this.stalled = workerCount === 1;
+        }
+
+        public override postMessage(message: unknown, optionsOrTransfer?: StructuredSerializeOptions | Transferable[]): void {
+          if (this.stalled) {
+            return;
+          }
+
+          super.postMessage(message, optionsOrTransfer as StructuredSerializeOptions);
+        }
+
+        public override terminate(): void {
+          terminateCount += 1;
+          super.terminate();
+        }
+      }
+
+      Object.defineProperty(window, 'Worker', { configurable: true, value: ObservableWorker });
+      Object.defineProperty(window, '__fsgWorkerLifecycle', {
+        configurable: true,
+        value: () => ({ workerCount, terminateCount }),
+      });
+    });
+
+    await gotoApp(page);
+    await uploadFile(page, 'sample.heic');
+    await waitForStatus(page, 'ready');
+
+    await page.locator('#process-button').click();
+    await waitForStatus(page, 'processing');
+    await page.locator('#cancel-button').click();
+    await waitForStatus(page, 'cancelled');
+    await expect(page.locator('#result-content')).toBeHidden();
+
+    expect(await page.evaluate(() => (
+      window as unknown as { __fsgWorkerLifecycle(): { workerCount: number; terminateCount: number } }
+    ).__fsgWorkerLifecycle())).toEqual({ workerCount: 1, terminateCount: 1 });
+
+    await page.locator('#process-button').click();
+    await waitForStatus(page, 'success', 30_000);
+    await expect(page.locator('#result-format')).toHaveText(/webp/i);
+
+    expect(await page.evaluate(() => (
+      window as unknown as { __fsgWorkerLifecycle(): { workerCount: number; terminateCount: number } }
+    ).__fsgWorkerLifecycle())).toEqual({ workerCount: 2, terminateCount: 2 });
+  });
+
   test('a real HEIC source decodes and produces a successful WebP output', async ({ page }) => {
     await gotoApp(page);
     await uploadFile(page, 'sample.heic');

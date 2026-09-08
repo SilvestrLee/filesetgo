@@ -13,7 +13,7 @@ import {
   ImageProcessingRuntime,
   type ImageWorkerLike,
 } from '../../src/runtime/worker-client';
-import { createImageSource, createPng } from '../preflight/fixtures';
+import { createHeic, createImageSource, createPng } from '../preflight/fixtures';
 
 class FakeImageWorker implements ImageWorkerLike {
   public onmessage: ((event: MessageEvent<unknown>) => void) | null = null;
@@ -41,6 +41,11 @@ class FakeImageWorker implements ImageWorkerLike {
 
 function createPngBlob(): Blob {
   const source = createImageSource(createPng(40, 30));
+  return source.slice(0, source.size);
+}
+
+function createExtremeHeicBlob(): Blob {
+  const source = createImageSource(createHeic(0xffffffff, 0xffffffff));
   return source.slice(0, source.size);
 }
 
@@ -145,6 +150,19 @@ describe('ImageProcessingRuntime', () => {
     expect(workers).toHaveLength(0);
   });
 
+  it('rejects extreme HEIC dimensions before decoder or bitmap allocation can begin', async () => {
+    const { runtime, workers } = createRuntime();
+    const job = runtime.processImage(createExtremeHeicBlob(), {
+      output: { format: 'png' },
+    });
+
+    await expect(job.result).resolves.toMatchObject({
+      status: 'failed',
+      error: { code: 'DIMENSIONS_TOO_LARGE' },
+    });
+    expect(workers).toHaveLength(0);
+  });
+
   it('returns a controlled decode failure without exposing a browser exception', async () => {
     const { runtime, workers } = createRuntime();
     const job = runtime.processImage(createPngBlob(), {
@@ -191,6 +209,62 @@ describe('ImageProcessingRuntime', () => {
       jobId: nextJob.jobId,
       result: createResult('png'),
     });
+
+    await expect(nextJob.result).resolves.toMatchObject({ status: 'complete' });
+  });
+
+  // FSG-006R Workstream B (directive §11): direct proof that cancellation
+  // does not depend on the worker's message queue at all. `FakeImageWorker`
+  // never spontaneously responds to CANCEL_JOB (there is no worker-side
+  // simulation here beyond what the test explicitly calls) — modelling a
+  // worker whose message loop is fully occupied by a non-yielding decode
+  // and will never handle CANCEL_JOB or send a terminal response.
+  it('hard-terminates a non-yielding worker (never handles CANCEL_JOB, never responds) without waiting for it', async () => {
+    const { runtime, workers } = createRuntime();
+    const job = runtime.processImage(createPngBlob(), { output: { format: 'png' } });
+    const worker = await waitForWorker(workers);
+    const handlersBeforeCancel = {
+      onmessage: worker.onmessage,
+      onerror: worker.onerror,
+      onmessageerror: worker.onmessageerror,
+    };
+
+    expect(handlersBeforeCancel.onmessage).not.toBeNull();
+
+    // cancel() returns synchronously — the runtime never awaits anything
+    // from the worker's side before terminating it.
+    expect(job.cancel()).toBeUndefined();
+
+    await expect(job.result).resolves.toMatchObject({
+      status: 'cancelled',
+      error: { code: IMAGE_PROCESSING_ERROR_CODES.ProcessingCancelled },
+    });
+
+    // The worker was actually terminated, not merely asked to stop.
+    expect(worker.terminateCount).toBe(1);
+
+    // All three handlers are detached, not just left dangling.
+    expect(worker.onmessage).toBeNull();
+    expect(worker.onerror).toBeNull();
+    expect(worker.onmessageerror).toBeNull();
+
+    // The worker "eventually" finishing its non-yielding work and emitting
+    // a late JOB_COMPLETE cannot change the already-settled outcome — the
+    // detached handler means this call reaches nothing.
+    handlersBeforeCancel.onmessage?.({
+      data: { type: 'JOB_COMPLETE', jobId: job.jobId, result: createResult('png') },
+    } as MessageEvent<unknown>);
+
+    await expect(job.result).resolves.toMatchObject({ status: 'cancelled' });
+
+    // A fresh job after a hard-cancelled non-yielding worker creates and
+    // uses a genuinely new worker instance.
+    const nextJob = runtime.processImage(createPngBlob(), { output: { format: 'png' } });
+    const nextWorker = await waitForWorker(workers, 1);
+
+    expect(nextWorker).not.toBe(worker);
+
+    nextWorker.emit({ type: 'JOB_COMPLETE', jobId: nextJob.jobId, result: createResult('png') });
 
     await expect(nextJob.result).resolves.toMatchObject({ status: 'complete' });
   });
@@ -426,6 +500,24 @@ function createTransparentMasterResult(): import('../../src/processing/transpare
 }
 
 describe('ImageProcessingRuntime shared job slot (processImageSet)', () => {
+  it('rejects an unsafe archive entry before worker creation', async () => {
+    const { runtime, workers } = createRuntime();
+    const job = runtime.processImageSet(createPngBlob(), {
+      outputs: [{
+        kind: 'raster',
+        id: 'unsafe',
+        filename: '../../../etc/passwd',
+        output: { format: 'png' },
+      }],
+    });
+
+    await expect(job.result).resolves.toMatchObject({
+      status: 'failed',
+      error: { code: 'UNSAFE_ARCHIVE_ENTRY' },
+    });
+    expect(workers).toHaveLength(0);
+  });
+
   it('posts PROCESS_IMAGE_SET and resolves a complete image-set outcome', async () => {
     const { runtime, workers } = createRuntime();
     const job = runtime.processImageSet(createPngBlob(), {

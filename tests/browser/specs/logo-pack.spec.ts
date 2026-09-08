@@ -14,6 +14,30 @@ function expectedAssets(mode: 'transparent' | 'original', basename: string): str
 }
 
 test.describe('Website Logo Pack certification (directive §17, extended by FSG-005C)', () => {
+  test('captures deterministic baseline-policy edge evidence on checkerboard, light, and dark previews', async ({ page }, testInfo) => {
+    const console_ = collectConsoleProblems(page);
+    await gotoApp(page);
+    await uploadFile(page, 'flat-logo.jpg');
+    await waitForStatus(page, 'ready');
+    await selectMode(page, 'logo-pack');
+    await selectLogoPackBackgroundMode(page, 'transparent');
+    await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
+
+    const previewFrame = page.locator('#logo-pack-preview-frame');
+    const backgrounds = ['checkerboard', 'light', 'dark'] as const;
+
+    for (const background of backgrounds) {
+      await page.locator(`#logo-pack-preview-bg-${background}`).click();
+      await expect(page.locator(`#logo-pack-preview-bg-${background}`)).toHaveAttribute('aria-pressed', 'true');
+      await testInfo.attach(`baseline-edge-${background}.png`, {
+        body: await previewFrame.screenshot(),
+        contentType: 'image/png',
+      });
+    }
+
+    console_.assertClean();
+  });
+
   test('a complete successful Original-mode flow produces exactly seven public assets', async ({ page }) => {
     const console_ = collectConsoleProblems(page);
 

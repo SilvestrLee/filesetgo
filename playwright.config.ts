@@ -48,7 +48,11 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   webServer: {
-    command: `php artisan serve --host=127.0.0.1 --port=${PORT}`,
+    // The suite certifies the production response. Laravel Boost's
+    // development-only browser logger injects an inline script and sends
+    // diagnostic POSTs, neither of which exists in a production install;
+    // disable that watcher so CSP/privacy evidence measures FileSetGo.
+    command: `BOOST_BROWSER_LOGS_WATCHER=false php artisan serve --host=127.0.0.1 --port=${PORT}`,
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,

@@ -71,6 +71,20 @@ type EncodeHandler = (options: EncodeOptions, width: number, height: number) => 
 let encodeHandler: EncodeHandler;
 let bitmapHandler: () => Promise<FakeImageBitmap>;
 
+function collectReachableBlobs(value: unknown, seen = new Set<unknown>()): Blob[] {
+  if (value instanceof Blob) {
+    return [value];
+  }
+
+  if (value === null || typeof value !== 'object' || seen.has(value)) {
+    return [];
+  }
+
+  seen.add(value);
+
+  return Object.values(value).flatMap((entry) => collectReachableBlobs(entry, seen));
+}
+
 /**
  * Builds a real, parseable image at exactly `byteSize` bytes by padding a
  * minimal real fixture with trailing bytes after its terminator (which
@@ -241,6 +255,54 @@ describe('processImageToTargetInWorker JPEG', () => {
     }
     // Hard policy: exactly one tier attempted, at most 5 probes for it.
     expect(encodeCalls.length).toBeLessThanOrEqual(MAX_QUALITY_PROBES_PER_TIER);
+  });
+
+  // FSG-006R Workstream A (directive §4/§7): an unreachable outcome's
+  // `bestAttempt` is diagnostic metadata only — proves the retention fix at
+  // the public outcome shape, not just the internal quality-search type.
+  it('never attaches a Blob to an unreachable outcome\'s bestAttempt', async () => {
+    const outcome = await processImageToTargetInWorker(
+      testRequest({ targetBytes: 5000, dimensionPolicy: 'hard' }),
+      testHooks().hooks,
+    );
+
+    expect(outcome.status).toBe('unreachable');
+    if (outcome.status === 'unreachable' && outcome.outcome.bestAttempt !== undefined) {
+      expect(outcome.outcome.bestAttempt).not.toHaveProperty('blob');
+      expect(Object.keys(outcome.outcome.bestAttempt).every((key) =>
+        ['width', 'height', 'byteSize', 'quality'].includes(key))).toBe(true);
+    }
+
+    expect(collectReachableBlobs(outcome)).toEqual([]);
+  });
+
+  it('returns only the final winner Blob after earlier-tier binary candidates miss', async () => {
+    const encodedBlobs: Blob[] = [];
+    encodeHandler = async (options, width, height) => {
+      const byteSize = modelByteSize(width, height, options.quality);
+      const blob = encodeAtSize('jpeg', width, height, byteSize);
+      encodedBlobs.push(blob);
+
+      return blob;
+    };
+
+    const outcome = await processImageToTargetInWorker(
+      testRequest({ targetBytes: 65_000 }),
+      testHooks().hooks,
+    );
+
+    expect(outcome.status).toBe('met');
+    if (outcome.status !== 'met') {
+      throw new Error('Expected a fitting candidate after dimension reduction.');
+    }
+
+    const reachableBlobs = collectReachableBlobs(outcome);
+    expect(reachableBlobs).toEqual([outcome.result.blob]);
+    expect(encodedBlobs).toContain(outcome.result.blob);
+
+    for (const nonWinner of encodedBlobs.filter((blob) => blob !== outcome.result.blob)) {
+      expect(reachableBlobs).not.toContain(nonWinner);
+    }
   });
 
   it('steps down dimensions (flexible) after quality search fails at the initial tier', async () => {

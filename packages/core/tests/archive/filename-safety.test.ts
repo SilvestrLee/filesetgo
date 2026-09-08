@@ -18,25 +18,30 @@ describe('isSafeArchiveEntryName', () => {
     expect(isSafeArchiveEntryName('..')).toBe(false);
   });
 
-  it('rejects path traversal', () => {
+  it.each([
+    '../../../etc/passwd',
+    '..\\..\\evil',
+    '/absolute/path',
+    'C:\\evil',
+    `evil${String.fromCharCode(0)}.png`,
+  ])('rejects the FSG-006R traversal case %j', (filename) => {
+    expect(isSafeArchiveEntryName(filename)).toBe(false);
+  });
+
+  it('retains the broader traversal variants certified before FSG-006R', () => {
     expect(isSafeArchiveEntryName('../evil.png')).toBe(false);
     expect(isSafeArchiveEntryName('..\\evil.png')).toBe(false);
     expect(isSafeArchiveEntryName('a/../../evil.png')).toBe(false);
   });
 
-  it('rejects absolute unix and windows paths', () => {
+  it('retains the broader absolute-path variants certified before FSG-006R', () => {
     expect(isSafeArchiveEntryName('/etc/passwd')).toBe(false);
     expect(isSafeArchiveEntryName('\\Windows\\System32')).toBe(false);
   });
 
-  it('rejects drive-letter paths', () => {
+  it('retains both Windows drive-path separators certified before FSG-006R', () => {
     expect(isSafeArchiveEntryName('C:\\evil.png')).toBe(false);
     expect(isSafeArchiveEntryName('C:/evil.png')).toBe(false);
-  });
-
-  it('rejects a null byte', () => {
-    const nullByte = String.fromCharCode(0);
-    expect(isSafeArchiveEntryName(`evil${nullByte}.png`)).toBe(false);
   });
 
   it('rejects any nested directory (flat archives only, FSG-005A)', () => {

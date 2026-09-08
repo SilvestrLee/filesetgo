@@ -1,17 +1,28 @@
 import { MAX_QUALITY_PROBES_PER_TIER } from '../processing/target-size-limits';
 import type { TargetSizeQualityRange } from '../processing/target-size-contracts';
 
-export interface QualityProbe {
+/**
+ * Metadata for a probe that was encoded but is not (or is no longer) the
+ * best candidate. Deliberately excludes `blob` (FSG-006R Workstream A,
+ * directive §4): a non-winning probe's encoded bytes serve no purpose once
+ * a better candidate is found or the probe doesn't fit, so this type makes
+ * it structurally impossible to retain them by accident.
+ */
+export interface QualityProbeMetadata {
   quality: number;
   byteSize: number;
+}
+
+/** The current best candidate — the only probe per search whose Blob is worth keeping alive. */
+export interface QualityBestCandidate extends QualityProbeMetadata {
   blob: Blob;
 }
 
 export interface QualitySearchResult {
-  /** Every probe actually encoded, in the order they were attempted (at most 5). */
-  probes: QualityProbe[];
-  /** The highest-quality probe whose byteSize <= targetBytes, if any. */
-  best: QualityProbe | undefined;
+  /** Every probe actually attempted this tier, in order (at most 5) — metadata only, no Blob retained. */
+  probes: QualityProbeMetadata[];
+  /** The highest-quality probe whose byteSize <= targetBytes, if any — the only probe whose Blob survives the search. */
+  best: QualityBestCandidate | undefined;
 }
 
 /**
@@ -41,34 +52,43 @@ export async function boundedQualitySearch(
   encode: (quality: number) => Promise<{ blob: Blob; byteSize: number }>,
   checkCancelled: () => void,
 ): Promise<QualitySearchResult> {
-  const probes: QualityProbe[] = [];
+  const probes: QualityProbeMetadata[] = [];
 
-  async function probe(quality: number): Promise<QualityProbe> {
+  // Encodes and records this probe's metadata unconditionally. Each caller
+  // keeps the returned Blob in the narrowest possible block and promotes it
+  // to `best` only when it is a selected candidate (FSG-006R ADR-023).
+  async function probe(quality: number): Promise<QualityBestCandidate> {
     checkCancelled();
     const { blob, byteSize } = await encode(quality);
     checkCancelled();
-    const result: QualityProbe = { quality, byteSize, blob };
-    probes.push(result);
-    return result;
+    probes.push({ quality, byteSize });
+    return { quality, byteSize, blob };
   }
 
-  const atMax = await probe(qualityRange.maxQuality);
+  {
+    const atMax = await probe(qualityRange.maxQuality);
 
-  if (atMax.byteSize <= targetBytes) {
-    return { probes, best: atMax };
+    if (atMax.byteSize <= targetBytes) {
+      return { probes, best: atMax };
+    }
   }
 
   if (qualityRange.maxQuality === qualityRange.minQuality) {
     return { probes, best: undefined };
   }
 
-  const atMin = await probe(qualityRange.minQuality);
+  let best: QualityBestCandidate;
 
-  if (atMin.byteSize > targetBytes) {
-    return { probes, best: undefined };
+  {
+    const atMin = await probe(qualityRange.minQuality);
+
+    if (atMin.byteSize > targetBytes) {
+      return { probes, best: undefined };
+    }
+
+    best = atMin;
   }
 
-  let best = atMin;
   let low = qualityRange.minQuality;
   let high = qualityRange.maxQuality;
 
@@ -78,6 +98,10 @@ export async function boundedQualitySearch(
 
     if (midResult.byteSize <= targetBytes) {
       if (midResult.quality > best.quality) {
+        // The superseded candidate's Blob (previously held by `best`) is no
+        // longer referenced anywhere after this reassignment and becomes
+        // GC-eligible immediately — never retained in `probes` in the first
+        // place (FSG-006R Workstream A).
         best = midResult;
       }
 
