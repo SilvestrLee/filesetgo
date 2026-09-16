@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ProcessImageSetOptions, RasterImageSetOutputSpec } from '../../src/processing/image-set-contracts';
-import { MAX_PACKAGE_ASSETS } from '../../src/processing/image-set-limits';
+import { MAX_PACKAGE_ASSETS, MAX_PACKAGE_SOURCES } from '../../src/processing/image-set-limits';
 import { validateProcessImageSetOptions } from '../../src/processing/validate-image-set-request';
 
 function output(overrides: Partial<RasterImageSetOutputSpec> = {}): RasterImageSetOutputSpec {
@@ -31,6 +31,37 @@ describe('validateProcessImageSetOptions', () => {
       options({ archive: { filename: 'package.zip' } }),
     );
     expect(result.error).toBeUndefined();
+  });
+
+  it('accepts a bounded named source referenced by an output', () => {
+    const result = validateProcessImageSetOptions(options({
+      sources: { 'favicon-source': new Blob(['icon'], { type: 'image/png' }) },
+      outputs: [output({ source: 'favicon-source' })],
+    }));
+
+    expect(result.error).toBeUndefined();
+  });
+
+  it('rejects an output that references an unknown named source before processing', () => {
+    const result = validateProcessImageSetOptions(options({ outputs: [output({ source: 'missing' })] }));
+
+    expect(result.error?.message).toMatch(/unknown named source/i);
+  });
+
+  it('rejects unsafe named-source ids', () => {
+    const result = validateProcessImageSetOptions(options({
+      sources: { '../icon': new Blob(['icon'], { type: 'image/png' }) },
+    }));
+
+    expect(result.error?.message).toMatch(/source id/i);
+  });
+
+  it('rejects more than the bounded named-source limit', () => {
+    const sources = Object.fromEntries(
+      Array.from({ length: MAX_PACKAGE_SOURCES + 1 }, (_, index) => [`source-${index}`, new Blob(['x'])]),
+    );
+
+    expect(validateProcessImageSetOptions(options({ sources })).error?.message).toMatch(/named sources/i);
   });
 
   it('rejects an empty outputs array', () => {

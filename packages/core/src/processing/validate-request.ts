@@ -36,6 +36,13 @@ export function validateProcessImageOptions(
     );
   }
 
+  if (options.resize !== undefined && options.exact !== undefined) {
+    return createProcessingError(
+      IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+      'A request may specify `resize` or `exact`, never both.',
+    );
+  }
+
   if (options.resize !== undefined) {
     const { maxWidth, maxHeight } = options.resize;
 
@@ -71,6 +78,55 @@ export function validateProcessImageOptions(
         IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
         'The requested resize bounds exceed the decoded-pixel safety limit.',
       );
+    }
+  }
+
+  if (options.exact !== undefined) {
+    const { width, height, crop } = options.exact;
+
+    for (const [name, value] of [
+      ['width', width],
+      ['height', height],
+    ] as const) {
+      if (!Number.isSafeInteger(value) || value <= 0) {
+        return createProcessingError(
+          IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+          `exact.${name} must be a positive safe integer.`,
+        );
+      }
+    }
+
+    if (width * height > DEFAULT_SAFETY_LIMITS.maxDecodedPixels) {
+      return createProcessingError(
+        IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+        'The requested exact dimensions exceed the decoded-pixel safety limit.',
+      );
+    }
+
+    if (crop !== undefined) {
+      for (const [name, value] of [
+        ['crop.x', crop.x],
+        ['crop.y', crop.y],
+      ] as const) {
+        if (!Number.isFinite(value) || value < 0) {
+          return createProcessingError(
+            IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+            `${name} must be a non-negative finite number.`,
+          );
+        }
+      }
+
+      for (const [name, value] of [
+        ['crop.width', crop.width],
+        ['crop.height', crop.height],
+      ] as const) {
+        if (!Number.isFinite(value) || value <= 0) {
+          return createProcessingError(
+            IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+            `${name} must be a positive finite number.`,
+          );
+        }
+      }
     }
   }
 

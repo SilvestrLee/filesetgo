@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { fixturePath, gotoApp, selectLogoPackBackgroundMode, selectMode, waitForStatus } from '../helpers/app';
+import { approveFullLogoFaviconSource, fixturePath, gotoApp, selectLogoPackBackgroundMode, selectMode, waitForStatus } from '../helpers/app';
 
 test.describe('Rapid file replacement / stale-result certification (directive §28)', () => {
   test('Quick Fit: File B becomes authoritative even if File A is still inspecting', async ({ page }) => {
@@ -27,9 +27,15 @@ test.describe('Rapid file replacement / stale-result certification (directive §
 
   test('Logo Pack: rapid source replacement keeps the suitability review consistent with the latest source', async ({ page }) => {
     await gotoApp(page);
+    // An active source first — the launcher needs one to open the real
+    // dialog rather than the source-required gate (FSG-007-FIT-001B
+    // directive §30); the dialog itself stays open for the rapid
+    // replacement below, same as the real "Change image" flow.
+    const input = page.locator('#source-file');
+    await input.setInputFiles(fixturePath('good-logo.png'));
+    await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
 
-    const input = page.locator('#source-file');
     await input.setInputFiles(fixturePath('small-logo.png')); // would block
     await input.setInputFiles(fixturePath('good-logo.png')); // immediately replaced with an adequate source
 
@@ -43,6 +49,7 @@ test.describe('Rapid file replacement / stale-result certification (directive §
     );
 
     await selectLogoPackBackgroundMode(page, 'original');
+    await approveFullLogoFaviconSource(page);
     await expect(page.locator('#logo-pack-create-button')).toBeEnabled();
   });
 });

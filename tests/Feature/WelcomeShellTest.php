@@ -107,7 +107,7 @@ class WelcomeShellTest extends TestCase
         $response->assertSee('id="mode-tab-logo-pack"', false);
         $response->assertSee('Logo Pack');
         $response->assertSee('id="logo-pack-panel"', false);
-        $response->assertSee('Create logo pack');
+        $response->assertSee('Generate logo pack');
     }
 
     /**

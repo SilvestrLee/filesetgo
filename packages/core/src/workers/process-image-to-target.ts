@@ -3,6 +3,7 @@ import { DEFAULT_SAFETY_LIMITS } from '../preflight/safety';
 import {
   IMAGE_PROCESSING_ERROR_CODES,
   OUTPUT_IMAGE_MIME_TYPES,
+  type CropRegion,
   type ImageDimensions,
   type OutputImageFormat,
 } from '../processing/contracts';
@@ -12,6 +13,7 @@ import {
   type TargetSizeResult,
   type TargetSizeUnreachable,
 } from '../processing/target-size-contracts';
+import { isCropRatioValid, isCropRequired, isCropWithinBounds } from '../transforms/crop';
 import { calculateDimensionTiers } from '../transforms/dimension-tiers';
 import { calculateResizePlan } from '../transforms/resize';
 import { boundedQualitySearch } from '../transforms/quality-search';
@@ -106,15 +108,71 @@ export async function processImageToTargetInWorker(
     sourceDimensions.height,
     orientation,
   );
-  const initialPlan = calculateResizePlan(
-    normalizedDimensions.width,
-    normalizedDimensions.height,
-    {
-      maxWidth: request.dimensions?.maxWidth,
-      maxHeight: request.dimensions?.maxHeight,
-      allowUpscale: false,
-    },
-  );
+  let initialPlan: ImageDimensions;
+  let appliedCrop: CropRegion | undefined;
+
+  if (request.exact !== undefined) {
+    const exact = request.exact;
+    const cropRequired = isCropRequired(
+      normalizedDimensions.width,
+      normalizedDimensions.height,
+      exact.width,
+      exact.height,
+    );
+
+    if (cropRequired && exact.crop === undefined) {
+      fail(
+        IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+        'The requested exact dimensions do not match the source aspect ratio; a confirmed crop region is required.',
+        { width: exact.width, height: exact.height },
+      );
+    }
+
+    if (exact.crop !== undefined) {
+      if (!isCropWithinBounds(exact.crop, normalizedDimensions.width, normalizedDimensions.height)) {
+        fail(
+          IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+          'The crop region is not within the source image bounds.',
+        );
+      }
+
+      if (!isCropRatioValid(exact.crop, exact.width, exact.height)) {
+        fail(
+          IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+          "The crop region's aspect ratio does not match the requested exact dimensions.",
+        );
+      }
+    }
+
+    const effectiveSource = exact.crop ?? normalizedDimensions;
+    const upscaleFactor = Math.max(
+      exact.width / effectiveSource.width,
+      exact.height / effectiveSource.height,
+    );
+
+    if (upscaleFactor > 1 && exact.allowUpscale !== true) {
+      fail(
+        IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+        'Reaching the requested exact dimensions requires upscaling beyond the available source detail; allowUpscale must be explicitly approved.',
+        { width: exact.width, height: exact.height },
+      );
+    }
+
+    initialPlan = { width: exact.width, height: exact.height };
+    appliedCrop = exact.crop;
+  } else {
+    const boundingPlan = calculateResizePlan(
+      normalizedDimensions.width,
+      normalizedDimensions.height,
+      {
+        maxWidth: request.dimensions?.maxWidth,
+        maxHeight: request.dimensions?.maxHeight,
+        allowUpscale: false,
+      },
+    );
+
+    initialPlan = { width: boundingPlan.width, height: boundingPlan.height };
+  }
 
   if (initialPlan.width * initialPlan.height > DEFAULT_SAFETY_LIMITS.maxDecodedPixels) {
     fail(
@@ -128,7 +186,15 @@ export async function processImageToTargetInWorker(
     );
   }
 
-  const tiers = request.dimensionPolicy === 'hard'
+  // `exact` forces a single fixed-geometry tier regardless of
+  // `dimensionPolicy` — geometry is always a hard requirement once `exact`
+  // is set (FSG-007-FIT-001 directive §17: never silently shrink exact
+  // dimensions to hit a byte target). `validate-target-request.ts` already
+  // resolves `dimensionPolicy` to `'hard'` whenever `exact` is present for
+  // any request that went through it, but this is re-derived here too
+  // rather than trusted from the request field, so the invariant holds
+  // even for a caller that reaches the worker directly.
+  const tiers = request.dimensionPolicy === 'hard' || request.exact !== undefined
     ? [{ width: initialPlan.width, height: initialPlan.height, tier: 0 }]
     : calculateDimensionTiers(initialPlan.width, initialPlan.height);
 
@@ -159,7 +225,7 @@ export async function processImageToTargetInWorker(
       }
 
       canvas = createRenderCanvas(tierDimensions);
-      drawBitmapToCanvas(canvas, bitmap, orientation, sourceDimensions);
+      drawBitmapToCanvas(canvas, bitmap, orientation, sourceDimensions, appliedCrop, normalizedDimensions);
       assertNotCancelled(hooks);
 
       if (request.output.format === 'png') {
@@ -222,7 +288,8 @@ export async function processImageToTargetInWorker(
     assertNotCancelled(hooks);
 
     if (best === undefined) {
-      const code = request.dimensionPolicy === 'hard'
+      const isHardGeometry = request.dimensionPolicy === 'hard' || request.exact !== undefined;
+      const code = isHardGeometry
         ? TARGET_SIZE_ERROR_CODES.TargetUnreachableHardDimensions
         : TARGET_SIZE_ERROR_CODES.TargetUnreachableMinDimensions;
 
@@ -230,7 +297,7 @@ export async function processImageToTargetInWorker(
         status: 'unreachable',
         outcome: {
           code,
-          message: request.dimensionPolicy === 'hard'
+          message: isHardGeometry
             ? 'The target byte size could not be met at the requested (hard) dimensions within the permitted quality range.'
             : 'The target byte size could not be met even after reducing dimensions to the minimum permitted floor.',
           ...(closestMiss === undefined
@@ -262,13 +329,16 @@ export async function processImageToTargetInWorker(
       byteSize: best.byteSize,
       sourceDimensions,
       normalizedDimensions,
-      resized: best.width !== normalizedDimensions.width || best.height !== normalizedDimensions.height,
+      resized: appliedCrop !== undefined ||
+        best.width !== normalizedDimensions.width ||
+        best.height !== normalizedDimensions.height,
       targetBytes: request.targetBytes,
       targetMet: true,
       dimensionsReduced: best.width !== initialPlan.width || best.height !== initialPlan.height,
       qualityProbeCount,
       dimensionTierCount,
       ...(best.quality === undefined ? {} : { quality: best.quality }),
+      ...(appliedCrop === undefined ? {} : { appliedCrop }),
     };
 
     await validateOutput(result);

@@ -25,6 +25,7 @@ const ERROR_MESSAGES: Partial<Record<ImageProcessingErrorCode, string>> = {
   ENCODE_FAILED: "We couldn't create the ready file.",
   RUNTIME_UNSUPPORTED: "This browser doesn't support the processing features FileSetGo needs.",
   OUTPUT_VALIDATION_FAILED: "We couldn't verify the ready file. Please try again.",
+  ICO_VALIDATION_FAILED: "We couldn't verify one of the icon files. Please try again.",
   WORKER_FAILED: 'Something interrupted processing. Please try again.',
   INVALID_PROCESSING_REQUEST: "That combination of requirements isn't valid.",
   PROCESSING_CANCELLED: 'Processing was cancelled.',

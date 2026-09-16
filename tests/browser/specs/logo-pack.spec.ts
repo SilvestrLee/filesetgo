@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { collectConsoleProblems, gotoApp, selectLogoPackBackgroundMode, selectMode, uploadFile, waitForStatus, zipEntryNames } from '../helpers/app';
+import { approveFullLogoFaviconSource, collectConsoleProblems, continueLogoPackToFaviconSource, fixturePath, gotoApp, reviewLogoPackBackground, selectLogoPackBackgroundMode, selectMode, uploadFile, waitForStatus, zipEntryNames } from '../helpers/app';
 
 function expectedAssets(mode: 'transparent' | 'original', basename: string): string[] {
   return [
@@ -21,6 +21,7 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'transparent');
+    await reviewLogoPackBackground(page);
     await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
 
     const previewFrame = page.locator('#logo-pack-preview-frame');
@@ -67,8 +68,10 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await expect(createButton).toBeDisabled();
 
     await selectLogoPackBackgroundMode(page, 'original');
+    await expect(createButton).toBeDisabled();
+    await approveFullLogoFaviconSource(page);
     await expect(createButton).toBeEnabled();
-    await expect(createButton).toHaveText('Create logo pack');
+    await expect(createButton).toHaveText('Generate logo pack');
     await createButton.click();
 
     // A small logo can finish before an intermediate "processing" check
@@ -81,6 +84,7 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
 
     const assetItems = page.locator('#logo-pack-assets li');
     await expect(assetItems).toHaveCount(7);
+    await expect(page.locator('.fsg-logo-pack-assets')).not.toHaveAttribute('open', '');
 
     for (const filename of expectedAssets('original', 'good-logo')) {
       await expect(page.locator('#logo-pack-assets')).toContainText(filename);
@@ -121,7 +125,10 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
   test('a complete successful Transparent-mode flow verifies and previews before packaging (directive §5/§8/§27/§32)', async ({ page }) => {
     const console_ = collectConsoleProblems(page);
 
+    await page.emulateMedia({ colorScheme: 'dark' });
     await gotoApp(page);
+    await page.locator('[data-theme-toggle]').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await uploadFile(page, 'flat-logo.png');
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
@@ -145,8 +152,12 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     // The preview must appear and be mechanically verified for this common,
     // flat-background case (directive §17 — common cases must not be
     // downgraded to "needs review").
-    await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
+    await reviewLogoPackBackground(page);
+    await expect(page.locator('#logo-pack-preview')).toBeVisible();
     await expect(page.locator('#logo-pack-preview-confidence')).toHaveText('✓ Transparent background verified');
+    await expect(page.locator('#logo-pack-preview-original-dimensions')).toHaveText('400 × 400');
+    await expect(page.locator('#logo-pack-preview-canvas')).toHaveText('Trimmed to your logo');
+    await expect(page.locator('#logo-pack-preview-prepared-dimensions')).not.toHaveText('400 × 400');
 
     const previewImage = page.locator('#logo-pack-preview-image');
     await expect(previewImage).toHaveAttribute('src', /^blob:/);
@@ -161,12 +172,23 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     expect(await previewImage.getAttribute('src')).toBe(srcBeforeToggle);
     await page.locator('#logo-pack-preview-bg-checkerboard').click();
 
+    await expect(createButton).toBeDisabled();
+    await approveFullLogoFaviconSource(page);
     await expect(createButton).toBeEnabled();
-    await expect(createButton).toHaveText('Create transparent logo pack');
+    await expect(createButton).toHaveText('Generate transparent logo pack');
     await createButton.click();
 
     await waitForStatus(page, 'success', 30_000);
     await expect(page.locator('#logo-pack-result')).toBeVisible();
+    await expect(page.locator('#logo-pack-result-readiness')).toBeVisible();
+    await expect(page.locator('#logo-pack-result-transparency')).toHaveText('Verified');
+    await expect(page.locator('#logo-pack-result-canvas')).toHaveText('Trimmed to your logo');
+    await expect(page.locator('#logo-pack-result-prepared-dimensions')).not.toHaveText('400 × 400');
+
+    for (const selector of ['#logo-pack-result-readiness', '#logo-pack-result-sources']) {
+      await expect(page.locator(selector)).toHaveCSS('background-color', 'rgb(241, 245, 249)');
+      await expect(page.locator(selector)).toHaveCSS('color', 'rgb(15, 23, 42)');
+    }
 
     for (const filename of expectedAssets('transparent', 'flat-logo')) {
       await expect(page.locator('#logo-pack-assets')).toContainText(filename);
@@ -193,6 +215,7 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'transparent');
+    await reviewLogoPackBackground(page);
 
     // A JPEG source has no alpha channel at all — this is only meaningful
     // if FileSetGo genuinely ran deterministic background removal on it,
@@ -201,6 +224,9 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     // path, not only a synthetic in-memory raster (correction directive §11).
     await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#logo-pack-preview-confidence')).toHaveText('✓ Transparent background verified');
+    await expect(page.locator('#logo-pack-preview-original-dimensions')).toHaveText('400 × 400');
+    await expect(page.locator('#logo-pack-preview-canvas')).toHaveText('Trimmed to your logo');
+    await expect(page.locator('#logo-pack-preview-prepared-dimensions')).not.toHaveText('400 × 400');
   });
 
   test('Transparent mode removes the background of a black-background JPEG source (correction directive §11)', async ({ page }) => {
@@ -209,6 +235,7 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'transparent');
+    await reviewLogoPackBackground(page);
 
     // The white-background JPEG case alone would not prove the algorithm
     // isn't secretly white-specific — a real black-background encoded
@@ -224,6 +251,7 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'transparent');
+    await reviewLogoPackBackground(page);
 
     // This source genuinely contains alpha (a real, decodable RGBA PNG) —
     // proving the product does not merely trust that alpha exists.
@@ -237,10 +265,13 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     // needs-review, never silently failed) for this common, deterministic
     // geometry — and packaging must actually complete.
     const createButton = page.locator('#logo-pack-create-button');
+    await approveFullLogoFaviconSource(page);
     await expect(createButton).toBeEnabled();
     await createButton.click();
     await waitForStatus(page, 'success', 30_000);
     await expect(page.locator('#logo-pack-result')).toBeVisible();
+    await expect(page.locator('#logo-pack-result-readiness')).toBeVisible();
+    await expect(page.locator('#logo-pack-result-canvas')).toHaveText('Trimmed to your logo');
   });
 
   test('a genuinely already-transparent PNG bypasses background removal and preserves existing alpha (FSG-006 delta recertification §19)', async ({ page }) => {
@@ -251,20 +282,28 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'transparent');
+    await reviewLogoPackBackground(page);
 
     // A genuinely already-prepared source: background transparency is
     // confirmed, removal is bypassed, and the result is verified — not
     // needs-review/failed, since nothing here is ambiguous.
     await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#logo-pack-preview-confidence')).toHaveText('✓ Transparent background verified');
+    await expect(page.locator('#logo-pack-preview-original-dimensions')).toHaveText('400 × 400');
+    await expect(page.locator('#logo-pack-preview-canvas')).toHaveText('Trimmed to your logo');
+    await expect(page.locator('#logo-pack-preview-prepared-dimensions')).not.toHaveText('400 × 400');
 
     // The removal-strength selector is meaningless for an already-transparent
     // source and must be hidden entirely (directive §15 of FSG-005C).
     await expect(page.locator('#logo-pack-strength-fieldset')).toBeHidden();
 
+    await approveFullLogoFaviconSource(page);
     await page.locator('#logo-pack-create-button').click();
     await waitForStatus(page, 'success', 30_000);
     await expect(page.locator('#logo-pack-result')).toBeVisible();
+    await expect(page.locator('#logo-pack-result-readiness')).toBeVisible();
+    await expect(page.locator('#logo-pack-result-transparency')).toHaveText('Verified');
+    await expect(page.locator('#logo-pack-result-canvas')).toHaveText('Trimmed to your logo');
 
     console_.assertClean();
   });
@@ -275,13 +314,16 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'transparent');
-    await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
+    await reviewLogoPackBackground(page);
+    await expect(page.locator('#logo-pack-preview')).toBeVisible();
 
     const previewImage = page.locator('#logo-pack-preview-image');
     const srcBeforeChange = await previewImage.getAttribute('src');
 
-    await page.locator('#logo-pack-strength-strong').check({ force: true });
-    await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
+    await page.locator('#logo-pack-change-background').click();
+    await page.getByText('Strong', { exact: true }).click();
+    await reviewLogoPackBackground(page);
+    await expect(page.locator('#logo-pack-preview')).toBeVisible();
 
     const srcAfterChange = await previewImage.getAttribute('src');
     expect(srcAfterChange).not.toBe(srcBeforeChange);
@@ -293,6 +335,7 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'transparent');
+    await reviewLogoPackBackground(page);
 
     await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
     // Visually distinct from VERIFIED — not colour alone, real different text.
@@ -303,6 +346,7 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     // under the governed NEEDS REVIEW policy (directive §28 of FSG-005C).
     await expect(page.locator('#logo-pack-preview-bg-light')).toBeEnabled();
     await expect(page.locator('#logo-pack-preview-bg-dark')).toBeEnabled();
+    await approveFullLogoFaviconSource(page);
     await expect(page.locator('#logo-pack-create-button')).toBeEnabled();
 
     // The algorithm is not tuned merely to turn this case green — the real
@@ -317,6 +361,7 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'transparent');
+    await reviewLogoPackBackground(page);
 
     await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#logo-pack-preview-confidence')).toHaveText('✕ We couldn’t produce a clean transparent background');
@@ -327,7 +372,9 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await expect(page.locator('#logo-pack-result')).toBeHidden();
 
     // A recovery action remains available: keep the existing background instead.
+    await page.locator('#logo-pack-change-background').click();
     await selectLogoPackBackgroundMode(page, 'original');
+    await approveFullLogoFaviconSource(page);
     await expect(page.locator('#logo-pack-create-button')).toBeEnabled();
   });
 
@@ -337,17 +384,23 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'original');
+    await approveFullLogoFaviconSource(page);
     await page.locator('#logo-pack-create-button').click();
     await waitForStatus(page, 'success', 30_000);
 
     await page.locator('#reset-button').click();
     await waitForStatus(page, 'idle');
 
-    await expect(page.locator('#logo-pack-no-file-hint')).toBeVisible();
     await expect(page.locator('#logo-pack-result')).toBeHidden();
     await expect(page.locator('#source-panel')).toBeHidden();
     await expect(page.locator('#logo-pack-mode-transparent')).not.toBeChecked();
     await expect(page.locator('#logo-pack-mode-original')).not.toBeChecked();
+    // No source after reset — the launcher shows the source-required gate
+    // rather than an empty Logo Pack dialog (FSG-007-FIT-001B directive §30).
+    await page.locator('#logo-pack-open').click();
+    await expect(page.locator('#source-required-dialog')).toBeVisible();
+    await expect(page.locator('#logo-pack-dialog')).toBeHidden();
+    await page.locator('#source-required-close').click();
 
     // A new file can be selected successfully afterward, with no mode carried over.
     await uploadFile(page, 'good-logo.png');
@@ -356,12 +409,41 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await expect(page.locator('#logo-pack-create-button')).toBeDisabled();
   });
 
+  test('Logo Pack has no upload control of its own — the source-required gate leads to the same central input, then Logo Pack opens directly (FSG-007-FIT-001B directive §13/§14)', async ({ page }) => {
+    await gotoApp(page);
+    await page.locator('#mode-tab-logo-pack').click();
+    await page.locator('#logo-pack-open').click();
+
+    await expect(page.locator('#source-required-dialog')).toBeVisible();
+    await expect(page.locator('#logo-pack-dialog')).toBeHidden();
+    await expect(page.locator('#logo-pack-source-file')).toHaveCount(0);
+    await expect(page.locator('#logo-pack-source-drop-zone')).toHaveCount(0);
+
+    const fileChooserPromise = page.waitForEvent('filechooser');
+    await page.locator('#source-required-choose').click();
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles(fixturePath('good-logo.png'));
+    await waitForStatus(page, 'ready');
+
+    // Resumes straight into Logo Pack — no second source-acceptance step.
+    await expect(page.locator('#source-required-dialog')).toBeHidden();
+    await expect(page.locator('#logo-pack-dialog')).toBeVisible();
+    await expect(page.locator('#logo-pack-step-1')).toBeVisible();
+    await expect(page.locator('#logo-pack-modal-source-name')).toHaveText('good-logo.png');
+    await expect(page.locator('#logo-pack-step-continue')).toBeVisible();
+    await expect(page.locator('#logo-pack-step-continue')).toBeEnabled();
+
+    await page.locator('#logo-pack-step-continue').click();
+    await expect(page.locator('#logo-pack-step-2')).toBeVisible();
+  });
+
   test('replacing the source invalidates the background-mode choice and any prepared preview (directive §6)', async ({ page }) => {
     await gotoApp(page);
     await uploadFile(page, 'flat-logo.png');
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'transparent');
+    await reviewLogoPackBackground(page);
     await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
 
     await uploadFile(page, 'good-logo.png');
@@ -383,6 +465,10 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     );
 
     await selectLogoPackBackgroundMode(page, 'original');
+    await continueLogoPackToFaviconSource(page);
+    await expect(page.locator('#logo-pack-favicon-guidance')).toContainText('render at about');
+    await expect(page.locator('#logo-pack-create-button')).toBeDisabled();
+    await approveFullLogoFaviconSource(page);
     await expect(page.locator('#logo-pack-create-button')).toBeEnabled();
   });
 
@@ -391,11 +477,11 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     await uploadFile(page, 'small-logo.png'); // 60x60 -> required factor > 4x
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
-    await selectLogoPackBackgroundMode(page, 'original');
 
     await expect(page.locator('#logo-pack-issues')).toContainText(
       'This logo is too small to create a useful 512 px website icon.',
     );
+    await expect(page.locator('#logo-pack-step-continue')).toBeDisabled();
     await expect(page.locator('#logo-pack-create-button')).toBeDisabled();
 
     // Replacing with an adequate source restores the ability to generate,
@@ -407,6 +493,7 @@ test.describe('Website Logo Pack certification (directive §17, extended by FSG-
     );
     await expect(page.locator('#logo-pack-create-button')).toBeDisabled();
     await selectLogoPackBackgroundMode(page, 'original');
+    await approveFullLogoFaviconSource(page);
     await expect(page.locator('#logo-pack-create-button')).toBeEnabled();
   });
 

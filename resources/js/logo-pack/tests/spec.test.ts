@@ -119,6 +119,14 @@ describe('buildLogoPackOutputSpecs', () => {
     const fixedFilenames = (list: typeof specs) => list.slice(2).map((spec) => spec.filename);
     expect(fixedFilenames(specs)).toEqual(fixedFilenames(original));
   });
+
+  it('keeps header assets on the full master and assigns only the five square assets to a named favicon source', () => {
+    const sourced = buildLogoPackOutputSpecs('transparent', 'acme-logo.png', 'favicon-source');
+
+    expect(sourced).toHaveLength(7);
+    expect(sourced.slice(0, 2).every((spec) => spec.source === undefined)).toBe(true);
+    expect(sourced.slice(2).every((spec) => spec.source === 'favicon-source')).toBe(true);
+  });
 });
 
 describe('buildLogoPackPrimaryFilenames', () => {

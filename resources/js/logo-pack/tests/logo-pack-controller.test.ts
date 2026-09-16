@@ -64,6 +64,13 @@ function transparentMasterResult(overrides: Partial<TransparentMasterResult> = {
     format: 'png',
     mimeType: 'image/png',
     byteSize: 6,
+    sourceDimensions: { width: 40, height: 40 },
+    normalizedDimensions: { width: 40, height: 40 },
+    analysisDimensions: { width: 40, height: 40 },
+    visibleBounds: { left: 5, top: 10, width: 30, height: 20 },
+    safePadding: 2,
+    canvasTrimmed: true,
+    foregroundRescaled: false,
     alphaInspection: {
       sampledPixels: 1600,
       fullyTransparentPixels: 200,
@@ -106,12 +113,15 @@ function setUp() {
   const workflow = new QuickFitWorkflow({ core: quickFitCore });
 
   const logoPackCore: LogoPackCoreClient & {
+    preflightImage: ReturnType<typeof vi.fn>;
     processImageSet: ReturnType<typeof vi.fn>;
     prepareTransparentMaster: ReturnType<typeof vi.fn>;
   } = {
+    preflightImage: vi.fn(),
     processImageSet: vi.fn(),
     prepareTransparentMaster: vi.fn(),
   } as unknown as LogoPackCoreClient & {
+    preflightImage: ReturnType<typeof vi.fn>;
     processImageSet: ReturnType<typeof vi.fn>;
     prepareTransparentMaster: ReturnType<typeof vi.fn>;
   };
@@ -119,6 +129,10 @@ function setUp() {
   const controller = new LogoPackController(workflow, logoPackCore);
 
   return { quickFitCore, workflow, logoPackCore, controller };
+}
+
+function approveFullLogo(controller: LogoPackController): void {
+  controller.approveFullLogoFaviconSource();
 }
 
 describe('LogoPackController — suitability', () => {
@@ -261,6 +275,17 @@ describe('LogoPackController — background mode selection', () => {
 });
 
 describe('LogoPackController — creating a pack (original mode)', () => {
+  it('requires an explicit favicon source approval before generation', async () => {
+    const { quickFitCore, workflow, logoPackCore, controller } = setUp();
+    quickFitCore.preflightImage.mockResolvedValue(preflightReady());
+    await workflow.selectFile(newFile());
+    controller.selectBackgroundMode('original');
+
+    controller.createLogoPack();
+
+    expect(logoPackCore.processImageSet).not.toHaveBeenCalled();
+  });
+
   it('compiles and runs the logo pack through processImageSet() using the original file', async () => {
     const { quickFitCore, workflow, logoPackCore, controller } = setUp();
     quickFitCore.preflightImage.mockResolvedValue(preflightReady());
@@ -268,6 +293,7 @@ describe('LogoPackController — creating a pack (original mode)', () => {
     const file = newFile('acme-logo.png');
     await workflow.selectFile(file);
     controller.selectBackgroundMode('original');
+    approveFullLogo(controller);
 
     controller.createLogoPack();
 
@@ -300,6 +326,7 @@ describe('LogoPackController — creating a pack (original mode)', () => {
     quickFitCore.preflightImage.mockResolvedValue(preflightReady({ width: 50, height: 50 }));
     await workflow.selectFile(newFile());
     controller.selectBackgroundMode('original');
+    approveFullLogo(controller);
 
     controller.createLogoPack();
 
@@ -315,6 +342,7 @@ describe('LogoPackController — creating a pack (original mode)', () => {
     logoPackCore.processImageSet.mockReturnValue(job);
     await workflow.selectFile(newFile());
     controller.selectBackgroundMode('original');
+    approveFullLogo(controller);
 
     controller.createLogoPack();
     await job.result;
@@ -340,6 +368,7 @@ describe('LogoPackController — creating a pack (original mode)', () => {
     logoPackCore.processImageSet.mockReturnValue(job);
     await workflow.selectFile(newFile());
     controller.selectBackgroundMode('original');
+    approveFullLogo(controller);
 
     controller.createLogoPack();
     await job.result;
@@ -354,11 +383,105 @@ describe('LogoPackController — creating a pack (original mode)', () => {
     logoPackCore.processImageSet.mockReturnValue(job);
     await workflow.selectFile(newFile());
     controller.selectBackgroundMode('original');
+    approveFullLogo(controller);
 
     controller.createLogoPack();
     controller.createLogoPack();
 
     expect(logoPackCore.processImageSet).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('LogoPackController — favicon source ownership', () => {
+  it('assesses the accepted full prepared logo without claiming semantic icon detection', async () => {
+    const { quickFitCore, workflow, controller } = setUp();
+    quickFitCore.preflightImage.mockResolvedValue(preflightReady({ width: 1600, height: 240 }));
+    await workflow.selectFile(newFile());
+    controller.selectBackgroundMode('original');
+
+    const base = controller.getFaviconSourceBase();
+
+    expect(base?.width).toBe(1600);
+    expect(base?.height).toBe(240);
+    expect(base?.suitability.suitable).toBe(false);
+  });
+
+  it('keeps header outputs on the full master and assigns only square outputs to the approved selected region', async () => {
+    const { quickFitCore, workflow, logoPackCore, controller } = setUp();
+    quickFitCore.preflightImage.mockResolvedValue(preflightReady({ width: 1600, height: 240 }));
+    logoPackCore.processImageSet.mockReturnValue(fakeJob({ status: 'complete', result: setResult() }));
+    const source = newFile('wide-brand.png');
+    const selectedRegion = new Blob(['compact-mark'], { type: 'image/png' });
+    await workflow.selectFile(source);
+    controller.selectBackgroundMode('original');
+    controller.approvePreparedFaviconSource('selected-region', {
+      blob: selectedRegion,
+      width: 240,
+      height: 240,
+      transparentCanvasTrimmed: true,
+    });
+
+    controller.createLogoPack();
+
+    const [packageSource, request] = logoPackCore.processImageSet.mock.calls[0];
+    expect(packageSource).toBe(source);
+    expect(request.sources).toEqual({ 'favicon-source': selectedRegion });
+    expect(request.outputs.slice(0, 2).every((output: { source?: string }) => output.source === undefined)).toBe(true);
+    expect(request.outputs.slice(2).every((output: { source?: string }) => output.source === 'favicon-source')).toBe(true);
+  });
+
+  it('preflights an alternate icon without replacing the full logo source', async () => {
+    const { quickFitCore, workflow, logoPackCore, controller } = setUp();
+    quickFitCore.preflightImage.mockResolvedValue(preflightReady());
+    logoPackCore.preflightImage.mockResolvedValue(preflightReady({ width: 256, height: 256 }));
+    await workflow.selectFile(newFile('wide-brand.png'));
+    controller.selectBackgroundMode('original');
+    const alternate = newFile('brand-mark.png');
+
+    const outcome = await controller.inspectAlternateFaviconSource(alternate);
+
+    expect(outcome.status).toBe('ready');
+    expect(logoPackCore.preflightImage).toHaveBeenCalledWith(alternate);
+  });
+
+  it('records the user-approved source kind in the completed result', async () => {
+    const { quickFitCore, workflow, logoPackCore, controller } = setUp();
+    quickFitCore.preflightImage.mockResolvedValue(preflightReady());
+    const job = fakeJob({ status: 'complete', result: setResult() });
+    logoPackCore.processImageSet.mockReturnValue(job);
+    await workflow.selectFile(newFile());
+    controller.selectBackgroundMode('original');
+    controller.approvePreparedFaviconSource('alternate-icon', {
+      blob: new Blob(['alternate'], { type: 'image/png' }),
+      width: 256,
+      height: 256,
+      transparentCanvasTrimmed: false,
+    });
+
+    controller.createLogoPack();
+    await job.result;
+
+    const state = controller.getState();
+    expect(state.status).toBe('success');
+    if (state.status === 'success') {
+      expect(state.faviconSourceKind).toBe('alternate-icon');
+    }
+  });
+
+  it('invalidates approval when the background mode changes', async () => {
+    const { quickFitCore, workflow, logoPackCore, controller } = setUp();
+    quickFitCore.preflightImage.mockResolvedValue(preflightReady());
+    logoPackCore.prepareTransparentMaster.mockReturnValue(
+      fakeMasterJob({ status: 'complete', result: transparentMasterResult() }),
+    );
+    await workflow.selectFile(newFile());
+    controller.selectBackgroundMode('original');
+    approveFullLogo(controller);
+    expect(controller.getApprovedFaviconSource()?.kind).toBe('full-logo');
+
+    controller.selectBackgroundMode('transparent');
+
+    expect(controller.getApprovedFaviconSource()).toBeUndefined();
   });
 });
 
@@ -368,20 +491,41 @@ describe('LogoPackController — creating a pack (transparent mode)', () => {
     quickFitCore.preflightImage.mockResolvedValue(preflightReady());
     const master = transparentMasterResult({ status: 'verified' });
     const masterJob = fakeMasterJob({ status: 'complete', result: master });
+    const packageJob = fakeJob({ status: 'complete', result: setResult() });
     logoPackCore.prepareTransparentMaster.mockReturnValue(masterJob);
-    logoPackCore.processImageSet.mockReturnValue(fakeJob({ status: 'complete', result: setResult() }));
+    logoPackCore.processImageSet.mockReturnValue(packageJob);
     const file = newFile('acme-logo.png');
     await workflow.selectFile(file);
 
     controller.selectBackgroundMode('transparent');
     await masterJob.result;
+    approveFullLogo(controller);
     controller.createLogoPack();
+    await packageJob.result;
 
     expect(logoPackCore.processImageSet).toHaveBeenCalledTimes(1);
     const [source, options] = logoPackCore.processImageSet.mock.calls[0];
     expect(source).toBe(master.blob);
     expect(source).not.toBe(file);
     expect(options.archive.filename).toBe('acme-logo-filesetgo-transparent-logo-pack.zip');
+
+    const state = controller.getState();
+    expect(state.status).toBe('success');
+
+    if (state.status === 'success') {
+      expect(state.preparation).toEqual({
+        sourceDimensions: { width: 40, height: 40 },
+        preparedDimensions: { width: 40, height: 40 },
+        analysisDimensions: { width: 40, height: 40 },
+        visibleDimensions: { width: 30, height: 20 },
+        safePadding: 2,
+        canvasTrimmed: true,
+        foregroundRescaled: false,
+        transparencyStatus: 'verified',
+        resolutionStatus: 'too-small',
+      });
+      expect(state.preparation).not.toHaveProperty('blob');
+    }
   });
 
   it('proceeds when the master is needs-review, not only verified', async () => {
@@ -395,6 +539,7 @@ describe('LogoPackController — creating a pack (transparent mode)', () => {
 
     controller.selectBackgroundMode('transparent');
     await masterJob.result;
+    approveFullLogo(controller);
     controller.createLogoPack();
 
     expect(logoPackCore.processImageSet).toHaveBeenCalledTimes(1);
@@ -438,6 +583,7 @@ describe('LogoPackController — cancellation', () => {
     logoPackCore.processImageSet.mockReturnValue(job);
     await workflow.selectFile(newFile());
     controller.selectBackgroundMode('original');
+    approveFullLogo(controller);
 
     controller.createLogoPack();
     controller.cancel();
@@ -488,6 +634,7 @@ describe('LogoPackController — stale-result protection and reset', () => {
     logoPackCore.processImageSet.mockReturnValue(job);
     await workflow.selectFile(newFile('a.png'));
     controller.selectBackgroundMode('original');
+    approveFullLogo(controller);
 
     controller.createLogoPack();
     await job.result;
@@ -507,6 +654,7 @@ describe('LogoPackController — stale-result protection and reset', () => {
     expect(quickFitCore.preflightImage).toHaveBeenCalledTimes(1);
 
     controller.selectBackgroundMode('original');
+    approveFullLogo(controller);
     controller.createLogoPack();
 
     expect(quickFitCore.preflightImage).toHaveBeenCalledTimes(1);
@@ -520,6 +668,7 @@ describe('LogoPackController — stale-result protection and reset', () => {
     logoPackCore.processImageSet.mockReturnValue(job);
     await workflow.selectFile(newFile());
     controller.selectBackgroundMode('original');
+    approveFullLogo(controller);
     controller.createLogoPack();
     await job.result;
 

@@ -16,6 +16,7 @@
         <title>{{ $title }}</title>
         <link rel="canonical" href="{{ url()->current() }}">
         <link rel="icon" href="/favicon.ico" sizes="any">
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
@@ -44,11 +45,20 @@
 
         @include('partials.nav')
 
-        <main id="main-content">
+        <main id="main-content" tabindex="-1">
             @yield('content')
         </main>
 
         @include('partials.footer')
+
+        {{--
+            A direct sibling of nav/main/footer, not nested inside <main>
+            (FSG-007-FIT-003-R3): the full-page processing transition must
+            sit outside the subtree that `setWorkspaceInert()` marks
+            `inert` while it's active, or marking <main> inert would also
+            make the overlay itself — and its own Cancel button — inert.
+        --}}
+        @stack('overlays')
 
         @stack('scripts')
     </body>

@@ -42,3 +42,6 @@ Thumbs.db
 /tests/browser/.artifacts/
 /playwright-report/
 /blob-report/
+
+# FSG-007 Product Office review evidence bundles — local review artifacts, not application source
+/filesetgo-fsg*.zip

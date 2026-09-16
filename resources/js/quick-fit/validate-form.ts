@@ -1,17 +1,23 @@
 import { MAX_TARGET_BYTES, MIN_TARGET_BYTES } from '@filesetgo/core';
-import type { DimensionPolicy, ImageFormat } from '@filesetgo/core';
+import type { CropRegion, DimensionPolicy, ImageFormat } from '@filesetgo/core';
 
+import { checkGeometryApproval } from './crop';
 import { formatBytes, unitValueToBytes, type SizeUnit } from './format-bytes';
-import { isNoOpRequest, type OutputFormatChoice, type QuickFitRequirements } from './request-plan';
+import { isExactMode, isNoOpRequest, type OutputFormatChoice, type QuickFitRequirements } from './request-plan';
 
 export interface QuickFitFormInput {
   sourceFormat: ImageFormat;
+  sourceDimensions: { width: number; height: number };
   targetSizeValue: string;
   targetSizeUnit: SizeUnit;
   maxWidth: string;
   maxHeight: string;
   outputChoice: OutputFormatChoice;
   allowDimensionReduction: boolean;
+  /** The user-approved crop region, when the current dialog step has one. */
+  confirmedCrop?: CropRegion;
+  /** The user's explicit approval to enlarge beyond available source detail. */
+  upscaleApproved: boolean;
 }
 
 export interface QuickFitFormErrors {
@@ -26,7 +32,7 @@ export type QuickFitFormResult =
   | { ok: false; errors: QuickFitFormErrors };
 
 /** Parses an optional positive-integer field. `undefined` = left blank; `'invalid'` = present but not usable. */
-function parsePositiveInt(raw: string): number | undefined | 'invalid' {
+export function parsePositiveInt(raw: string): number | undefined | 'invalid' {
   const trimmed = raw.trim();
 
   if (trimmed.length === 0) {
@@ -94,7 +100,38 @@ export function readQuickFitForm(input: QuickFitFormInput): QuickFitFormResult {
     maxWidth: typeof maxWidth === 'number' ? maxWidth : undefined,
     maxHeight: typeof maxHeight === 'number' ? maxHeight : undefined,
     dimensionPolicy: (input.allowDimensionReduction ? 'flexible' : 'hard') as DimensionPolicy,
+    // This form is Quick Fit's own manual entry — unlike Guided Fit's preset
+    // compiler (`../presets/compiler.ts`), which also always sets both
+    // dimensions as a governed bounding box, both fields filled here always
+    // means the user asked for an exact frame (FSG-007-FIT-001).
+    exactDimensions: typeof maxWidth === 'number' && typeof maxHeight === 'number',
   };
+
+  if (isExactMode(requirements)) {
+    // Defense-in-depth alongside the worker's own rejection (the dialog's
+    // step-gating should make this unreachable in practice) — FileSetGo
+    // never crops on its own (FSG-007-FIT-001 directive §3/§10). Shared with
+    // Guided Fit's preset runner (FSG-007-FIT-002) so the two surfaces can
+    // never silently disagree about when approval is mandatory.
+    const approval = checkGeometryApproval(
+      input.sourceDimensions,
+      requirements.maxWidth!,
+      requirements.maxHeight!,
+      input.confirmedCrop,
+      input.upscaleApproved,
+    );
+
+    if (!approval.ok) {
+      const general = approval.reason === 'crop-required'
+        ? 'Confirm the crop area before continuing.'
+        : 'Approve enlarging the image before continuing — the requested size is larger than the available detail.';
+
+      return { ok: false, errors: { general } };
+    }
+
+    requirements.crop = input.confirmedCrop;
+    requirements.allowUpscale = input.upscaleApproved;
+  }
 
   if (isNoOpRequest(requirements)) {
     return { ok: false, errors: { general: 'Add at least one requirement for your file.' } };

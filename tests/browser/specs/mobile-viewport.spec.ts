@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoApp, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
+import { approveFullLogoFaviconSource, gotoApp, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
 
 /**
  * Dedicated mobile viewport / responsive-layout suite (directive §11-§14).
@@ -32,6 +32,8 @@ test.describe('Mobile viewport / responsive audit (directive §11-§14)', () => 
 
     await expect(page.locator('#drop-zone')).toBeVisible();
     await expect(page.locator('#mode-tab-quick-fit')).toBeVisible();
+    await assertTouchTarget(page.locator('.fsg-nav details > summary'));
+    await assertTouchTarget(page.locator('[data-theme-toggle]'));
 
     for (const id of ['mode-tab-quick-fit', 'mode-tab-guided-fit', 'mode-tab-logo-pack']) {
       await assertTouchTarget(page.locator(`#${id}`));
@@ -44,9 +46,14 @@ test.describe('Mobile viewport / responsive audit (directive §11-§14)', () => 
     await waitForStatus(page, 'ready');
     await assertNoHorizontalOverflow(page);
 
-    await expect(page.locator('#requirements-form')).toBeVisible();
-    await assertTouchTarget(page.locator('#process-button'));
     await setSimpleRequirement(page);
+    await expect(page.locator('#quick-fit-dialog')).toBeVisible();
+    await expect(page.locator('#requirements-form')).toBeVisible();
+    // The dialog itself must fit the viewport with no horizontal overflow —
+    // the native <dialog> is a distinct scroll/overflow context from <html>.
+    const dialogOverflow = await page.locator('#quick-fit-dialog').evaluate((element) => element.scrollWidth - element.clientWidth);
+    expect(dialogOverflow).toBeLessThanOrEqual(1);
+    await assertTouchTarget(page.locator('#process-button'));
 
     await page.locator('#process-button').click();
     await waitForStatus(page, 'success', 30_000);
@@ -61,29 +68,66 @@ test.describe('Mobile viewport / responsive audit (directive §11-§14)', () => 
     }
   });
 
+  test('Quick Fit crop stage (FSG-007-FIT-001): stage and handles fit the viewport with no overflow', async ({ page }) => {
+    await gotoApp(page);
+    await uploadFile(page, 'large.jpg'); // 4800x3200, a non-square ratio guarantees a required crop for an 800x800 exact request
+    await waitForStatus(page, 'ready');
+    await page.locator('#quick-fit-open').click();
+
+    await page.locator('#max-width').fill('800');
+    await page.locator('#max-height').fill('800');
+    await page.locator('#process-button').click();
+    await expect(page.locator('#quick-fit-step-crop')).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+
+    const dialogOverflow = await page.locator('#quick-fit-dialog').evaluate((element) => element.scrollWidth - element.clientWidth);
+    expect(dialogOverflow).toBeLessThanOrEqual(1);
+    await assertTouchTarget(page.locator('#quick-fit-confirm-crop'));
+    await assertTouchTarget(page.locator('#quick-fit-crop-back'));
+
+    for (const handle of ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']) {
+      const box = await page
+        .locator(`#quick-fit-crop-selection [data-crop-handle="${handle}"]`)
+        .boundingBox();
+      expect(box, `${handle} handle must have a bounding box`).not.toBeNull();
+    }
+  });
+
   test('Logo Pack: suitability content and seven asset results stack correctly with no overflow', async ({ page }) => {
     await gotoApp(page);
-    await uploadFile(page, 'good-logo.png');
+    await uploadFile(page, 'flat-logo.png');
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await assertNoHorizontalOverflow(page);
 
     await expect(page.locator('#logo-pack-review')).toBeVisible();
+    await page.locator('#logo-pack-step-continue').click();
 
     // The background-choice labels are the real tap targets — the radio
     // inputs themselves are visually styled, not literally 44px boxes.
     await assertTouchTarget(page.locator('label:has(#logo-pack-mode-transparent)'));
     await assertTouchTarget(page.locator('label:has(#logo-pack-mode-original)'));
 
-    await selectLogoPackBackgroundMode(page, 'original');
+    await selectLogoPackBackgroundMode(page, 'transparent');
+    await expect(page.locator('#logo-pack-step-continue')).toBeEnabled({ timeout: 20_000 });
+    await page.locator('#logo-pack-step-continue').click();
+    await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#logo-pack-preview-canvas')).toHaveText('Trimmed to your logo');
+    await approveFullLogoFaviconSource(page);
+    await assertNoHorizontalOverflow(page);
     await assertTouchTarget(page.locator('#logo-pack-create-button'));
 
     await page.locator('#logo-pack-create-button').click();
     await waitForStatus(page, 'success', 30_000);
     await assertNoHorizontalOverflow(page);
+    await expect(page.locator('#logo-pack-result-readiness')).toBeVisible();
+    await expect(page.locator('#logo-pack-result-canvas')).toHaveText('Trimmed to your logo');
 
     const assetItems = page.locator('#logo-pack-assets li');
     await expect(assetItems).toHaveCount(7);
+
+    await page.locator('.fsg-logo-pack-assets > summary').click();
+    await expect(page.locator('.fsg-logo-pack-assets')).toHaveAttribute('open', '');
 
     // Every asset row and its download control stay within the viewport
     // (they stack vertically rather than forcing horizontal scroll), and
@@ -107,7 +151,7 @@ test.describe('Mobile viewport / responsive audit (directive §11-§14)', () => 
     }
 
     // The primary ZIP CTA is visually dominant: filled background, appears
-    // before the secondary individual downloads in DOM order, and is at
+    // before the collapsed secondary individual downloads in DOM order, and is at
     // least as tall as any individual download control.
     const primaryBox = await page.locator('#logo-pack-download-zip').boundingBox();
     const firstAssetLinkBox = await page.locator('#logo-pack-assets a').first().boundingBox();

@@ -65,4 +65,62 @@ describe('processing request validation', () => {
 
     expect(error?.code).toBe(IMAGE_PROCESSING_ERROR_CODES.InvalidRequest);
   });
+
+  it('rejects a request specifying both resize and exact', () => {
+    const error = validateProcessImageOptions({
+      resize: { maxWidth: 800 },
+      exact: { width: 800, height: 800 },
+      output: { format: 'webp' },
+    });
+
+    expect(error?.code).toBe(IMAGE_PROCESSING_ERROR_CODES.InvalidRequest);
+  });
+
+  it('accepts a well-formed exact request with a crop', () => {
+    const error = validateProcessImageOptions({
+      exact: { width: 800, height: 800, crop: { x: 10, y: 20, width: 400, height: 400 } },
+      output: { format: 'webp' },
+    });
+
+    expect(error).toBeUndefined();
+  });
+
+  it.each([
+    ['width', 0],
+    ['height', -5],
+  ] as const)('rejects an invalid exact.%s value', (name, value) => {
+    const error = validateProcessImageOptions({
+      exact: { width: 800, height: 800, [name]: value },
+      output: { format: 'webp' },
+    });
+
+    expect(error?.code).toBe(IMAGE_PROCESSING_ERROR_CODES.InvalidRequest);
+  });
+
+  it('rejects exact dimensions that could allocate beyond the pixel cap', () => {
+    const error = validateProcessImageOptions({
+      exact: { width: 6001, height: 4000 },
+      output: { format: 'webp' },
+    });
+
+    expect(error?.code).toBe(IMAGE_PROCESSING_ERROR_CODES.InvalidRequest);
+  });
+
+  it.each([
+    ['x', -1],
+    ['y', -1],
+    ['width', 0],
+    ['height', 0],
+  ] as const)('rejects an invalid exact.crop.%s value', (name, value) => {
+    const error = validateProcessImageOptions({
+      exact: {
+        width: 800,
+        height: 800,
+        crop: { x: 0, y: 0, width: 400, height: 400, [name]: value },
+      },
+      output: { format: 'webp' },
+    });
+
+    expect(error?.code).toBe(IMAGE_PROCESSING_ERROR_CODES.InvalidRequest);
+  });
 });

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoApp, selectLogoPackBackgroundMode, selectMode, uploadFile, waitForStatus } from '../helpers/app';
+import { approveFullLogoFaviconSource, gotoApp, reviewLogoPackBackground, selectLogoPackBackgroundMode, selectMode, uploadFile, waitForStatus } from '../helpers/app';
 
 test.describe('HEIC certification (directive §20)', () => {
   test('a cancelled HEIC workflow hard-terminates its stalled worker and recovers with a fresh worker', async ({ page }) => {
@@ -41,10 +41,15 @@ test.describe('HEIC certification (directive §20)', () => {
     await gotoApp(page);
     await uploadFile(page, 'sample.heic');
     await waitForStatus(page, 'ready');
+    await page.locator('#quick-fit-open').click();
 
     await page.locator('#process-button').click();
     await waitForStatus(page, 'processing');
-    await page.locator('#cancel-button').click();
+    // FSG-007-FIT-003-R3: the Quick Fit dialog itself already closed the
+    // instant the job started — the real Cancel action now lives on the
+    // full-page processing transition, not the (already-closed) dialog.
+    await expect(page.locator('#quick-fit-dialog')).toBeHidden();
+    await page.locator('#fsg-processing-overlay-cancel').click();
     await waitForStatus(page, 'cancelled');
     await expect(page.locator('#result-content')).toBeHidden();
 
@@ -52,6 +57,9 @@ test.describe('HEIC certification (directive §20)', () => {
       window as unknown as { __fsgWorkerLifecycle(): { workerCount: number; terminateCount: number } }
     ).__fsgWorkerLifecycle())).toEqual({ workerCount: 1, terminateCount: 1 });
 
+    // Reopen — the dialog closed when the cancelled job started and stays
+    // closed afterward (FSG-007-FIT-003-R3).
+    await page.locator('#quick-fit-open').click();
     await page.locator('#process-button').click();
     await waitForStatus(page, 'success', 30_000);
     await expect(page.locator('#result-format')).toHaveText(/webp/i);
@@ -67,6 +75,7 @@ test.describe('HEIC certification (directive §20)', () => {
     await waitForStatus(page, 'ready');
 
     await expect(page.locator('#source-format')).toHaveText(/heic/i);
+    await page.locator('#quick-fit-open').click();
     // HEIC cannot be an output format — the UI must say so truthfully rather
     // than silently substituting it.
     await expect(page.locator('#heic-output-note')).toBeVisible();
@@ -90,6 +99,7 @@ test.describe('HEIC certification (directive §20)', () => {
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'transparent');
+    await reviewLogoPackBackground(page);
 
     // FSG-005C's transparent-master stage decodes and operates on the same
     // real decoded HEIC pixels the Quick Fit path already proves work.
@@ -97,6 +107,7 @@ test.describe('HEIC certification (directive §20)', () => {
     await expect(page.locator('#logo-pack-preview-confidence')).not.toHaveText('');
 
     const createButton = page.locator('#logo-pack-create-button');
+    await approveFullLogoFaviconSource(page);
     await expect(createButton).toBeEnabled();
     await createButton.click();
     await waitForStatus(page, 'success', 30_000);
@@ -111,6 +122,7 @@ test.describe('HEIC certification (directive §20)', () => {
     await selectLogoPackBackgroundMode(page, 'original');
 
     const createButton = page.locator('#logo-pack-create-button');
+    await approveFullLogoFaviconSource(page);
     await expect(createButton).toBeEnabled();
     await createButton.click();
     await waitForStatus(page, 'success', 30_000);

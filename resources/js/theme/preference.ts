@@ -15,6 +15,10 @@ export function resolveTheme(preference: ThemePreference, systemPrefersDark: boo
   return preference;
 }
 
+export function oppositeTheme(theme: ResolvedTheme): ResolvedTheme {
+  return theme === 'dark' ? 'light' : 'dark';
+}
+
 export function themeCookie(preference: ThemePreference, isSecure: boolean): string {
   const secure = isSecure ? '; Secure' : '';
 

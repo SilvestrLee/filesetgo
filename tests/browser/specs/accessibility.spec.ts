@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoApp, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
+import { approveFullLogoFaviconSource, gotoApp, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
 
 test.describe('Accessibility / keyboard audit (directive §40-§42)', () => {
   test('exactly one H1 exists on the page', async ({ page }) => {
@@ -52,8 +52,9 @@ test.describe('Accessibility / keyboard audit (directive §40-§42)', () => {
     await gotoApp(page);
     await uploadFile(page, 'good-logo.png');
     await waitForStatus(page, 'ready');
-    await page.locator('#mode-tab-logo-pack').click();
+    await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'original');
+    await approveFullLogoFaviconSource(page);
     await page.locator('#logo-pack-create-button').click();
     await waitForStatus(page, 'success', 30_000);
 
@@ -76,11 +77,16 @@ test.describe('Accessibility / keyboard audit (directive §40-§42)', () => {
     // before Cancel is observable).
     await uploadFile(page, 'large.jpg');
     await waitForStatus(page, 'ready');
+    await page.locator('#quick-fit-open').click();
     await page.locator('#target-size-value').fill('50');
     await page.locator('#target-size-unit').selectOption('KB');
     await page.locator('#process-button').click();
     await waitForStatus(page, 'processing');
-    await page.locator('#cancel-button').click();
+    // FSG-007-FIT-003-R3: the Quick Fit dialog itself already closed the
+    // instant the job started — the real Cancel action now lives on the
+    // full-page processing transition, not the (already-closed) dialog.
+    await expect(page.locator('#quick-fit-dialog')).toBeHidden();
+    await page.locator('#fsg-processing-overlay-cancel').click();
     await waitForStatus(page, 'cancelled', 15_000);
 
     // The focused element (if any) must still be attached and visible, not
@@ -109,6 +115,7 @@ test.describe('Accessibility / keyboard audit (directive §40-§42)', () => {
     await uploadFile(page, 'flat-logo.png');
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
+    await page.locator('#logo-pack-step-continue').click();
 
     // A real <fieldset>/<legend> grouping — not merely two unrelated radios.
     const fieldset = page.locator('#logo-pack-mode-fieldset');
@@ -145,6 +152,8 @@ test.describe('Accessibility / keyboard audit (directive §40-§42)', () => {
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'transparent');
+    await expect(page.locator('#logo-pack-step-continue')).toBeEnabled({ timeout: 20_000 });
+    await page.locator('#logo-pack-step-continue').click();
     await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
 
     for (const id of ['logo-pack-preview-bg-checkerboard', 'logo-pack-preview-bg-light', 'logo-pack-preview-bg-dark']) {

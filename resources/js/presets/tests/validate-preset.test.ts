@@ -17,6 +17,7 @@ function validPreset(overrides: Partial<FileSetGoPreset> = {}): FileSetGoPreset 
       maxHeight: 1000,
       outputFormat: 'webp',
       dimensionPolicy: 'flexible',
+      exactDimensions: false,
     },
     provenance: { kind: 'filesetgo-recommended' },
     ...overrides,
@@ -103,6 +104,35 @@ describe('validatePreset', () => {
     preset.requirements.dimensionPolicy = 'sometimes';
     const issues = validatePreset(preset);
     expect(issues.some((issue) => issue.message.includes('dimensionPolicy'))).toBe(true);
+  });
+
+  it('rejects a non-boolean exactDimensions', () => {
+    const preset = validPreset();
+    // @ts-expect-error deliberately invalid for this test
+    preset.requirements.exactDimensions = 'yes';
+    const issues = validatePreset(preset);
+    expect(issues.some((issue) => issue.message.includes('exactDimensions must be a boolean'))).toBe(true);
+  });
+
+  it('rejects an exactDimensions preset missing maxWidth or maxHeight', () => {
+    const issues = validatePreset(validPreset({
+      requirements: { ...validPreset().requirements, exactDimensions: true, maxHeight: undefined, dimensionPolicy: 'hard' },
+    }));
+    expect(issues.some((issue) => issue.message.includes('must set both maxWidth and maxHeight'))).toBe(true);
+  });
+
+  it('rejects an exactDimensions preset that is not dimensionPolicy hard', () => {
+    const issues = validatePreset(validPreset({
+      requirements: { ...validPreset().requirements, exactDimensions: true, dimensionPolicy: 'flexible' },
+    }));
+    expect(issues.some((issue) => issue.message.includes("must use dimensionPolicy 'hard'"))).toBe(true);
+  });
+
+  it('accepts a well-formed exactDimensions preset', () => {
+    const issues = validatePreset(validPreset({
+      requirements: { ...validPreset().requirements, exactDimensions: true, dimensionPolicy: 'hard' },
+    }));
+    expect(issues).toEqual([]);
   });
 
   it('rejects an invalid provenance.kind', () => {

@@ -8,12 +8,16 @@ import { readQuickFitForm } from '../validate-form';
 function input(overrides: Partial<QuickFitFormInput> = {}): QuickFitFormInput {
   return {
     sourceFormat: 'jpeg',
+    // 3:2, matching the one existing test that sets both maxWidth/maxHeight
+    // (1200x800) so it stays in exact mode without tripping crop-required.
+    sourceDimensions: { width: 1200, height: 800 },
     targetSizeValue: '',
     targetSizeUnit: 'KB',
     maxWidth: '',
     maxHeight: '',
     outputChoice: 'webp',
     allowDimensionReduction: true,
+    upscaleApproved: false,
     ...overrides,
   };
 }
@@ -108,5 +112,83 @@ describe('readQuickFitForm', () => {
 
     expect(flexible.ok && flexible.requirements.dimensionPolicy).toBe('flexible');
     expect(hard.ok && hard.requirements.dimensionPolicy).toBe('hard');
+  });
+
+  describe('exact mode (both maxWidth and maxHeight set)', () => {
+    it('requires a confirmed crop when the source ratio does not match the requested exact ratio', () => {
+      const result = readQuickFitForm(input({
+        sourceDimensions: { width: 2560, height: 2103 },
+        maxWidth: '800',
+        maxHeight: '800',
+        outputChoice: 'original',
+      }));
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errors.general).toMatch(/confirm the crop/i);
+      }
+    });
+
+    it('accepts an exact request whose source ratio already matches, without a crop', () => {
+      const result = readQuickFitForm(input({
+        sourceDimensions: { width: 1600, height: 900 },
+        maxWidth: '800',
+        maxHeight: '450',
+        outputChoice: 'original',
+      }));
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.requirements.crop).toBeUndefined();
+        expect(result.requirements.maxWidth).toBe(800);
+        expect(result.requirements.maxHeight).toBe(450);
+      }
+    });
+
+    it('accepts a confirmed crop matching the requested ratio', () => {
+      const crop = { x: 100, y: 0, width: 600, height: 600 };
+      const result = readQuickFitForm(input({
+        sourceDimensions: { width: 800, height: 600 },
+        maxWidth: '400',
+        maxHeight: '400',
+        outputChoice: 'original',
+        confirmedCrop: crop,
+      }));
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.requirements.crop).toEqual(crop);
+      }
+    });
+
+    it('requires explicit upscale approval when the exact dimensions exceed the available source', () => {
+      const result = readQuickFitForm(input({
+        sourceDimensions: { width: 400, height: 300 },
+        maxWidth: '1200',
+        maxHeight: '900',
+        outputChoice: 'original',
+        upscaleApproved: false,
+      }));
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errors.general).toMatch(/enlarging/i);
+      }
+    });
+
+    it('accepts an upscale once explicitly approved', () => {
+      const result = readQuickFitForm(input({
+        sourceDimensions: { width: 400, height: 300 },
+        maxWidth: '1200',
+        maxHeight: '900',
+        outputChoice: 'original',
+        upscaleApproved: true,
+      }));
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.requirements.allowUpscale).toBe(true);
+      }
+    });
   });
 });

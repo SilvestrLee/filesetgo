@@ -20,11 +20,11 @@
   "design": {
     "colorMode": "system light and dark",
     "colors": {
-      "background": "#f3f4ef",
-      "surface": "#fbfcf8",
-      "foreground": "#171916",
-      "muted": "#61665d",
-      "accent": "#f05a3c"
+      "background": "#ffffff",
+      "surface": "#f1f5f9",
+      "foreground": "#0f172a",
+      "muted": "#64748b",
+      "accent": "#2563eb"
     },
     "typography": {
       "sans": "Instrument Sans",
@@ -41,7 +41,7 @@
       "policy": "one restrained tinted lift for file and result objects only"
     },
     "motion": {
-      "duration": "140-220ms",
+      "duration": "180-340ms",
       "policy": "state feedback only, reduced-motion safe"
     },
     "density": "moderate utility"
@@ -51,11 +51,13 @@
     "preferredPrimitives": [
       "native details and summary",
       "semantic tabs",
+      "native dialog",
       "native file input",
       "Blade partials"
     ],
     "patterns": [
       "staged workbench",
+      "modal-first advanced workflows",
       "file object",
       "editorial task index"
     ]
@@ -78,7 +80,7 @@
   },
   "decisions": [
     {
-      "name": "FSG-007D direction",
+      "name": "FSG-007A direction",
       "value": "The Staged Workbench",
       "reason": "Makes FILE, SET, and GO the structure of the real product while preserving immediate utility."
     },
@@ -86,6 +88,26 @@
       "name": "21st inspiration",
       "value": "adapt concepts only",
       "reason": "Catalog patterns were useful, but their React dependencies and generic card treatment conflict with project governance."
+    },
+    {
+      "name": "FSG-007B advanced workflow disclosure",
+      "value": "native modal task spaces",
+      "reason": "Guided Fit and Logo Pack retain controller state while focused dialogs prevent advanced decisions from changing the homepage workspace height."
+    },
+    {
+      "name": "FSG-007E transformation acquisition grammar",
+      "value": "requirement-led proof",
+      "reason": "Compress leads with verified byte targets and dimension trade-offs, while WebP leads with source-to-output format evidence; both use real local fixture results and the existing Quick Fit entry."
+    },
+    {
+      "name": "FSG-007F destination readiness acquisition grammar",
+      "value": "one source to three real website jobs",
+      "reason": "One project-owned source becomes the actual 16:9, 3:2, and 4:3 Guided Fit outputs so destination geometry and user-approved focus are visible without fake app controls."
+    },
+    {
+      "name": "FSG-007G homepage maturity grammar",
+      "value": "live workspace as centre of gravity with editorial product proof",
+      "reason": "The hero flows directly into the frozen FILE, SET, GO workspace, then uses distinct editorial compositions to explain the three work modes, destination geometry, user control, processing truth and task paths."
     }
   ],
   "evidence": [

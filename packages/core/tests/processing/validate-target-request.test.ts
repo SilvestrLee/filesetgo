@@ -148,4 +148,82 @@ describe('validateProcessImageToTargetOptions', () => {
 
     expect(error?.code).toBe('INVALID_PROCESSING_REQUEST');
   });
+
+  it('rejects a request specifying both dimensions and exact', () => {
+    const { error } = validateProcessImageToTargetOptions({
+      ...baseOptions(),
+      dimensions: { maxWidth: 800 },
+      exact: { width: 800, height: 800 },
+    });
+
+    expect(error?.code).toBe('INVALID_PROCESSING_REQUEST');
+  });
+
+  it("rejects exact combined with an explicit 'flexible' dimensionPolicy", () => {
+    const { error } = validateProcessImageToTargetOptions({
+      ...baseOptions(),
+      exact: { width: 800, height: 800 },
+      dimensionPolicy: 'flexible',
+    });
+
+    expect(error?.code).toBe('INVALID_PROCESSING_REQUEST');
+  });
+
+  it('resolves dimensionPolicy to hard whenever exact is set, even when omitted', () => {
+    const { error, resolved } = validateProcessImageToTargetOptions({
+      ...baseOptions(),
+      exact: { width: 800, height: 800 },
+    });
+
+    expect(error).toBeUndefined();
+    expect(resolved?.dimensionPolicy).toBe('hard');
+    expect(resolved?.exact).toEqual({ width: 800, height: 800 });
+  });
+
+  it('accepts a well-formed exact request with a crop', () => {
+    const { error, resolved } = validateProcessImageToTargetOptions({
+      ...baseOptions(),
+      exact: { width: 800, height: 800, crop: { x: 10, y: 20, width: 400, height: 400 } },
+    });
+
+    expect(error).toBeUndefined();
+    expect(resolved?.exact?.crop).toEqual({ x: 10, y: 20, width: 400, height: 400 });
+  });
+
+  it.each([
+    ['width', 0],
+    ['height', -5],
+  ] as const)('rejects an invalid exact.%s value', (name, value) => {
+    const { error } = validateProcessImageToTargetOptions({
+      ...baseOptions(),
+      exact: { width: 800, height: 800, [name]: value },
+    });
+
+    expect(error?.code).toBe('INVALID_PROCESSING_REQUEST');
+  });
+
+  it('rejects exact dimensions that could allocate beyond the pixel cap', () => {
+    const { error } = validateProcessImageToTargetOptions({
+      ...baseOptions(),
+      exact: { width: 6001, height: 4000 },
+    });
+
+    expect(error?.code).toBe('INVALID_PROCESSING_REQUEST');
+  });
+
+  it.each([
+    ['x', -1],
+    ['width', 0],
+  ] as const)('rejects an invalid exact.crop.%s value', (name, value) => {
+    const { error } = validateProcessImageToTargetOptions({
+      ...baseOptions(),
+      exact: {
+        width: 800,
+        height: 800,
+        crop: { x: 0, y: 0, width: 400, height: 400, [name]: value },
+      },
+    });
+
+    expect(error?.code).toBe('INVALID_PROCESSING_REQUEST');
+  });
 });

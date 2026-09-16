@@ -299,6 +299,137 @@ describe('processImageInWorker successful pipeline', () => {
   });
 });
 
+describe('processImageInWorker exact dimensions + crop (FSG-007-FIT-001)', () => {
+  it('reaches the exact requested dimensions with no crop when the source ratio already matches', async () => {
+    const result = await processImageInWorker(
+      testRequest({
+        preflight: testPreflight({ width: 800, height: 600 }),
+        exact: { width: 400, height: 300 },
+      }),
+      testHooks().hooks,
+    );
+
+    expect(result.width).toBe(400);
+    expect(result.height).toBe(300);
+    expect(result.appliedCrop).toBeUndefined();
+    expect(result.resized).toBe(true);
+  });
+
+  it('rejects an exact request whose ratio mismatches the source when no crop is supplied', async () => {
+    const error = await expectProcessingFailure(
+      processImageInWorker(
+        testRequest({
+          preflight: testPreflight({ width: 800, height: 600 }),
+          exact: { width: 800, height: 800 },
+        }),
+        testHooks().hooks,
+      ),
+      IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+    );
+
+    expect(bitmapCallCount).toBe(0);
+    expect(error.message).toMatch(/confirmed crop region is required/i);
+  });
+
+  it('applies a confirmed crop and produces exactly the requested dimensions', async () => {
+    const crop = { x: 100, y: 0, width: 600, height: 600 };
+
+    const result = await processImageInWorker(
+      testRequest({
+        preflight: testPreflight({ width: 800, height: 600 }),
+        // The 800x600 source only has 600px of height to offer, so cropping
+        // to a 600x600 square and then reaching an 800x800 exact frame is a
+        // (small, deliberate) upscale — approved here since this test is
+        // about crop application, not the upscale gate itself.
+        exact: { width: 800, height: 800, crop, allowUpscale: true },
+      }),
+      testHooks().hooks,
+    );
+
+    expect(result.width).toBe(800);
+    expect(result.height).toBe(800);
+    expect(result.appliedCrop).toEqual(crop);
+    expect(result.resized).toBe(true);
+  });
+
+  it('rejects a crop that extends past the source bounds', async () => {
+    await expectProcessingFailure(
+      processImageInWorker(
+        testRequest({
+          preflight: testPreflight({ width: 800, height: 600 }),
+          exact: { width: 800, height: 800, crop: { x: 700, y: 0, width: 600, height: 600 } },
+        }),
+        testHooks().hooks,
+      ),
+      IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+    );
+  });
+
+  it("rejects a crop whose ratio doesn't match the requested exact dimensions", async () => {
+    const error = await expectProcessingFailure(
+      processImageInWorker(
+        testRequest({
+          preflight: testPreflight({ width: 800, height: 600 }),
+          exact: { width: 800, height: 800, crop: { x: 0, y: 0, width: 800, height: 600 } },
+        }),
+        testHooks().hooks,
+      ),
+      IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+    );
+
+    expect(error.message).toMatch(/aspect ratio/i);
+  });
+
+  it('rejects a silent upscale beyond the available source detail', async () => {
+    bitmapHandler = async () => new FakeImageBitmap(200, 150);
+
+    await expectProcessingFailure(
+      processImageInWorker(
+        testRequest({
+          preflight: testPreflight({ width: 200, height: 150 }),
+          exact: { width: 1200, height: 900 },
+        }),
+        testHooks().hooks,
+      ),
+      IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+    );
+
+    expect(bitmapCallCount).toBe(0);
+  });
+
+  it('allows an explicitly approved upscale', async () => {
+    bitmapHandler = async () => new FakeImageBitmap(200, 150);
+
+    const result = await processImageInWorker(
+      testRequest({
+        preflight: testPreflight({ width: 200, height: 150 }),
+        exact: { width: 1200, height: 900, allowUpscale: true },
+      }),
+      testHooks().hooks,
+    );
+
+    expect(result.width).toBe(1200);
+    expect(result.height).toBe(900);
+  });
+
+  it('rejects exact dimensions that could allocate beyond the pixel safety cap', async () => {
+    // Same 4:3 ratio as the 800x600 source, so this fails on the pixel
+    // budget specifically, not on a spurious crop-required rejection.
+    await expectProcessingFailure(
+      processImageInWorker(
+        testRequest({
+          preflight: testPreflight({ width: 800, height: 600 }),
+          exact: { width: 10_000, height: 7_500, allowUpscale: true },
+        }),
+        testHooks().hooks,
+      ),
+      IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+    );
+
+    expect(bitmapCallCount).toBe(0);
+  });
+});
+
 describe('processImageInWorker decode failures', () => {
   it('returns a controlled DECODE_FAILED when createImageBitmap rejects on a corrupt payload', async () => {
     bitmapHandler = () => {

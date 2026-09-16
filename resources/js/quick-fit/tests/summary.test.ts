@@ -74,6 +74,35 @@ describe('buildSuccessSummary', () => {
     expect(summary.detail).toMatch(/reduced the dimensions/);
   });
 
+  /**
+   * FSG-007-FIT-002-R1: `dimensionsReduced` only reflects the byte-target
+   * search's own tier-shrinking — it says nothing about a destination frame
+   * (Guided Fit's exact Hero/Content/Card, or Quick Fit's own exact-dimensions
+   * mode) that already differs from the source. Claiming "without reducing
+   * the dimensions" when the output plainly differs from the source is false
+   * from the user's own point of view.
+   */
+  it('states the actual prepared frame when dimensions differ from the source but the search never shrank them further', () => {
+    const summary = buildSuccessSummary(
+      source({ width: 4800, height: 3200 }),
+      targetResult({ dimensionsReduced: false, width: 1600, height: 900 }),
+    );
+
+    expect(summary.detail).not.toMatch(/without reducing the dimensions/);
+    expect(summary.detail).toMatch(/prepared it at 1600 × 900/);
+  });
+
+  it('notes an approved enlargement truthfully rather than implying dimensions were preserved', () => {
+    const summary = buildSuccessSummary(
+      source({ width: 640, height: 480 }),
+      targetResult({ dimensionsReduced: false, width: 800, height: 600 }),
+    );
+
+    expect(summary.detail).not.toMatch(/without reducing the dimensions/);
+    expect(summary.detail).toMatch(/prepared it at 800 × 600/);
+    expect(summary.detail).toMatch(/enlarged with your approval/);
+  });
+
   it('describes a resize for a standard job with changed dimensions', () => {
     const summary = buildSuccessSummary(source(), standardResult({ width: 1000, height: 500 }));
 

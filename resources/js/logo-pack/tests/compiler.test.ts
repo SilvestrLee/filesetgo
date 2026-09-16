@@ -23,4 +23,14 @@ describe('compileLogoPackRequest', () => {
     const request = compileLogoPackRequest('transparent', 'acme-logo.png', onProgress);
     expect(request.onProgress).toBe(onProgress);
   });
+
+  it('registers an approved favicon Blob once and routes only square outputs to it', () => {
+    const faviconSource = new Blob(['compact-mark'], { type: 'image/png' });
+    const request = compileLogoPackRequest('transparent', 'acme-logo.png', undefined, faviconSource);
+
+    expect(request.sources).toEqual({ 'favicon-source': faviconSource });
+    expect(request.outputs).toHaveLength(7);
+    expect(request.outputs.slice(0, 2).every((output) => output.source === undefined)).toBe(true);
+    expect(request.outputs.slice(2).every((output) => output.source === 'favicon-source')).toBe(true);
+  });
 });

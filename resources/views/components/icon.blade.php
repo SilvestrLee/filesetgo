@@ -19,6 +19,8 @@
         'download' => '<path d="M10 3v9.5M6.5 9l3.5 3.5L13.5 9" /><path d="M4 16.5h12" />',
         'arrow-right' => '<path d="M4 10h12M12 6l4 4-4 4" />',
         'check' => '<path d="M4 10.5l3.5 3.5L16 5.5" />',
+        'menu' => '<path d="M3 5.5h14M3 10h14M3 14.5h14" />',
+        'close' => '<path d="M4.5 4.5l11 11M15.5 4.5l-11 11" />',
     ];
 @endphp
 

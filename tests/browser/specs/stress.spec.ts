@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { collectConsoleProblems, fixturePath, gotoApp, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
+import { approveFullLogoFaviconSource, collectConsoleProblems, fixturePath, gotoApp, reviewLogoPackBackground, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
 
 const ITERATIONS = 5;
 
@@ -74,12 +74,17 @@ test.describe('Same-session resource-lifecycle stress test (directive §50)', ()
   test(`${ITERATIONS} repeated Logo Pack generation cycles in one session leave no stuck state or accumulating asset list`, async ({ page }) => {
     await installBlobUrlTracker(page);
     await gotoApp(page);
-    await selectMode(page, 'logo-pack');
 
     for (let i = 0; i < ITERATIONS; i += 1) {
+      // A launcher needs an active source to open its real dialog rather
+      // than the source-required gate (FSG-007-FIT-001B directive §30) —
+      // each cycle re-uploads before re-selecting the mode, since reset
+      // clears the source back to idle.
       await uploadFile(page, 'good-logo.png');
       await waitForStatus(page, 'ready');
+      await selectMode(page, 'logo-pack');
       await selectLogoPackBackgroundMode(page, 'original');
+      await approveFullLogoFaviconSource(page);
 
       await page.locator('#logo-pack-create-button').click();
       await waitForStatus(page, 'success', 30_000);
@@ -90,7 +95,6 @@ test.describe('Same-session resource-lifecycle stress test (directive §50)', ()
       await page.locator('#reset-button').click();
       await waitForStatus(page, 'idle');
       await expect(page.locator('#logo-pack-result')).toBeHidden();
-      await selectMode(page, 'logo-pack');
     }
 
     const finalLiveCount = await liveBlobUrlCount(page);
@@ -116,9 +120,14 @@ test.describe('Same-session resource-lifecycle stress test (directive §50)', ()
     await setSimpleRequirement(page);
     await page.locator('#process-button').click();
     await waitForStatus(page, 'processing');
-    await page.locator('#cancel-button').click();
+    // FSG-007-FIT-003-R3: the dialog already closed the instant processing
+    // started — Cancel now lives on the full-page processing transition.
+    await expect(page.locator('#quick-fit-dialog')).toBeHidden();
+    await page.locator('#fsg-processing-overlay-cancel').click();
     await waitForStatus(page, 'cancelled', 15_000);
 
+    // Reopen — it closed when the cancelled job started and stays closed afterward.
+    await page.locator('#quick-fit-open').click();
     await page.locator('#process-button').click();
     await waitForStatus(page, 'success', 30_000);
   });
@@ -130,17 +139,28 @@ test.describe('Same-session resource-lifecycle stress test (directive §50)', ()
     test.setTimeout(120_000);
     await installBlobUrlTracker(page);
     await gotoApp(page);
-    await selectMode(page, 'logo-pack');
 
     for (let i = 0; i < ITERATIONS; i += 1) {
+      // A launcher needs an active source to open its real dialog rather
+      // than the source-required gate (FSG-007-FIT-001B directive §30) —
+      // each cycle re-uploads before re-selecting the mode, since reset
+      // clears the source back to idle.
       await uploadFile(page, 'flat-logo.png');
       await waitForStatus(page, 'ready');
+      await selectMode(page, 'logo-pack');
       await selectLogoPackBackgroundMode(page, 'transparent');
+      await reviewLogoPackBackground(page);
       await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
 
       // A strength change replaces the preview, not accumulates a second one.
+      // The strength control lives on the background-choice step, not the
+      // review step reached above — go back to it first, exactly like
+      // logo-pack.spec.ts's own "changing removal strength" certification.
+      await page.locator('#logo-pack-change-background').click();
       await page.locator('#logo-pack-strength-gentle').check({ force: true });
+      await reviewLogoPackBackground(page);
       await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
+      await approveFullLogoFaviconSource(page);
 
       await page.locator('#logo-pack-create-button').click();
       await waitForStatus(page, 'success', 30_000);
@@ -150,19 +170,19 @@ test.describe('Same-session resource-lifecycle stress test (directive §50)', ()
       await waitForStatus(page, 'idle');
       await expect(page.locator('#logo-pack-result')).toBeHidden();
       await expect(page.locator('#logo-pack-preview')).toBeHidden();
-      await selectMode(page, 'logo-pack');
     }
 
     // One Original-mode cycle — the simpler single-stage path must still work
     // interleaved with repeated Transparent-mode cycles.
     await uploadFile(page, 'good-logo.png');
     await waitForStatus(page, 'ready');
+    await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'original');
+    await approveFullLogoFaviconSource(page);
     await page.locator('#logo-pack-create-button').click();
     await waitForStatus(page, 'success', 30_000);
     await page.locator('#reset-button').click();
     await waitForStatus(page, 'idle');
-    await selectMode(page, 'logo-pack');
 
     // One cancel/retry cycle against the preview-preparation stage. See the
     // identical, more fully-commented engine caveat in cancellation.spec.ts:
@@ -174,16 +194,21 @@ test.describe('Same-session resource-lifecycle stress test (directive §50)', ()
 
     await uploadFile(page, 'large.jpg');
     await waitForStatus(page, 'ready');
+    await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'transparent');
 
     if (canReliablyCancelMidFlight) {
-      await page.locator('#cancel-button').click({ timeout: 20_000 });
+      // The shared #cancel-button lives outside the Logo Pack dialog and is
+      // inert while the dialog is modally open (same reasoning as the
+      // Quick Fit cancellation case above).
+      await page.locator('#logo-pack-modal-cancel').click({ timeout: 20_000 });
       await waitForStatus(page, 'cancelled', 15_000);
       // Real "Try again" button — clicking an already-selected radio fires
       // no change event in any real browser.
       await page.locator('#logo-pack-retry-preview-button').click();
     }
 
+    await reviewLogoPackBackground(page);
     await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 30_000 });
 
     // No unbounded accumulation across the whole sequence above.
@@ -212,6 +237,9 @@ test.describe('Same-session resource-lifecycle stress test (directive §50)', ()
       await uploadFile(page, { name: sourceName, mimeType: 'image/jpeg', buffer: largeJpeg });
       await waitForStatus(page, 'ready');
       await expect(page.locator('#drop-zone-label')).toHaveText(sourceName);
+      if (!(await page.locator('#quick-fit-dialog').isVisible())) {
+        await page.locator('#quick-fit-open').click();
+      }
       await page.locator('#target-size-value').fill('80');
       await page.locator('#target-size-unit').selectOption('KB');
       await page.locator('#output-format').selectOption('jpeg');

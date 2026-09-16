@@ -263,7 +263,7 @@ function isImageSetResult(value: unknown): boolean {
 
 /**
  * `TransparentMasterResult` is NOT an `ImageSetAssetResult`/`ProcessedImageResult`
- * shape (no `sourceDimensions`/`normalizedDimensions`/`resized`) — it gets
+ * shape (it carries trim metadata rather than `resized`) — it gets
  * its own explicit validator rather than being run through
  * `isProcessedImageResult()`, precisely to avoid repeating the FSG-006 P0
  * defect class (a validator silently rejecting a real result shape it was
@@ -281,10 +281,30 @@ function isTransparentMasterResult(value: unknown): boolean {
     value.format === 'png' &&
     value.mimeType === 'image/png' &&
     typeof value.byteSize === 'number' &&
+    isRecord(value.sourceDimensions) &&
+    typeof value.sourceDimensions.width === 'number' &&
+    typeof value.sourceDimensions.height === 'number' &&
+    isRecord(value.normalizedDimensions) &&
+    typeof value.normalizedDimensions.width === 'number' &&
+    typeof value.normalizedDimensions.height === 'number' &&
+    isRecord(value.analysisDimensions) &&
+    typeof value.analysisDimensions.width === 'number' &&
+    typeof value.analysisDimensions.height === 'number' &&
+    typeof value.safePadding === 'number' &&
+    typeof value.canvasTrimmed === 'boolean' &&
+    value.foregroundRescaled === false &&
     typeof value.removalApplied === 'boolean' &&
     (value.status === 'verified' || value.status === 'needs-review' || value.status === 'failed')
   ) {
-    return isRecord(value.alphaInspection)
+    const visibleBoundsValid = value.visibleBounds === undefined || (
+      isRecord(value.visibleBounds) &&
+      typeof value.visibleBounds.left === 'number' &&
+      typeof value.visibleBounds.top === 'number' &&
+      typeof value.visibleBounds.width === 'number' &&
+      typeof value.visibleBounds.height === 'number'
+    );
+
+    return visibleBoundsValid && isRecord(value.alphaInspection)
       && typeof value.alphaInspection.sampledPixels === 'number'
       && typeof value.alphaInspection.transparentRatio === 'number'
       && (value.alphaInspection.classification === 'opaque' || value.alphaInspection.classification === 'transparency-present');

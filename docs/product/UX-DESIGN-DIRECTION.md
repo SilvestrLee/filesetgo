@@ -253,7 +253,7 @@ Preferred future flow:
 
 Do not destructively crop without preview/confirmation.
 
-A favicon source selector should remain a simple square crop/selection tool, not a full editor.
+A favicon source selector should remain a focused freeform region-selection tool, not a full editor. The selected artwork is trimmed and then fitted into the governed square favicon/app-icon canvases; the selection rectangle itself is not forced to 1:1. See ADR-026.
 
 All favicon outputs should derive from the same approved source with sensible internal padding and preserved aspect ratio.
 

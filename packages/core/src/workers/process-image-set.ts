@@ -1,5 +1,6 @@
 import { createIco, validateIcoContainer } from '../icons/ico';
 import { getNormalizedDimensions } from '../normalize/orientation';
+import type { ExifOrientation } from '../preflight/contracts';
 import { DEFAULT_SAFETY_LIMITS } from '../preflight/safety';
 import {
   IMAGE_PROCESSING_ERROR_CODES,
@@ -102,8 +103,10 @@ function drawBitmapContained(
 /**
  * FSG-005A/FSG-005B: produces multiple validated output assets — plain
  * resize-fit rasters, fixed-canvas CONTAIN rasters, and/or ICO containers —
- * and optionally a ZIP archive of them, from a single source file. Decodes
- * exactly once and reuses the shared FSG-001 primitives for every output;
+ * and optionally a ZIP archive of them, from a primary file plus a bounded
+ * set of explicitly named sources. Each source is decoded lazily and only
+ * while its consecutive outputs are generated; the shared FSG-001 primitives
+ * remain authoritative for every output.
  * outputs are generated strictly sequentially, releasing each output's
  * canvas before starting the next, so peak memory stays bounded regardless
  * of how many outputs (or how many ICO entries within one output) are
@@ -115,18 +118,11 @@ export async function processImageSetInWorker(
 ): Promise<ImageSetResult> {
   checkRuntimeSupport();
 
-  const sourceDimensions: ImageDimensions = {
-    width: request.preflight.width,
-    height: request.preflight.height,
-  };
-  const orientation = request.preflight.orientation ?? 1;
-  const normalizedDimensions = getNormalizedDimensions(
-    sourceDimensions.width,
-    sourceDimensions.height,
-    orientation,
-  );
-
   let bitmap: ImageBitmap | undefined;
+  let currentSourceId: string | undefined;
+  let sourceDimensions: ImageDimensions | undefined;
+  let orientation: ExifOrientation = 1;
+  let normalizedDimensions: ImageDimensions | undefined;
   let canvas: OffscreenCanvas | undefined;
   const assets: ImageSetAssetResult[] = [];
   let totalOutputBytes = 0;
@@ -142,18 +138,44 @@ export async function processImageSetInWorker(
     return next;
   };
 
-  try {
+  const selectSource = async (sourceId: string | undefined): Promise<void> => {
+    if (bitmap !== undefined && currentSourceId === sourceId) {
+      return;
+    }
+
+    bitmap?.close();
+    bitmap = undefined;
+
+    const source = sourceId === undefined
+      ? { file: request.file, preflight: request.preflight }
+      : request.sources?.[sourceId];
+
+    if (source === undefined) {
+      fail(IMAGE_PROCESSING_ERROR_CODES.InvalidRequest, `Named source "${sourceId}" is unavailable.`);
+    }
+
+    sourceDimensions = { width: source.preflight.width, height: source.preflight.height };
+    orientation = source.preflight.orientation ?? 1;
+    normalizedDimensions = getNormalizedDimensions(sourceDimensions.width, sourceDimensions.height, orientation);
+
     assertNotCancelled(hooks);
     hooks.onProgress('decoding');
-    bitmap = await decodeSourceToBitmap(request.preflight.format, request.file, hooks);
+    bitmap = await decodeSourceToBitmap(source.preflight.format, source.file, hooks);
     assertNotCancelled(hooks);
     assertDecodedDimensionsMatch(bitmap, sourceDimensions);
-
     hooks.onProgress('normalizing');
+    currentSourceId = sourceId;
+  };
 
+  try {
     for (const [index, spec] of request.outputs.entries()) {
       assertNotCancelled(hooks);
       const assetProgress = { index: index + 1, count: assetCount };
+      await selectSource(spec.source);
+
+      if (bitmap === undefined || sourceDimensions === undefined || normalizedDimensions === undefined) {
+        fail(IMAGE_PROCESSING_ERROR_CODES.WorkerFailed, 'The selected image-set source was not decoded.');
+      }
 
       let asset: ImageSetAssetResult;
 

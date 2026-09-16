@@ -22,6 +22,8 @@ export {
 export {
   IMAGE_PROCESSING_ERROR_CODES,
   OUTPUT_IMAGE_MIME_TYPES,
+  type CropRegion,
+  type ExactDimensionsOptions,
   type FileSetGoProcessingError,
   type ImageDimensions,
   type ImageProcessingCancelled,
@@ -71,12 +73,23 @@ export {
 } from './processing/image-set-contracts';
 export {
   MAX_PACKAGE_ASSETS,
+  MAX_PACKAGE_SOURCES,
   MAX_PACKAGE_TOTAL_OUTPUT_BYTES,
 } from './processing/image-set-limits';
 export {
   calculateContainPlan,
   type ContainRenderPlan,
 } from './transforms/contain';
+export {
+  getNormalizedDimensions,
+} from './normalize/orientation';
+export {
+  DEFAULT_ASPECT_RATIO_TOLERANCE,
+  isCropRatioValid,
+  isCropRequired,
+  isCropWithinBounds,
+  largestCenteredCropForRatio,
+} from './transforms/crop';
 export {
   TARGET_SIZE_ERROR_CODES,
   type DimensionPolicy,
@@ -123,12 +136,35 @@ export {
   type RgbaRaster,
 } from './transforms/alpha-inspection';
 export {
+  calculateAlphaTrimPlan,
+  calculateSafeAlphaPadding,
+  detectVisibleAlphaBounds,
+  hasMeaningfulVisibleContent,
+  MAX_ISOLATED_NOISE_ALPHA,
+  mergeAlphaBounds,
+  MAX_SAFE_PADDING_PX,
+  MIN_MEANINGFUL_ALPHA,
+  MIN_MEANINGFUL_ALPHA_MASS,
+  MIN_SAFE_PADDING_PX,
+  SAFE_PADDING_RATIO,
+  type AlphaBounds,
+  type AlphaBoundsScanOptions,
+  type AlphaTrimPlan,
+} from './transforms/alpha-bounds';
+export {
   BACKGROUND_REMOVAL_THRESHOLDS,
+  colorDistance,
   removeConnectedBackground,
+  resolveBackgroundEdgePixel,
+  type BackgroundEdgePixel,
   type BackgroundRemovalResult,
   type BackgroundRemovalStrength,
   type RgbColor,
 } from './transforms/background-removal';
+export {
+  applyAnalysisMaskAtSourceResolution,
+  type SourceResolutionMaskOptions,
+} from './transforms/source-resolution-alpha';
 export {
   assessBackgroundTransparency,
   computeBoundaryConnectedTransparency,

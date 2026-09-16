@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   hasDimensionLimit,
+  isExactMode,
   isNoOpRequest,
   planProcessing,
   resolveOutputFormat,
@@ -53,6 +54,23 @@ describe('hasDimensionLimit', () => {
 
   it('is false when neither dimension is set', () => {
     expect(hasDimensionLimit({ maxWidth: undefined, maxHeight: undefined })).toBe(false);
+  });
+});
+
+describe('isExactMode', () => {
+  it('is true when both dimensions are set AND exactDimensions is explicitly true', () => {
+    expect(isExactMode({ maxWidth: 800, maxHeight: 800, exactDimensions: true })).toBe(true);
+  });
+
+  it('is false when only one or neither dimension is set, even with the flag', () => {
+    expect(isExactMode({ maxWidth: 800, maxHeight: undefined, exactDimensions: true })).toBe(false);
+    expect(isExactMode({ maxWidth: undefined, maxHeight: 800, exactDimensions: true })).toBe(false);
+    expect(isExactMode({ maxWidth: undefined, maxHeight: undefined, exactDimensions: true })).toBe(false);
+  });
+
+  it('is false when both dimensions are set but exactDimensions is not explicitly true — this is what keeps Guided Fit\'s governed bounding-box presets (which also always set both dimensions) routed through the original, unchanged aspect-preserving path', () => {
+    expect(isExactMode({ maxWidth: 800, maxHeight: 800 })).toBe(false);
+    expect(isExactMode({ maxWidth: 800, maxHeight: 800, exactDimensions: false })).toBe(false);
   });
 });
 
@@ -132,5 +150,66 @@ describe('planProcessing', () => {
     if (plan.kind === 'standard') {
       expect(plan.options.onProgress).toBe(onProgress);
     }
+  });
+
+  describe('exact mode (exactDimensions: true, both dimensions set)', () => {
+    it('routes to processImage (standard) with an `exact` field instead of `resize`', () => {
+      const plan = planProcessing(baseRequirements({ maxWidth: 800, maxHeight: 800, exactDimensions: true }));
+
+      expect(plan.kind).toBe('standard');
+      if (plan.kind === 'standard') {
+        expect(plan.options.resize).toBeUndefined();
+        expect(plan.options.exact).toEqual({ width: 800, height: 800 });
+      }
+    });
+
+    it('includes a confirmed crop and upscale approval when present', () => {
+      const crop = { x: 10, y: 20, width: 400, height: 400 };
+      const plan = planProcessing(baseRequirements({
+        maxWidth: 800,
+        maxHeight: 800,
+        exactDimensions: true,
+        crop,
+        allowUpscale: true,
+      }));
+
+      expect(plan.kind).toBe('standard');
+      if (plan.kind === 'standard') {
+        expect(plan.options.exact).toEqual({ width: 800, height: 800, crop, allowUpscale: true });
+      }
+    });
+
+    it('routes to processImageToTarget with `exact` and forces dimensionPolicy to hard, regardless of the requirement', () => {
+      const plan = planProcessing(baseRequirements({
+        maxWidth: 800,
+        maxHeight: 800,
+        exactDimensions: true,
+        targetBytes: 150_000,
+        dimensionPolicy: 'flexible',
+      }));
+
+      expect(plan.kind).toBe('target');
+      if (plan.kind === 'target') {
+        expect(plan.options.dimensions).toBeUndefined();
+        expect(plan.options.exact).toEqual({ width: 800, height: 800 });
+        expect(plan.options.dimensionPolicy).toBe('hard');
+      }
+    });
+
+    it('does NOT enter exact mode for a Guided-Fit-shaped request (both dimensions set, exactDimensions absent) — regression guard for the governed bounding-box presets', () => {
+      const plan = planProcessing(baseRequirements({
+        maxWidth: 1920,
+        maxHeight: 1080,
+        targetBytes: 500 * 1024,
+        dimensionPolicy: 'flexible',
+      }));
+
+      expect(plan.kind).toBe('target');
+      if (plan.kind === 'target') {
+        expect(plan.options.exact).toBeUndefined();
+        expect(plan.options.dimensions).toEqual({ maxWidth: 1920, maxHeight: 1080 });
+        expect(plan.options.dimensionPolicy).toBe('flexible');
+      }
+    });
   });
 });

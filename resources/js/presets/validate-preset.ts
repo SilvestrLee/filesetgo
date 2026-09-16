@@ -75,6 +75,20 @@ export function validatePreset(preset: FileSetGoPreset): PresetValidationIssue[]
     messages.push('requirements.dimensionPolicy must be "hard" or "flexible".');
   }
 
+  if (typeof req.exactDimensions !== 'boolean') {
+    messages.push('requirements.exactDimensions must be a boolean.');
+  }
+
+  if (req.exactDimensions === true) {
+    if (req.maxWidth === undefined || req.maxHeight === undefined) {
+      messages.push('exactDimensions presets must set both maxWidth and maxHeight.');
+    }
+
+    if (req.dimensionPolicy !== 'hard') {
+      messages.push("exactDimensions presets must use dimensionPolicy 'hard' (an exact frame cannot be shrunk to hit a byte target).");
+    }
+  }
+
   const provenance = preset.provenance;
 
   if (provenance.kind !== 'filesetgo-recommended' && provenance.kind !== 'external') {

@@ -448,6 +448,80 @@ describe('processImageToTargetInWorker PNG (lossless, no fake quality search)', 
   });
 });
 
+describe('processImageToTargetInWorker exact dimensions + crop (FSG-007-FIT-001)', () => {
+  it('meets the target while keeping exact geometry intact (never sacrificed for the byte target)', async () => {
+    const outcome = await processImageToTargetInWorker(
+      testRequest({ targetBytes: 1_000_000, exact: { width: 400, height: 300 } }),
+      testHooks().hooks,
+    );
+
+    expect(outcome.status).toBe('met');
+    if (outcome.status === 'met') {
+      expect(outcome.result.width).toBe(400);
+      expect(outcome.result.height).toBe(300);
+      expect(outcome.result.dimensionsReduced).toBe(false);
+      expect(outcome.result.dimensionTierCount).toBe(1);
+    }
+  });
+
+  it('reports an unreachable target truthfully without ever shrinking the exact geometry', async () => {
+    const outcome = await processImageToTargetInWorker(
+      testRequest({ targetBytes: 500, exact: { width: 400, height: 300 } }),
+      testHooks().hooks,
+    );
+
+    expect(outcome.status).toBe('unreachable');
+    if (outcome.status === 'unreachable') {
+      expect(outcome.outcome.code).toBe('TARGET_UNREACHABLE_HARD_DIMENSIONS');
+      expect(outcome.outcome.dimensionTierCount).toBe(1);
+      expect(outcome.outcome.bestAttempt).toMatchObject({ width: 400, height: 300 });
+    }
+  });
+
+  it('applies a confirmed crop and reports it on the result', async () => {
+    const crop = { x: 100, y: 0, width: 600, height: 600 };
+
+    const outcome = await processImageToTargetInWorker(
+      testRequest({
+        targetBytes: 1_000_000,
+        exact: { width: 800, height: 800, crop, allowUpscale: true },
+      }),
+      testHooks().hooks,
+    );
+
+    expect(outcome.status).toBe('met');
+    if (outcome.status === 'met') {
+      expect(outcome.result.width).toBe(800);
+      expect(outcome.result.height).toBe(800);
+      expect(outcome.result.appliedCrop).toEqual(crop);
+    }
+  });
+
+  it('rejects an exact request whose ratio mismatches the source when no crop is supplied', async () => {
+    await expect(
+      processImageToTargetInWorker(
+        testRequest({ targetBytes: 1_000_000, exact: { width: 800, height: 800 } }),
+        testHooks().hooks,
+      ),
+    ).rejects.toMatchObject({ processingError: { code: 'INVALID_PROCESSING_REQUEST' } });
+  });
+
+  it('rejects a silent upscale beyond the available source detail', async () => {
+    bitmapHandler = async () => new FakeImageBitmap(200, 150);
+
+    await expect(
+      processImageToTargetInWorker(
+        testRequest({
+          preflight: testPreflight({ width: 200, height: 150 }),
+          targetBytes: 1_000_000,
+          exact: { width: 1200, height: 900 },
+        }),
+        testHooks().hooks,
+      ),
+    ).rejects.toMatchObject({ processingError: { code: 'INVALID_PROCESSING_REQUEST' } });
+  });
+});
+
 describe('processImageToTargetInWorker HEIC input', () => {
   const heicDecodeMock = vi.hoisted(() => ({ decodeHeic: vi.fn() }));
 

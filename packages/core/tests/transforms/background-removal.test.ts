@@ -69,11 +69,10 @@ describe('removeConnectedBackground', () => {
     expect(alphaAt(result.data, 50, 15, 15)).toBe(255); // outer ring survives
   });
 
-  it('preserves a white interior element enclosed by non-white foreground (fixture matrix §41.5)', () => {
-    // The white "counter" of a letterform-like mark: a coloured outer ring
-    // with a fully enclosed white interior — the interior is never
-    // connected to the true exterior background, so it must survive even
-    // though its colour matches the exterior exactly.
+  it('removes a confident white counter enclosed by non-white foreground', () => {
+    // FSG-007 enclosed-background remediation supersedes the former
+    // boundary-only behavior: a compact, material interior matching the
+    // inferred exterior background is an ordinary counter/hole.
     const raster = createRasterWithForegroundRects(50, 50, [255, 255, 255], [
       { x0: 10, y0: 10, x1: 40, y1: 40, color: [20, 90, 160] },
       { x0: 20, y0: 20, x1: 30, y1: 30, color: [255, 255, 255] },
@@ -81,7 +80,9 @@ describe('removeConnectedBackground', () => {
     const result = removeConnectedBackground(raster, 'balanced');
 
     expect(alphaAt(result.data, 50, 0, 0)).toBe(0); // exterior removed
-    expect(alphaAt(result.data, 50, 25, 25)).toBe(255); // enclosed white interior survives
+    expect(alphaAt(result.data, 50, 25, 25)).toBe(0);
+    expect(result.enclosedBackgroundRemovedComponents).toBe(1);
+    expect(result.ambiguousEnclosedBackgroundComponents).toBe(0);
   });
 
   it('preserves a black interior element enclosed by non-black foreground (fixture matrix §41.6)', () => {

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { collectRequests, gotoApp, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
+import { approveFullLogoFaviconSource, collectRequests, gotoApp, selectLogoPackBackgroundMode, selectMode, setSimpleRequirement, uploadFile, waitForStatus } from '../helpers/app';
 
 function requestedHeicChunk(urls: string[]): boolean {
   return urls.some((url) => /heic-decode|heic_dec/.test(url));
@@ -65,6 +65,7 @@ test.describe('Lazy-load runtime verification (directive §24)', () => {
     await selectMode(page, 'logo-pack');
     await expect(page.locator('#logo-pack-review')).toBeVisible();
     await selectLogoPackBackgroundMode(page, 'original');
+    await approveFullLogoFaviconSource(page);
 
     const beforeGeneration = requestedZipAdapterChunk(requests.urls());
 

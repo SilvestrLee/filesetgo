@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { gotoApp, selectLogoPackBackgroundMode, selectMode, uploadFile, waitForStatus } from '../helpers/app';
+import {
+  approveFullLogoFaviconSource,
+  gotoApp,
+  reviewLogoPackBackground,
+  selectLogoPackBackgroundMode,
+  selectMode,
+  uploadFile,
+  waitForStatus,
+} from '../helpers/app';
 
 test.describe('Cancellation certification (directive §30/§31)', () => {
   test('cancelling a Quick Fit job stops it, and a subsequent job can still complete', async ({ page }) => {
@@ -9,20 +17,27 @@ test.describe('Cancellation certification (directive §30/§31)', () => {
     // a Cancel click round-trip can reliably land (directive §51/§59).
     await uploadFile(page, 'large.jpg');
     await waitForStatus(page, 'ready');
+    await page.locator('#quick-fit-open').click();
 
     await page.locator('#target-size-value').fill('50');
     await page.locator('#target-size-unit').selectOption('KB');
     await page.locator('#process-button').click();
 
     await waitForStatus(page, 'processing');
-    await page.locator('#cancel-button').click();
+    // FSG-007-FIT-003-R3: the Quick Fit dialog itself already closed the
+    // instant the job started — the real Cancel action now lives on the
+    // full-page processing transition, not the (already-closed) dialog.
+    await expect(page.locator('#quick-fit-dialog')).toBeHidden();
+    await page.locator('#fsg-processing-overlay-cancel').click();
     await waitForStatus(page, 'cancelled', 15_000);
 
     // No later success silently replaces the cancellation.
     await page.waitForTimeout(500);
     await expect(page.locator('#status-message')).toHaveAttribute('data-state', 'cancelled');
 
-    // Subsequent processing still works.
+    // Subsequent processing still works — reopening the dialog, since it
+    // closed when the cancelled job started and stays closed afterward.
+    await page.locator('#quick-fit-open').click();
     await page.locator('#process-button').click();
     await waitForStatus(page, 'success', 30_000);
   });
@@ -59,12 +74,16 @@ test.describe('Cancellation certification (directive §30/§31)', () => {
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'original');
+    await approveFullLogoFaviconSource(page);
 
     await page.locator('#logo-pack-create-button').click();
 
     if (canDelayWorkerRequests) {
       await waitForStatus(page, 'processing');
-      await page.locator('#cancel-button').click({ timeout: 10_000 });
+      // FSG-007-FIT-003-R3: the Logo Pack dialog already closed the instant
+      // generation started — Cancel now lives on the full-page transition.
+      await expect(page.locator('#logo-pack-dialog')).toBeHidden();
+      await page.locator('#fsg-processing-overlay-cancel').click({ timeout: 10_000 });
       await waitForStatus(page, 'cancelled', 15_000);
       await expect(page.locator('#logo-pack-result')).toBeHidden();
     } else {
@@ -79,6 +98,8 @@ test.describe('Cancellation certification (directive §30/§31)', () => {
     // processing lock left behind, whether the prior job was cancelled
     // (Chromium) or completed (Firefox).
     await selectMode(page, 'quick-fit');
+    await expect(page.locator('#quick-fit-panel')).toBeVisible();
+    await page.locator('#quick-fit-open').click();
     await expect(page.locator('#requirements-form')).toBeVisible();
     await expect(page.locator('#process-button')).toBeEnabled();
 
@@ -130,7 +151,7 @@ test.describe('Cancellation certification (directive §30/§31)', () => {
       return;
     }
 
-    await page.locator('#cancel-button').click({ timeout: 10_000 });
+    await page.locator('#logo-pack-modal-cancel').click({ timeout: 10_000 });
     await waitForStatus(page, 'cancelled', 15_000);
 
     // The cancelled job never later surfaces a stale preview.
@@ -147,7 +168,9 @@ test.describe('Cancellation certification (directive §30/§31)', () => {
     // verified terminal preview state (not necessarily VERIFIED — large.jpg
     // is a decode-time stress fixture, not a quality fixture, and was never
     // asserted to produce a clean background-removal result).
-    await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 30_000 });
+    await waitForStatus(page, 'ready', 30_000);
+    await reviewLogoPackBackground(page);
+    await expect(page.locator('#logo-pack-preview')).toBeVisible();
     await expect(page.locator('#logo-pack-preview-confidence')).not.toHaveText('');
   });
 });

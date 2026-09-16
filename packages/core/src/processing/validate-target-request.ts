@@ -2,6 +2,7 @@ import { DEFAULT_SAFETY_LIMITS } from '../preflight/safety';
 import {
   IMAGE_PROCESSING_ERROR_CODES,
   OUTPUT_IMAGE_MIME_TYPES,
+  type ExactDimensionsOptions,
   type FileSetGoProcessingError,
 } from './contracts';
 import { createProcessingError } from './errors';
@@ -20,6 +21,7 @@ export interface ResolvedTargetOptions {
   targetBytes: number;
   output: { format: ProcessImageToTargetOptions['output']['format'] };
   dimensions?: ProcessImageToTargetOptions['dimensions'];
+  exact?: ExactDimensionsOptions;
   dimensionPolicy: 'hard' | 'flexible';
   qualityRange: TargetSizeQualityRange;
   onProgress: ProcessImageToTargetOptions['onProgress'];
@@ -69,7 +71,17 @@ export function validateProcessImageToTargetOptions(
     );
   }
 
-  const dimensionPolicy = options.dimensionPolicy ?? 'flexible';
+  if (options.dimensions !== undefined && options.exact !== undefined) {
+    return invalid('A request may specify `dimensions` or `exact`, never both.');
+  }
+
+  if (options.exact !== undefined && options.dimensionPolicy === 'flexible') {
+    return invalid(
+      "`exact` dimensions are always a hard requirement — 'flexible' dimensionPolicy may not be combined with `exact`.",
+    );
+  }
+
+  const dimensionPolicy = options.exact !== undefined ? 'hard' : (options.dimensionPolicy ?? 'flexible');
 
   if (dimensionPolicy !== 'hard' && dimensionPolicy !== 'flexible') {
     return invalid("dimensionPolicy must be 'hard' or 'flexible'.");
@@ -118,12 +130,50 @@ export function validateProcessImageToTargetOptions(
     }
   }
 
+  if (options.exact !== undefined) {
+    const { width, height, crop } = options.exact;
+
+    for (const [name, value] of [
+      ['width', width],
+      ['height', height],
+    ] as const) {
+      if (!Number.isSafeInteger(value) || value <= 0) {
+        return invalid(`exact.${name} must be a positive safe integer.`);
+      }
+    }
+
+    if (width * height > DEFAULT_SAFETY_LIMITS.maxDecodedPixels) {
+      return invalid('The requested exact dimensions exceed the decoded-pixel safety limit.');
+    }
+
+    if (crop !== undefined) {
+      for (const [name, value] of [
+        ['crop.x', crop.x],
+        ['crop.y', crop.y],
+      ] as const) {
+        if (!Number.isFinite(value) || value < 0) {
+          return invalid(`${name} must be a non-negative finite number.`);
+        }
+      }
+
+      for (const [name, value] of [
+        ['crop.width', crop.width],
+        ['crop.height', crop.height],
+      ] as const) {
+        if (!Number.isFinite(value) || value <= 0) {
+          return invalid(`${name} must be a positive finite number.`);
+        }
+      }
+    }
+  }
+
   return {
     error: undefined,
     resolved: {
       targetBytes: options.targetBytes,
       output: { format: options.output.format },
       dimensions: options.dimensions,
+      exact: options.exact,
       dimensionPolicy,
       qualityRange,
       onProgress: options.onProgress,

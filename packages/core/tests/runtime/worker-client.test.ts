@@ -484,6 +484,13 @@ function createTransparentMasterResult(): import('../../src/processing/transpare
     format: 'png',
     mimeType: 'image/png',
     byteSize: blob.size,
+    sourceDimensions: { width: 40, height: 40 },
+    normalizedDimensions: { width: 40, height: 40 },
+    analysisDimensions: { width: 40, height: 40 },
+    visibleBounds: { left: 5, top: 10, width: 30, height: 20 },
+    safePadding: 2,
+    canvasTrimmed: true,
+    foregroundRescaled: false,
     alphaInspection: {
       sampledPixels: 1600,
       fullyTransparentPixels: 200,
@@ -537,6 +544,43 @@ describe('ImageProcessingRuntime shared job slot (processImageSet)', () => {
       status: 'complete',
       result: { assetCount: 1 },
     });
+  });
+
+  it('preflights and posts a bounded named favicon source with the image-set request', async () => {
+    const { runtime, workers } = createRuntime();
+    const primary = createPngBlob();
+    const faviconSourceFile = createImageSource(createPng(100, 100)).slice();
+    const job = runtime.processImageSet(primary, {
+      sources: { 'favicon-source': faviconSourceFile },
+      outputs: [{
+        kind: 'contain',
+        source: 'favicon-source',
+        id: 'favicon',
+        filename: 'favicon.png',
+        output: { format: 'png' },
+        canvas: { width: 32, height: 32 },
+        contentScale: 0.9,
+        allowUpscale: true,
+      }],
+    });
+    const worker = await waitForAnyWorker(workers);
+    const command = worker.messages[0];
+
+    expect(command).toMatchObject({
+      type: 'PROCESS_IMAGE_SET',
+      request: {
+        sources: {
+          'favicon-source': {
+            file: faviconSourceFile,
+            preflight: { format: 'png', width: 100, height: 100, safeToDecode: true },
+          },
+        },
+        outputs: [{ source: 'favicon-source', id: 'favicon' }],
+      },
+    });
+
+    worker.emit({ type: 'JOB_COMPLETE_SET', jobId: job.jobId, result: createSetResult() });
+    await expect(job.result).resolves.toMatchObject({ status: 'complete' });
   });
 
   it('resolves a result whose assets include an ICO entry (real Logo Pack shape)', async () => {

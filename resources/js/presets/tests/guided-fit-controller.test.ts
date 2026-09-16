@@ -184,7 +184,9 @@ describe('GuidedFitController — running a preset', () => {
     expect(core.processImageToTarget).toHaveBeenCalledTimes(1);
     const [, options] = core.processImageToTarget.mock.calls[0];
     expect(options.targetBytes).toBe(300 * 1024);
-    expect(options.dimensions).toEqual({ maxWidth: 1600, maxHeight: 1600 });
+    // Default preflight is 2400x1600 (3:2) — exactly Content's 3:2 ratio, so
+    // no crop is required and the exact frame is reached by scaling alone.
+    expect(options.exact).toEqual({ width: 1200, height: 800 });
     expect(options.output).toEqual({ format: 'webp' });
   });
 
@@ -224,7 +226,8 @@ describe('GuidedFitController — running a preset', () => {
 
   it('retains preset context through an unreachable result', async () => {
     const { core, workflow, guided } = setUp();
-    core.preflightImage.mockResolvedValue(preflightReady());
+    // Hero is exactly 16:9 — match the source ratio so no crop is required.
+    core.preflightImage.mockResolvedValue(preflightReady({ width: 3200, height: 1800 }));
     const job = fakeTargetJob({
       status: 'unreachable',
       outcome: { code: 'TARGET_UNREACHABLE_MIN_QUALITY', message: 'x', qualityProbeCount: 5, dimensionTierCount: 6 },
@@ -242,7 +245,8 @@ describe('GuidedFitController — running a preset', () => {
 
   it('reports a processing failure as a failure, not a preset success', async () => {
     const { core, workflow, guided } = setUp();
-    core.preflightImage.mockResolvedValue(preflightReady());
+    // Card is exactly 4:3 — match the source ratio so no crop is required.
+    core.preflightImage.mockResolvedValue(preflightReady({ width: 1600, height: 1200 }));
     const job = fakeTargetJob({
       status: 'failed',
       error: { code: 'ENCODE_FAILED', message: 'x', recoverable: true },
@@ -255,6 +259,89 @@ describe('GuidedFitController — running a preset', () => {
     await job.result;
 
     expect(workflow.getState().status).toBe('failed');
+  });
+
+  it('refuses to run when the destination requires a crop that has not been confirmed', async () => {
+    const { core, workflow, guided } = setUp();
+    // Default preflight (2400x1600, 3:2) does not match Hero's 16:9.
+    core.preflightImage.mockResolvedValue(preflightReady());
+
+    await workflow.selectFile(newFile());
+    guided.selectPreset('web.hero');
+    guided.runSelectedPreset();
+
+    expect(core.processImageToTarget).not.toHaveBeenCalled();
+    expect(workflow.getState().status).toBe('ready');
+  });
+
+  it('runs once a required crop is confirmed', async () => {
+    const { core, workflow, guided } = setUp();
+    core.preflightImage.mockResolvedValue(preflightReady());
+    core.processImageToTarget.mockReturnValue(fakeTargetJob({ status: 'complete', result: targetResult() }));
+
+    await workflow.selectFile(newFile());
+    guided.selectPreset('web.hero');
+    expect(guided.needsCrop()).toBe(true);
+
+    guided.confirmCrop({ x: 0, y: 0, width: 2400, height: 1350 });
+    guided.runSelectedPreset();
+
+    expect(core.processImageToTarget).toHaveBeenCalledTimes(1);
+    const [, options] = core.processImageToTarget.mock.calls[0];
+    expect(options.exact).toEqual({ width: 1600, height: 900, crop: { x: 0, y: 0, width: 2400, height: 1350 } });
+  });
+
+  it('refuses to run when upscaling is required but not approved', async () => {
+    const { core, workflow, guided } = setUp();
+    // Exactly Card's 4:3 ratio, but smaller than its 800x600 exact frame.
+    core.preflightImage.mockResolvedValue(preflightReady({ width: 400, height: 300 }));
+    core.processImageToTarget.mockReturnValue(fakeTargetJob({ status: 'complete', result: targetResult() }));
+
+    await workflow.selectFile(newFile());
+    guided.selectPreset('web.card');
+    expect(guided.needsCrop()).toBe(false);
+    expect(guided.needsUpscale()).toBe(true);
+
+    guided.runSelectedPreset();
+    expect(core.processImageToTarget).not.toHaveBeenCalled();
+
+    guided.setUpscaleApproved(true);
+    guided.runSelectedPreset();
+    expect(core.processImageToTarget).toHaveBeenCalledTimes(1);
+    const [, options] = core.processImageToTarget.mock.calls[0];
+    expect(options.exact.allowUpscale).toBe(true);
+  });
+
+  it('invalidates a confirmed crop and upscale approval when the destination changes', async () => {
+    const { core, workflow, guided } = setUp();
+    core.preflightImage.mockResolvedValue(preflightReady());
+
+    await workflow.selectFile(newFile());
+    guided.selectPreset('web.hero');
+    guided.confirmCrop({ x: 0, y: 0, width: 2400, height: 1350 });
+    guided.setUpscaleApproved(true);
+
+    guided.selectPreset('web.card');
+
+    expect(guided.getConfirmedCrop()).toBeUndefined();
+    expect(guided.isUpscaleApproved()).toBe(false);
+  });
+
+  it('invalidates a confirmed crop and upscale approval when the source is replaced', async () => {
+    const { core, workflow, guided } = setUp();
+    core.preflightImage.mockResolvedValue(preflightReady());
+
+    await workflow.selectFile(newFile('a.jpg'));
+    guided.selectPreset('web.hero');
+    guided.confirmCrop({ x: 0, y: 0, width: 2400, height: 1350 });
+    guided.setUpscaleApproved(true);
+
+    await workflow.selectFile(newFile('b.jpg'));
+
+    expect(guided.getConfirmedCrop()).toBeUndefined();
+    expect(guided.isUpscaleApproved()).toBe(false);
+    // The destination choice itself survives a source replacement.
+    expect(guided.currentPreset()?.id).toBe('web.hero');
   });
 });
 
@@ -299,7 +386,8 @@ describe('GuidedFitController — reset and file replacement', () => {
   it('still benefits from stale-result protection for a preset-driven job', async () => {
     const { core, workflow, guided } = setUp();
     core.preflightImage
-      .mockResolvedValueOnce(preflightReady())
+      // Hero is exactly 16:9 — match the source ratio so no crop is required.
+      .mockResolvedValueOnce(preflightReady({ width: 3200, height: 1800 }))
       .mockResolvedValueOnce(preflightReady({ width: 500, height: 500 }));
     const { job, resolve } = pendingTargetJob();
     core.processImageToTarget.mockReturnValue(job);
@@ -328,7 +416,8 @@ describe('GuidedFitController — already-ready evaluation', () => {
 
   it('reflects the current source against the selected preset', async () => {
     const { core, workflow, guided } = setUp();
-    core.preflightImage.mockResolvedValue(preflightReady({ format: 'webp', width: 700, height: 700, fileSize: 100_000 }));
+    // web.card is now an exact 800x600 frame — "ready" requires an exact match.
+    core.preflightImage.mockResolvedValue(preflightReady({ format: 'webp', width: 800, height: 600, fileSize: 100_000 }));
     await workflow.selectFile(newFile('already.webp'));
 
     guided.selectPreset('web.card');
@@ -360,9 +449,9 @@ describe('GuidedFitController — adjust settings', () => {
       targetSizeValue: '150',
       targetSizeUnit: 'KB',
       maxWidth: '800',
-      maxHeight: '800',
+      maxHeight: '600',
       outputChoice: 'webp',
-      allowDimensionReduction: true,
+      allowDimensionReduction: false,
     });
   });
 

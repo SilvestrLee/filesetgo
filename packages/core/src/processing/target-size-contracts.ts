@@ -1,5 +1,6 @@
 import type { ImagePreflightResult } from '../preflight/contracts';
 import type {
+  ExactDimensionsOptions,
   FileSetGoProcessingError,
   ImageDimensions,
   ImageProcessingProgress,
@@ -37,8 +38,17 @@ export type TargetSizeUnreachableCode =
 export interface ProcessImageToTargetOptions {
   targetBytes: number;
   output: { format: OutputImageFormat };
+  /** Bounding-box dimensions (aspect-preserving). Mutually exclusive with `exact`. */
   dimensions?: TargetDimensions;
-  /** Defaults to 'flexible'. */
+  /**
+   * Exact output dimensions, with mandatory user-approved crop when
+   * required (FSG-007-FIT-001). Mutually exclusive with `dimensions`.
+   * Geometry is always a hard requirement when `exact` is set — the byte
+   * target is searched via quality/tier only, never by shrinking `exact`'s
+   * width/height.
+   */
+  exact?: ExactDimensionsOptions;
+  /** Defaults to 'flexible'. Forced to 'hard' whenever `exact` is set; explicitly passing 'flexible' together with `exact` is a caller error. */
   dimensionPolicy?: DimensionPolicy;
   /** Defaults to { minQuality: 0.6, maxQuality: 0.95 }. */
   qualityRange?: Partial<TargetSizeQualityRange>;
@@ -52,6 +62,7 @@ export interface SafeImageProcessingTargetRequest {
   targetBytes: number;
   output: { format: OutputImageFormat };
   dimensions?: TargetDimensions;
+  exact?: ExactDimensionsOptions;
   dimensionPolicy: DimensionPolicy;
   qualityRange: TargetSizeQualityRange;
 }

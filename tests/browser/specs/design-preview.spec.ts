@@ -1,91 +1,94 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import { expect, test } from '@playwright/test';
-import { gotoApp, selectLogoPackBackgroundMode, selectMode, uploadFile, waitForStatus } from '../helpers/app';
+import { expect, test, type Page } from '@playwright/test';
 
-const SCREENSHOT_DIR = path.join(import.meta.dirname, '..', '.artifacts', 'fsg-007d');
+const SCREENSHOT_DIR = path.join(import.meta.dirname, '..', '.artifacts', 'fsg-007a-brand-reconciliation');
 
-async function capture(page: import('@playwright/test').Page, filename: string): Promise<void> {
+async function readyFonts(page: Page): Promise<void> {
   await page.evaluate(() => document.fonts.ready);
-  await page.screenshot({ path: path.join(SCREENSHOT_DIR, filename), fullPage: true });
 }
 
-test('captures the governed FSG-007D visual review inventory', async ({ page }) => {
-  test.setTimeout(180_000);
+async function capturePage(page: Page, filename: string, fullPage = false): Promise<void> {
+  await readyFonts(page);
+  await page.screenshot({ path: path.join(SCREENSHOT_DIR, filename), fullPage });
+}
+
+async function captureRegion(page: Page, selector: string, filename: string): Promise<void> {
+  await readyFonts(page);
+  await page.locator(selector).screenshot({ path: path.join(SCREENSHOT_DIR, filename) });
+}
+
+async function useDarkTheme(page: Page): Promise<void> {
+  if ((await page.locator('html').getAttribute('data-theme-resolved')) !== 'dark') {
+    await page.locator('[data-theme-toggle]').click();
+  }
+
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+}
+
+async function useLightTheme(page: Page): Promise<void> {
+  if ((await page.locator('html').getAttribute('data-theme-resolved')) !== 'light') {
+    await page.locator('[data-theme-toggle]').click();
+  }
+
+  await expect(page.locator('html')).toHaveAttribute('data-theme-resolved', 'light');
+}
+
+test('captures the governed FSG-007A brand reconciliation inventory', async ({ page }) => {
+  test.setTimeout(120_000);
   await mkdir(SCREENSHOT_DIR, { recursive: true });
   await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
 
-  const desktopPages = [
-    ['01-homepage-desktop.png', '/'],
-    ['02-compress-image.png', '/compress-image-for-website'],
-    ['03-convert-webp.png', '/convert-image-to-webp'],
-    ['04-favicon-generator.png', '/favicon-generator'],
-    ['05-prepare-logo.png', '/prepare-logo-for-website'],
-    ['06-transparent-logo.png', '/transparent-logo-for-website'],
-    ['07-website-image-optimizer.png', '/website-image-optimizer'],
-    ['08-privacy.png', '/privacy'],
-    ['09-not-found.png', '/this-page-does-not-exist'],
-  ] as const;
-
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  for (const [filename, route] of desktopPages) {
-    await page.goto(route);
-    await capture(page, filename);
-  }
-
-  await page.setViewportSize({ width: 320, height: 760 });
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
-  await capture(page, '10-homepage-320.png');
+  await useLightTheme(page);
+  await capturePage(page, '01-homepage-light-desktop.png', true);
+
+  await useDarkTheme(page);
+  await capturePage(page, '02-homepage-dark-desktop.png', true);
+
+  await useLightTheme(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await capturePage(page, '03-homepage-390.png', true);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await captureRegion(page, '.fsg-header', '04-header-light.png');
+  await useDarkTheme(page);
+  await captureRegion(page, '.fsg-header', '05-header-dark.png');
+
+  await useLightTheme(page);
+  await captureRegion(page, '.fsg-workspace', '06-workspace-light.png');
+  await useDarkTheme(page);
+  await captureRegion(page, '.fsg-workspace', '07-workspace-dark.png');
+
+  await useLightTheme(page);
+  await captureRegion(page, '#how-it-works', '08-three-decisions.png');
+  await captureRegion(page, '.fsg-section--tasks', '09-task-discovery.png');
+  await captureRegion(page, '.fsg-section--trust', '10-privacy-trust.png');
+  await captureRegion(page, '.fsg-footer', '11-footer.png');
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
-  await capture(page, '11-homepage-390.png');
+  await page.locator('[data-task-navigation] summary').click();
+  await capturePage(page, '12-mobile-drawer-light.png');
+  await page.keyboard.press('Escape');
+  await useDarkTheme(page);
+  await page.locator('[data-task-navigation] summary').click();
+  await capturePage(page, '13-mobile-drawer-dark.png');
+  await page.keyboard.press('Escape');
 
-  await page.setViewportSize({ width: 320, height: 760 });
-  await page.goto('/compress-image-for-website');
-  await capture(page, '12-acquisition-compress-320.png');
+  await useLightTheme(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const acquisitionPages = [
+    ['/prepare-logo-for-website', '14-prepare-logo.png'],
+    ['/transparent-logo-for-website', '15-transparent-logo.png'],
+    ['/favicon-generator', '16-favicon-generator.png'],
+    ['/website-image-optimizer', '17-website-image-optimizer.png'],
+    ['/compress-image-for-website', '18-compress-image.png'],
+    ['/convert-image-to-webp', '19-convert-webp.png'],
+  ] as const;
 
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto('/');
-  await page.locator('.fsg-nav details > summary').click();
-  await expect(page.locator('.fsg-task-menu')).toBeVisible();
-  await capture(page, '13-website-tasks-open.png');
-
-  await gotoApp(page);
-  await uploadFile(page, 'sample.jpg');
-  await waitForStatus(page, 'ready');
-  await capture(page, '14-quick-fit-selected-source.png');
-
-  await page.locator('#target-size-value').fill('50');
-  await page.locator('#target-size-unit').selectOption('KB');
-  await page.locator('#process-button').click();
-  await waitForStatus(page, 'success', 30_000);
-  await expect(page.locator('[data-product-context="quick-fit"]')).toBeVisible();
-  await capture(page, '15-quick-fit-success.png');
-
-  await gotoApp(page);
-  await uploadFile(page, 'flat-logo.png');
-  await waitForStatus(page, 'ready');
-  await selectMode(page, 'logo-pack');
-  await expect(page.locator('#logo-pack-review')).toBeVisible();
-  await capture(page, '16-logo-pack-review.png');
-
-  await selectLogoPackBackgroundMode(page, 'transparent');
-  await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
-  await capture(page, '17-transparent-logo-preview.png');
-
-  await page.locator('#logo-pack-create-button').click();
-  await waitForStatus(page, 'success', 30_000);
-  await expect(page.locator('[data-product-context="logo-pack"]')).toBeVisible();
-  await capture(page, '18-logo-pack-final-result.png');
-
-  await page.goto('/');
-  await page.locator('.fsg-theme > summary').click();
-  await page.getByRole('button', { name: /Dark Always dark/ }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await capture(page, '19-homepage-dark.png');
-
-  await page.locator('.fsg-theme > summary').click();
-  await expect(page.locator('.fsg-theme__menu')).toBeVisible();
-  await capture(page, '20-theme-control-dark-open.png');
+  for (const [route, filename] of acquisitionPages) {
+    await page.goto(route);
+    await capturePage(page, filename, true);
+  }
 });

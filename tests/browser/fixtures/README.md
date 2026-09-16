@@ -62,6 +62,26 @@ existing gradient-ramp fixtures (`good-logo.png` etc.) have no drawn
 foreground at all, so they exercise the unrelated `FAILED` path
 (no remaining foreground) rather than `NEEDS REVIEW`.
 
+`card-ready.webp` (FSG-007-FIT-002) is the same struct+zlib color-ramp
+technique at exactly 800×600 — Guided Fit's Card destination's new exact
+frame — converted to WebP via macOS's built-in `cwebp` (format conversion
+only). Guided Fit's presets became EXACT destination frames rather than
+bounding boxes in this milestone, so no existing fixture is already exactly
+at any of the three governed target sizes; this one exercises the genuine
+"already ready, zero processing" path against Card (800×600, WebP,
+well under 150 KB).
+
+`website-optimizer-source.jpg` (FSG-007F) is a 4800×3200 JPEG rendition of
+the project-owned `public/brand/website-placement-demo.webp` studio image.
+It is generated with `ffmpeg -vf scale=4800:3200:flags=lanczos -q:v 2` so the
+acquisition example has a deterministic, large 3:2 source with meaningful
+subject placement. The three committed `public/brand/website-optimizer-*-result.webp`
+assets are then generated from this exact fixture by the real Guided Fit flow
+in `website-image-optimizer-fixtures.spec.ts`. Hero and Card use Guided Fit's
+centered user-confirmed crop draft; Content needs no crop because the source
+already matches 3:2. Run with
+`FSG_GENERATE_WEBSITE_OPTIMIZER_FIXTURES=1 npx playwright test tests/browser/specs/website-image-optimizer-fixtures.spec.ts --project=chromium --workers=1`.
+
 `genuine-transparent-logo.png` (FSG-006 delta recertification) is a real,
 valid RGBA PNG: a fully transparent exterior with a single opaque navy
 mark — already a correctly-prepared transparent logo, no un-removed
@@ -113,5 +133,7 @@ signature with no image data, for truncated/malformed-file rejection tests.
 | `gradient-logo.png` | 600×600 — real gradient background + solid foreground block — FSG-006 delta recertification NEEDS-REVIEW-transparency fixture |
 | `flat-logo.heic` | `flat-logo.png` converted to HEIC — FSG-006 delta recertification Logo-Pack-suitable HEIC fixture |
 | `genuine-transparent-logo.png` | 400×400, real RGBA — transparent exterior + opaque mark, already prepared — FSG-006 delta recertification existing-transparent-PNG-bypass fixture |
+| `card-ready.webp` | Exactly 800×600, real WebP, well under 150 KB — FSG-007-FIT-002 Guided Fit "Card" already-ready fixture |
+| `website-optimizer-source.jpg` | 4800×3200 project-owned studio image fixture — deterministic FSG-007F source for real Guided Fit acquisition outputs |
 
 No file exceeds ~452 KB. No fixture is downloaded from a network source.

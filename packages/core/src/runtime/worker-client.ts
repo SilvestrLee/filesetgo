@@ -1,3 +1,4 @@
+import type { ImagePreflightResult } from '../preflight/contracts';
 import { preflightImage } from '../preflight/preflight-image';
 import {
   IMAGE_PROCESSING_ERROR_CODES,
@@ -250,6 +251,7 @@ export class ImageProcessingRuntime {
 
   private async start(job: ActiveJob): Promise<void> {
     let resolvedTargetOptions: ResolvedTargetOptions | undefined;
+    let safeNamedSources: Record<string, { file: Blob; preflight: ImagePreflightResult }> | undefined;
 
     if (job.variant.kind === 'standard') {
       const validationError = validateProcessImageOptions(job.variant.options);
@@ -321,6 +323,49 @@ export class ImageProcessingRuntime {
       return;
     }
 
+    if (job.variant.kind === 'set' && job.variant.options.sources !== undefined) {
+      safeNamedSources = {};
+
+      for (const [sourceId, sourceFile] of Object.entries(job.variant.options.sources)) {
+        let sourcePreflight;
+
+        try {
+          sourcePreflight = await preflightImage(sourceFile);
+        } catch {
+          this.finish(job, {
+            status: 'failed',
+            error: createProcessingError(
+              IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+              `Named source "${sourceId}" could not be preflighted.`,
+            ),
+          });
+          return;
+        }
+
+        if (job.settled || this.activeJob?.id !== job.id) {
+          return;
+        }
+
+        if (sourcePreflight.status === 'rejected') {
+          this.finish(job, { status: 'failed', error: fromPreflightError(sourcePreflight.error) });
+          return;
+        }
+
+        if (!sourcePreflight.result.safeToDecode) {
+          this.finish(job, {
+            status: 'failed',
+            error: createProcessingError(
+              IMAGE_PROCESSING_ERROR_CODES.WorkerFailed,
+              `Named source "${sourceId}" did not pass the mandatory safety gate.`,
+            ),
+          });
+          return;
+        }
+
+        safeNamedSources[sourceId] = { file: sourceFile, preflight: sourcePreflight.result };
+      }
+    }
+
     if (this.requiresGlobalWorker && typeof Worker === 'undefined') {
       this.finish(job, {
         status: 'failed',
@@ -371,6 +416,9 @@ export class ImageProcessingRuntime {
             ...(job.variant.options.resize === undefined
               ? {}
               : { resize: job.variant.options.resize }),
+            ...(job.variant.options.exact === undefined
+              ? {}
+              : { exact: job.variant.options.exact }),
             output: job.variant.options.output,
           },
         });
@@ -389,6 +437,7 @@ export class ImageProcessingRuntime {
             targetBytes: resolved.targetBytes,
             output: resolved.output,
             ...(resolved.dimensions === undefined ? {} : { dimensions: resolved.dimensions }),
+            ...(resolved.exact === undefined ? {} : { exact: resolved.exact }),
             dimensionPolicy: resolved.dimensionPolicy,
             qualityRange: resolved.qualityRange,
           },
@@ -400,6 +449,7 @@ export class ImageProcessingRuntime {
           request: {
             file: job.file,
             preflight: preflight.result,
+            ...(safeNamedSources === undefined ? {} : { sources: safeNamedSources }),
             outputs: job.variant.options.outputs,
             ...(job.variant.options.archive === undefined ? {} : { archive: job.variant.options.archive }),
           },

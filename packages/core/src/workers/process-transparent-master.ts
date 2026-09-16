@@ -10,11 +10,19 @@ import type {
 } from '../processing/transparent-master-contracts';
 import { inspectAlpha, type RgbaRaster } from '../transforms/alpha-inspection';
 import {
+  calculateAlphaTrimPlan,
+  detectVisibleAlphaBounds,
+  hasMeaningfulVisibleContent,
+  mergeAlphaBounds,
+  type AlphaBounds,
+} from '../transforms/alpha-bounds';
+import {
   assessBackgroundTransparency,
   computeBoundaryConnectedTransparency,
   MIN_BOUNDARY_TRANSPARENT_RATIO,
 } from '../transforms/background-transparency';
-import { removeConnectedBackground } from '../transforms/background-removal';
+import { removeConnectedBackground, type BackgroundRemovalResult } from '../transforms/background-removal';
+import { applyAnalysisMaskAtSourceResolution } from '../transforms/source-resolution-alpha';
 import {
   assertDecodedDimensionsMatch,
   assertNotCancelled,
@@ -41,6 +49,9 @@ import {
  * stage's actual output requirements.
  */
 export const TRANSPARENT_MASTER_MAX_DIMENSION = 1024;
+
+/** Keeps getImageData()/putImageData() intermediates bounded while applying and scanning a source-resolution canvas. */
+const MAX_STRIP_RGBA_BYTES = 8 * 1024 * 1024;
 
 /** Below this remaining-opaque-pixel ratio after removal, treat the result as destructive (directive §26). */
 const MIN_REMAINING_FOREGROUND_RATIO = 0.02;
@@ -126,6 +137,60 @@ async function decodeEncodedRaster(blob: Blob): Promise<ImageData> {
   }
 }
 
+function calculateStripHeight(width: number): number {
+  return Math.max(1, Math.min(256, Math.floor(MAX_STRIP_RGBA_BYTES / (width * 4))));
+}
+
+function applyRemovalAtSourceResolution(
+  canvas: OffscreenCanvas,
+  analysisRemoval: BackgroundRemovalResult,
+  strength: SafeTransparentMasterRequest['strength'],
+  hooks: WorkerProcessingHooks,
+): void {
+  const context = getContext(canvas);
+  const stripHeight = calculateStripHeight(canvas.width);
+
+  for (let top = 0; top < canvas.height; top += stripHeight) {
+    assertNotCancelled(hooks);
+    const height = Math.min(stripHeight, canvas.height - top);
+    const sourceStrip = context.getImageData(0, top, canvas.width, height);
+    const prepared = applyAnalysisMaskAtSourceResolution(sourceStrip, analysisRemoval, {
+      targetWidth: canvas.width,
+      targetHeight: canvas.height,
+      targetOffsetY: top,
+      strength,
+      backgroundColor: analysisRemoval.backgroundColor,
+    });
+    context.putImageData(new ImageData(Uint8ClampedArray.from(prepared), canvas.width, height), 0, top);
+  }
+}
+
+function detectCanvasAlphaBounds(
+  canvas: OffscreenCanvas,
+  hooks: WorkerProcessingHooks,
+): AlphaBounds | undefined {
+  const context = getContext(canvas);
+  const stripHeight = calculateStripHeight(canvas.width);
+  let detected: AlphaBounds | undefined;
+
+  for (let top = 0; top < canvas.height; top += stripHeight) {
+    assertNotCancelled(hooks);
+    const coreHeight = Math.min(stripHeight, canvas.height - top);
+    const readTop = Math.max(0, top - 1);
+    const readBottom = Math.min(canvas.height, top + coreHeight + 1);
+    const raster = context.getImageData(0, readTop, canvas.width, readBottom - readTop);
+    const scanTop = top - readTop;
+    const stripBounds = detectVisibleAlphaBounds(raster, {
+      scanTop,
+      scanBottom: scanTop + coreHeight,
+      originY: readTop,
+    });
+    detected = mergeAlphaBounds(detected, stripBounds);
+  }
+
+  return detected;
+}
+
 export async function processTransparentMasterInWorker(
   request: SafeTransparentMasterRequest,
   hooks: WorkerProcessingHooks,
@@ -149,7 +214,9 @@ export async function processTransparentMasterInWorker(
   );
 
   let bitmap: ImageBitmap | undefined;
-  let canvas: OffscreenCanvas | undefined;
+  let sourceCanvas: OffscreenCanvas | undefined;
+  let analysisCanvas: OffscreenCanvas | undefined;
+  let outputCanvas: OffscreenCanvas | undefined;
 
   try {
     assertNotCancelled(hooks);
@@ -159,19 +226,41 @@ export async function processTransparentMasterInWorker(
     assertDecodedDimensionsMatch(bitmap, sourceDimensions);
 
     hooks.onProgress('normalizing');
-    canvas = createWorkingCanvas(workingDimensions);
-    const context = getContext(canvas);
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = 'high';
-    context.setTransform(
-      ...scaledTransform(orientation, sourceDimensions.width, sourceDimensions.height, workingDimensions.width, workingDimensions.height),
+    sourceCanvas = createWorkingCanvas(normalizedDimensions);
+    const sourceContext = getContext(sourceCanvas);
+    sourceContext.imageSmoothingEnabled = true;
+    sourceContext.imageSmoothingQuality = 'high';
+    sourceContext.setTransform(
+      ...scaledTransform(
+        orientation,
+        sourceDimensions.width,
+        sourceDimensions.height,
+        normalizedDimensions.width,
+        normalizedDimensions.height,
+      ),
     );
-    context.drawImage(bitmap, 0, 0);
-    context.resetTransform();
+    sourceContext.drawImage(bitmap, 0, 0);
+    sourceContext.resetTransform();
+
+    analysisCanvas = createWorkingCanvas(workingDimensions);
+    const analysisContext = getContext(analysisCanvas);
+    analysisContext.imageSmoothingEnabled = true;
+    analysisContext.imageSmoothingQuality = 'high';
+    analysisContext.drawImage(
+      sourceCanvas,
+      0,
+      0,
+      sourceCanvas.width,
+      sourceCanvas.height,
+      0,
+      0,
+      analysisCanvas.width,
+      analysisCanvas.height,
+    );
 
     assertNotCancelled(hooks);
     hooks.onProgress('resizing');
-    const sourceRaster: RgbaRaster = context.getImageData(0, 0, canvas.width, canvas.height);
+    const sourceRaster: RgbaRaster = analysisContext.getImageData(0, 0, analysisCanvas.width, analysisCanvas.height);
     const sourceInspection = inspectAlpha(sourceRaster);
 
     let removalApplied = false;
@@ -179,6 +268,7 @@ export async function processTransparentMasterInWorker(
     let borderAmbiguousRatio: number | undefined;
     let removedRatio: number | undefined;
     let remainingOpaqueRatio: number | undefined;
+    let ambiguousEnclosedBackgroundRatio: number | undefined;
 
     // Whether existing alpha already represents a *confirmed*, prepared
     // transparent background — never assumed merely because some alpha
@@ -201,38 +291,26 @@ export async function processTransparentMasterInWorker(
       assertNotCancelled(hooks);
       hooks.onProgress('optimizing');
       const removal = removeConnectedBackground(sourceRaster, request.strength);
-      context.putImageData(
+      analysisContext.putImageData(
         new ImageData(Uint8ClampedArray.from(removal.data), removal.width, removal.height),
         0,
         0,
       );
+      applyRemovalAtSourceResolution(sourceCanvas, removal, request.strength, hooks);
       removalApplied = true;
       backgroundVariance = removal.backgroundColorVariance;
       borderAmbiguousRatio = removal.borderAmbiguousRatio;
       removedRatio = removal.removedRatio;
       remainingOpaqueRatio = removal.remainingOpaqueRatio;
+      ambiguousEnclosedBackgroundRatio = removal.ambiguousEnclosedBackgroundRatio;
     }
     // Else: background transparency was genuinely confirmed — preserved
     // exactly as decoded, no removal pass runs (directive §10).
 
-    assertNotCancelled(hooks);
-    hooks.onProgress('encoding');
-    const blob = await encodePng(canvas);
-
-    assertNotCancelled(hooks);
-    hooks.onProgress('finalizing');
-    const encodedRaster = await decodeEncodedRaster(blob);
-    const alphaInspection = inspectAlpha(encodedRaster);
-
     let status: TransparentMasterStatus = 'verified';
     let reason: string | undefined;
 
-    if (alphaInspection.classification === 'opaque') {
-      // The encoder/pipeline did not actually produce transparency —
-      // never masquerade this as success (directive §24/§26).
-      status = 'failed';
-      reason = 'encoded-output-opaque';
-    } else if (removalApplied) {
+    if (removalApplied) {
       if (remainingOpaqueRatio !== undefined && remainingOpaqueRatio < MIN_REMAINING_FOREGROUND_RATIO) {
         status = 'failed';
         reason = 'insufficient-remaining-foreground';
@@ -245,7 +323,54 @@ export async function processTransparentMasterInWorker(
       } else if (borderAmbiguousRatio !== undefined && borderAmbiguousRatio > MAX_BORDER_AMBIGUOUS_RATIO) {
         status = 'needs-review';
         reason = 'ambiguous-border';
+      } else if (ambiguousEnclosedBackgroundRatio !== undefined && ambiguousEnclosedBackgroundRatio > 0) {
+        status = 'needs-review';
+        reason = 'ambiguous-enclosed-background';
       }
+    }
+
+    const visibleBounds = detectCanvasAlphaBounds(sourceCanvas, hooks);
+    const hasMeaningfulContent = hasMeaningfulVisibleContent(visibleBounds);
+    const trimPlan = hasMeaningfulContent
+      ? calculateAlphaTrimPlan(sourceCanvas.width, sourceCanvas.height, visibleBounds)
+      : undefined;
+
+    if (!hasMeaningfulContent && status !== 'failed') {
+      status = 'failed';
+      reason = 'insufficient-visible-content';
+    }
+
+    if (trimPlan !== undefined) {
+      outputCanvas = createWorkingCanvas({ width: trimPlan.outputWidth, height: trimPlan.outputHeight });
+      const outputContext = getContext(outputCanvas);
+      outputContext.drawImage(
+        sourceCanvas,
+        trimPlan.bounds.left,
+        trimPlan.bounds.top,
+        trimPlan.bounds.width,
+        trimPlan.bounds.height,
+        trimPlan.padding,
+        trimPlan.padding,
+        trimPlan.bounds.width,
+        trimPlan.bounds.height,
+      );
+    }
+
+    const encodedCanvas = outputCanvas ?? sourceCanvas;
+    assertNotCancelled(hooks);
+    hooks.onProgress('encoding');
+    const blob = await encodePng(encodedCanvas);
+
+    assertNotCancelled(hooks);
+    hooks.onProgress('finalizing');
+    const encodedRaster = await decodeEncodedRaster(blob);
+    const alphaInspection = inspectAlpha(encodedRaster);
+
+    if (alphaInspection.classification === 'opaque') {
+      // The encoder/pipeline did not actually produce transparency —
+      // never masquerade this as success (directive §24/§26).
+      status = 'failed';
+      reason = 'encoded-output-opaque';
     }
 
     if (status === 'verified') {
@@ -269,11 +394,25 @@ export async function processTransparentMasterInWorker(
 
     const result: TransparentMasterResult = {
       blob,
-      width: canvas.width,
-      height: canvas.height,
+      width: encodedCanvas.width,
+      height: encodedCanvas.height,
       format: 'png',
       mimeType: 'image/png',
       byteSize: blob.size,
+      sourceDimensions,
+      normalizedDimensions,
+      analysisDimensions: workingDimensions,
+      ...(visibleBounds === undefined ? {} : {
+        visibleBounds: {
+          left: visibleBounds.left,
+          top: visibleBounds.top,
+          width: visibleBounds.width,
+          height: visibleBounds.height,
+        },
+      }),
+      safePadding: trimPlan?.padding ?? 0,
+      canvasTrimmed: trimPlan?.trimmed ?? false,
+      foregroundRescaled: false,
       alphaInspection,
       removalApplied,
       ...(removalApplied ? { strength: request.strength } : {}),
@@ -291,7 +430,7 @@ export async function processTransparentMasterInWorker(
         byteSize: result.byteSize,
         sourceDimensions,
         normalizedDimensions,
-        resized: true,
+        resized: result.width !== normalizedDimensions.width || result.height !== normalizedDimensions.height,
       });
     }
 
@@ -301,9 +440,19 @@ export async function processTransparentMasterInWorker(
   } finally {
     bitmap?.close();
 
-    if (canvas !== undefined) {
-      canvas.width = 0;
-      canvas.height = 0;
+    if (sourceCanvas !== undefined) {
+      sourceCanvas.width = 0;
+      sourceCanvas.height = 0;
+    }
+
+    if (analysisCanvas !== undefined) {
+      analysisCanvas.width = 0;
+      analysisCanvas.height = 0;
+    }
+
+    if (outputCanvas !== undefined) {
+      outputCanvas.width = 0;
+      outputCanvas.height = 0;
     }
   }
 }

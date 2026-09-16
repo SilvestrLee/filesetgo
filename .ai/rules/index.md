@@ -5,4 +5,6 @@ Before planning or editing, find the row whose globs match the file's path and r
 | Applies to | Rule file |
 | --- | --- |
 | tests/browser/** | .ai/rules/browser.md |
+| resources/css/app.css | .ai/rules/css.md |
+| resources/js/quick-fit/controller.ts | .ai/rules/quick-fit.md |
 | routes/web.php | .ai/rules/routes.md |

@@ -125,8 +125,9 @@ describe('image worker protocol validation', () => {
       },
     ],
     [
-      // FSG-005C: TransparentMasterResult is a distinct shape (no
-      // sourceDimensions/normalizedDimensions/resized) — it must be
+      // FSG-005C/FSG-007: TransparentMasterResult is a distinct shape
+      // carrying explicit source/analysis/trim metadata rather than a
+      // generic `resized` flag — it must be
       // recognized by its own dedicated validator, not silently rejected
       // the way isImageSetAssetResult() once rejected every real Logo Pack
       // ICO asset (see the regression case above and ADR-019).
@@ -141,6 +142,13 @@ describe('image worker protocol validation', () => {
           format: 'png',
           mimeType: 'image/png',
           byteSize: 1,
+          sourceDimensions: { width: 40, height: 40 },
+          normalizedDimensions: { width: 40, height: 40 },
+          analysisDimensions: { width: 40, height: 40 },
+          visibleBounds: { left: 5, top: 10, width: 30, height: 20 },
+          safePadding: 2,
+          canvasTrimmed: true,
+          foregroundRescaled: false,
           alphaInspection: {
             sampledPixels: 1600,
             fullyTransparentPixels: 200,
@@ -171,6 +179,13 @@ describe('image worker protocol validation', () => {
           format: 'png',
           mimeType: 'image/png',
           byteSize: 1,
+          sourceDimensions: { width: 40, height: 40 },
+          normalizedDimensions: { width: 40, height: 40 },
+          analysisDimensions: { width: 40, height: 40 },
+          visibleBounds: { left: 5, top: 10, width: 30, height: 20 },
+          safePadding: 2,
+          canvasTrimmed: true,
+          foregroundRescaled: false,
           alphaInspection: {
             sampledPixels: 1600,
             fullyTransparentPixels: 100,

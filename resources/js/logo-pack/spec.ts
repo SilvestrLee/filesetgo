@@ -30,6 +30,7 @@ export const ICON_CANVAS_SIZES = {
 } as const;
 
 export const ICO_ENTRY_SIZES = [16, 32, 48] as const;
+export const FAVICON_SOURCE_ID = 'favicon-source';
 
 export const LOGO_PACK_ASSET_IDS = {
   headerStandard: 'logo-header',
@@ -95,7 +96,11 @@ export function buildLogoPackPrimaryFilenames(
  * built from three independently CONTAIN-rendered entries — its 16/48 px
  * intermediates are never exposed as separate assets.
  */
-export function buildLogoPackOutputSpecs(mode: LogoBackgroundMode, sourceFileName: string): ImageSetOutputSpec[] {
+export function buildLogoPackOutputSpecs(
+  mode: LogoBackgroundMode,
+  sourceFileName: string,
+  faviconSourceId?: string,
+): ImageSetOutputSpec[] {
   const primaryFilenames = buildLogoPackPrimaryFilenames(mode, sourceFileName);
 
   return [
@@ -115,12 +120,14 @@ export function buildLogoPackOutputSpecs(mode: LogoBackgroundMode, sourceFileNam
     },
     {
       kind: 'ico',
+      ...(faviconSourceId === undefined ? {} : { source: faviconSourceId }),
       id: LOGO_PACK_ASSET_IDS.favicon,
       filename: 'favicon.ico',
       entries: ICO_ENTRY_SIZES.map((size) => ({ size, contentScale: ICON_CONTENT_SCALE, allowUpscale: true })),
     },
     {
       kind: 'contain',
+      ...(faviconSourceId === undefined ? {} : { source: faviconSourceId }),
       id: LOGO_PACK_ASSET_IDS.favicon32,
       filename: 'favicon-32x32.png',
       output: { format: 'png' },
@@ -130,6 +137,7 @@ export function buildLogoPackOutputSpecs(mode: LogoBackgroundMode, sourceFileNam
     },
     {
       kind: 'contain',
+      ...(faviconSourceId === undefined ? {} : { source: faviconSourceId }),
       id: LOGO_PACK_ASSET_IDS.appleTouchIcon,
       filename: 'apple-touch-icon.png',
       output: { format: 'png' },
@@ -139,6 +147,7 @@ export function buildLogoPackOutputSpecs(mode: LogoBackgroundMode, sourceFileNam
     },
     {
       kind: 'contain',
+      ...(faviconSourceId === undefined ? {} : { source: faviconSourceId }),
       id: LOGO_PACK_ASSET_IDS.icon192,
       filename: 'icon-192x192.png',
       output: { format: 'png' },
@@ -148,6 +157,7 @@ export function buildLogoPackOutputSpecs(mode: LogoBackgroundMode, sourceFileNam
     },
     {
       kind: 'contain',
+      ...(faviconSourceId === undefined ? {} : { source: faviconSourceId }),
       id: LOGO_PACK_ASSET_IDS.icon512,
       filename: 'icon-512x512.png',
       output: { format: 'png' },

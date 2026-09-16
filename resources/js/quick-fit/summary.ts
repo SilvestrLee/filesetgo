@@ -41,9 +41,30 @@ export function buildSuccessSummary(
   const reductionLabel = reduction === undefined ? undefined : `${reduction}% smaller`;
 
   if (isTargetResult(result)) {
-    const detail = result.dimensionsReduced
-      ? `FileSetGo reduced the dimensions to meet your ${formatBytes(result.targetBytes)} limit.`
-      : `FileSetGo got it under ${formatBytes(result.targetBytes)} without reducing the dimensions.`;
+    // `dimensionsReduced` only reflects whether the BYTE-TARGET SEARCH itself
+    // shrank dimensions beyond what was requested — it says nothing about
+    // whether the requested/destination frame already differs from the
+    // source (an exact destination frame, e.g. Guided Fit's Hero/Content/
+    // Card, FSG-007-FIT-002-R1). Comparing actual output dimensions against
+    // the actual source dimensions — exactly like the non-target branch
+    // below already does — is what makes "without reducing the dimensions"
+    // true or false from the user's own point of view.
+    const dimensionsChanged = result.width !== source.width || result.height !== source.height;
+    const wasEnlarged = result.width > source.width || result.height > source.height;
+
+    let detail: string;
+
+    if (result.dimensionsReduced) {
+      detail = `FileSetGo reduced the dimensions to meet your ${formatBytes(result.targetBytes)} limit.`;
+    } else if (dimensionsChanged) {
+      detail = `FileSetGo prepared it at ${result.width} × ${result.height} and brought it under ${formatBytes(result.targetBytes)}.`;
+
+      if (wasEnlarged) {
+        detail += ' Source was enlarged with your approval.';
+      }
+    } else {
+      detail = `FileSetGo got it under ${formatBytes(result.targetBytes)} without reducing the dimensions.`;
+    }
 
     return { headline: 'Your file is ready.', detail, reductionLabel };
   }

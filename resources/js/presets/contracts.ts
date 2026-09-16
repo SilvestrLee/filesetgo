@@ -26,6 +26,16 @@ export interface PresetRequirements {
   maxHeight?: number;
   outputFormat: OutputImageFormat;
   dimensionPolicy: DimensionPolicy;
+  /**
+   * True when maxWidth/maxHeight describe an EXACT output frame — which may
+   * require a user-approved crop when the source's aspect ratio doesn't
+   * already match — rather than an aspect-preserving bounding box
+   * (FSG-007-FIT-002). Required, not optional: every preset must state its
+   * geometry intent explicitly, with no implicit default. Named to match
+   * `QuickFitRequirements.exactDimensions` (`../quick-fit/request-plan.ts`)
+   * exactly, since `compilePreset()` forwards this value verbatim.
+   */
+  exactDimensions: boolean;
 }
 
 export interface FileSetGoPreset {

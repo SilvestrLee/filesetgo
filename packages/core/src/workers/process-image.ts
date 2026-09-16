@@ -5,6 +5,7 @@ import { getNormalizedDimensions, getOrientationTransform } from '../normalize/o
 import {
   IMAGE_PROCESSING_ERROR_CODES,
   OUTPUT_IMAGE_MIME_TYPES,
+  type CropRegion,
   type FileSetGoProcessingError,
   type ImageDimensions,
   type ImageProcessingStage,
@@ -12,6 +13,7 @@ import {
   type SafeImageProcessingRequest,
 } from '../processing/contracts';
 import { createProcessingError } from '../processing/errors';
+import { isCropRatioValid, isCropRequired, isCropWithinBounds } from '../transforms/crop';
 import { calculateResizePlan } from '../transforms/resize';
 import { createOrientationNeutralJpeg } from './jpeg-decode-source';
 
@@ -236,8 +238,8 @@ export function createRenderCanvas(dimensions: ImageDimensions): OffscreenCanvas
   return new OffscreenCanvas(dimensions.width, dimensions.height);
 }
 
-/** Draws a decoded bitmap onto `canvas` at its own dimensions, applying the EXIF/HEIF orientation transform. */
-export function drawBitmapToCanvas(
+/** The whole-bitmap draw: reorients + scales `bitmap` to fill `canvas` exactly, no cropping. */
+function drawWholeBitmapToCanvas(
   canvas: OffscreenCanvas,
   bitmap: ImageBitmap,
   orientation: ExifOrientation,
@@ -265,6 +267,79 @@ export function drawBitmapToCanvas(
   );
   context.drawImage(bitmap, 0, 0);
   context.resetTransform();
+}
+
+/**
+ * Draws a decoded bitmap onto `canvas` at its own dimensions, applying the
+ * EXIF/HEIF orientation transform, and — when `crop` is given — cropping to
+ * a user-approved region first (FSG-007-FIT-001).
+ *
+ * `crop` is expressed in NORMALIZED (oriented, as-displayed) source-pixel
+ * coordinates, but the native `drawImage` source-rect operates in the raw
+ * bitmap's own pre-orientation pixel space. Rather than inverse-transforming
+ * the crop rect through the orientation matrix (correct but easy to get
+ * subtly wrong for the four rotated orientations), this draws in two
+ * passes: pass 1 renders the whole oriented bitmap, at 1:1 normalized
+ * scale, onto an intermediate canvas — after which that canvas *is* the
+ * upright image the crop UI showed the user, so the orientation problem is
+ * solved by construction. Pass 2 is then a plain crop+scale `drawImage`
+ * from that upright canvas, with no further transform math. The cost is one
+ * extra canvas allocation, only on the (one-shot, user-initiated) crop path.
+ */
+export function drawBitmapToCanvas(
+  canvas: OffscreenCanvas,
+  bitmap: ImageBitmap,
+  orientation: ExifOrientation,
+  sourceDimensions: ImageDimensions,
+  crop?: CropRegion,
+  normalizedDimensions?: ImageDimensions,
+): void {
+  if (crop === undefined) {
+    drawWholeBitmapToCanvas(canvas, bitmap, orientation, sourceDimensions);
+    return;
+  }
+
+  if (normalizedDimensions === undefined) {
+    fail(
+      IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+      'A crop requires normalizedDimensions to resolve orientation-correct coordinates.',
+    );
+  }
+
+  let upright: OffscreenCanvas | undefined;
+
+  try {
+    upright = new OffscreenCanvas(normalizedDimensions.width, normalizedDimensions.height);
+    drawWholeBitmapToCanvas(upright, bitmap, orientation, sourceDimensions);
+
+    const context = canvas.getContext('2d', { alpha: true });
+
+    if (context === null) {
+      fail(
+        IMAGE_PROCESSING_ERROR_CODES.RuntimeUnsupported,
+        'The worker could not create a 2D rendering context.',
+      );
+    }
+
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(
+      upright,
+      crop.x,
+      crop.y,
+      crop.width,
+      crop.height,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+  } finally {
+    if (upright !== undefined) {
+      upright.width = 0;
+      upright.height = 0;
+    }
+  }
 }
 
 export async function validateOutput(
@@ -330,25 +405,99 @@ export async function processImageInWorker(
     sourceDimensions.height,
     orientation,
   );
-  const resizePlan = calculateResizePlan(
-    normalizedDimensions.width,
-    normalizedDimensions.height,
-    request.resize,
-  );
 
-  if (
-    resizePlan.width * resizePlan.height >
-    DEFAULT_SAFETY_LIMITS.maxDecodedPixels
-  ) {
-    fail(
-      IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
-      'The requested output dimensions exceed the decoded-pixel safety limit.',
-      {
-        width: resizePlan.width,
-        height: resizePlan.height,
-        maximumDecodedPixels: DEFAULT_SAFETY_LIMITS.maxDecodedPixels,
-      },
+  let outputDimensions: ImageDimensions;
+  let resized: boolean;
+  let appliedCrop: CropRegion | undefined;
+
+  if (request.exact !== undefined) {
+    const exact = request.exact;
+    const cropRequired = isCropRequired(
+      normalizedDimensions.width,
+      normalizedDimensions.height,
+      exact.width,
+      exact.height,
     );
+
+    if (cropRequired && exact.crop === undefined) {
+      fail(
+        IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+        'The requested exact dimensions do not match the source aspect ratio; a confirmed crop region is required.',
+        { width: exact.width, height: exact.height },
+      );
+    }
+
+    if (exact.crop !== undefined) {
+      if (!isCropWithinBounds(exact.crop, normalizedDimensions.width, normalizedDimensions.height)) {
+        fail(
+          IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+          'The crop region is not within the source image bounds.',
+        );
+      }
+
+      if (!isCropRatioValid(exact.crop, exact.width, exact.height)) {
+        fail(
+          IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+          "The crop region's aspect ratio does not match the requested exact dimensions.",
+        );
+      }
+    }
+
+    const effectiveSource = exact.crop ?? normalizedDimensions;
+    const upscaleFactor = Math.max(
+      exact.width / effectiveSource.width,
+      exact.height / effectiveSource.height,
+    );
+
+    if (upscaleFactor > 1 && exact.allowUpscale !== true) {
+      fail(
+        IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+        'Reaching the requested exact dimensions requires upscaling beyond the available source detail; allowUpscale must be explicitly approved.',
+        { width: exact.width, height: exact.height },
+      );
+    }
+
+    if (exact.width * exact.height > DEFAULT_SAFETY_LIMITS.maxDecodedPixels) {
+      fail(
+        IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+        'The requested exact dimensions exceed the decoded-pixel safety limit.',
+        {
+          width: exact.width,
+          height: exact.height,
+          maximumDecodedPixels: DEFAULT_SAFETY_LIMITS.maxDecodedPixels,
+        },
+      );
+    }
+
+    outputDimensions = { width: exact.width, height: exact.height };
+    appliedCrop = exact.crop;
+    resized = appliedCrop !== undefined ||
+      outputDimensions.width !== normalizedDimensions.width ||
+      outputDimensions.height !== normalizedDimensions.height;
+  } else {
+    const resizePlan = calculateResizePlan(
+      normalizedDimensions.width,
+      normalizedDimensions.height,
+      request.resize,
+    );
+
+    if (
+      resizePlan.width * resizePlan.height >
+      DEFAULT_SAFETY_LIMITS.maxDecodedPixels
+    ) {
+      fail(
+        IMAGE_PROCESSING_ERROR_CODES.InvalidRequest,
+        'The requested output dimensions exceed the decoded-pixel safety limit.',
+        {
+          width: resizePlan.width,
+          height: resizePlan.height,
+          maximumDecodedPixels: DEFAULT_SAFETY_LIMITS.maxDecodedPixels,
+        },
+      );
+    }
+
+    outputDimensions = { width: resizePlan.width, height: resizePlan.height };
+    resized = resizePlan.resized;
   }
 
   let bitmap: ImageBitmap | undefined;
@@ -361,9 +510,9 @@ export async function processImageInWorker(
     assertDecodedDimensionsMatch(bitmap, sourceDimensions);
 
     emitStage(hooks, 'normalizing');
-    canvas = createRenderCanvas(resizePlan);
+    canvas = createRenderCanvas(outputDimensions);
     emitStage(hooks, 'resizing');
-    drawBitmapToCanvas(canvas, bitmap, orientation, sourceDimensions);
+    drawBitmapToCanvas(canvas, bitmap, orientation, sourceDimensions, appliedCrop, normalizedDimensions);
 
     assertNotCancelled(hooks);
     emitStage(hooks, 'encoding');
@@ -390,14 +539,15 @@ export async function processImageInWorker(
 
     const result: ProcessedImageResult = {
       blob,
-      width: resizePlan.width,
-      height: resizePlan.height,
+      width: outputDimensions.width,
+      height: outputDimensions.height,
       format: request.output.format,
       mimeType: OUTPUT_IMAGE_MIME_TYPES[request.output.format],
       byteSize: blob.size,
       sourceDimensions,
       normalizedDimensions,
-      resized: resizePlan.resized,
+      resized,
+      ...(appliedCrop === undefined ? {} : { appliedCrop }),
     };
 
     await validateOutput(result);

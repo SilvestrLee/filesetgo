@@ -225,6 +225,34 @@ export class QuickFitWorkflow {
     this.cancelActiveJob();
   }
 
+  /**
+   * Reverts a terminal state ('success' | 'unreachable' | 'failed' |
+   * 'cancelled') back to 'ready' with the same source, releasing any stale
+   * result URL — called whenever a requirement changes while an old result
+   * is still shown, so that result can never be implied to satisfy the
+   * changed requirements (FSG-007-FIT-001 directive §10/§24). A no-op from
+   * any other state (already 'ready', mid-'processing', etc).
+   */
+  public invalidateResult(): void {
+    if (
+      this.state.status !== 'success' &&
+      this.state.status !== 'unreachable' &&
+      this.state.status !== 'failed' &&
+      this.state.status !== 'cancelled'
+    ) {
+      return;
+    }
+
+    const source = sourceOf(this.state);
+
+    if (source === undefined) {
+      return;
+    }
+
+    this.releaseResultUrl();
+    this.setState({ status: 'ready', source });
+  }
+
   /** Cancels any active job, releases the current result URL, and returns to idle (FSG-003 directive §26). */
   public reset(): void {
     this.selectionSequence += 1;

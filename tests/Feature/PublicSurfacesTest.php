@@ -102,10 +102,11 @@ class PublicSurfacesTest extends TestCase
         $html = $this->get(route('home'))->getContent();
 
         $this->assertStringContainsString('<link rel="icon" href="/favicon.ico" sizes="any">', $html);
+        $this->assertStringContainsString('<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">', $html);
         $this->assertStringContainsString('<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">', $html);
         $this->assertStringContainsString('<link rel="apple-touch-icon" href="/apple-touch-icon.png">', $html);
 
-        foreach (['/favicon.ico', '/favicon-32x32.png', '/apple-touch-icon.png', '/og-image.png'] as $path) {
+        foreach (['/favicon.ico', '/favicon-16x16.png', '/favicon-32x32.png', '/apple-touch-icon.png', '/og-image.png'] as $path) {
             $filePath = public_path(ltrim($path, '/'));
             $this->assertFileExists($filePath, "Expected {$path} to exist in public/.");
             $this->assertGreaterThan(0, filesize($filePath), "{$path} must not be an empty placeholder file.");
@@ -116,7 +117,7 @@ class PublicSurfacesTest extends TestCase
         $this->assertSame("\x00\x00\x01\x00", $icoBytes, 'favicon.ico is not a valid ICO container.');
 
         // Real PNGs: the 8-byte PNG signature.
-        foreach (['favicon-32x32.png', 'apple-touch-icon.png', 'og-image.png'] as $file) {
+        foreach (['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'og-image.png'] as $file) {
             $pngSignature = substr(file_get_contents(public_path($file)), 0, 8);
             $this->assertSame("\x89PNG\r\n\x1a\n", $pngSignature, "{$file} is not a valid PNG.");
         }
@@ -247,13 +248,13 @@ class PublicSurfacesTest extends TestCase
         }
     }
 
-    public function test_public_shell_exposes_system_light_and_dark_theme_preferences(): void
+    public function test_public_shell_keeps_system_as_the_default_and_exposes_a_direct_theme_toggle(): void
     {
         $this->get(route('home'))
             ->assertSee('data-theme="system"', false)
-            ->assertSee('data-theme-choice="system"', false)
-            ->assertSee('data-theme-choice="light"', false)
-            ->assertSee('data-theme-choice="dark"', false);
+            ->assertSee('data-theme-toggle', false)
+            ->assertDontSee('data-theme-choice=', false)
+            ->assertDontSee('Appearance');
 
         $this->withUnencryptedCookie('fsg_theme', 'dark')
             ->get(route('privacy'))
@@ -264,19 +265,92 @@ class PublicSurfacesTest extends TestCase
             ->assertSee('data-theme="system"', false);
     }
 
+    public function test_public_shell_uses_the_approved_horizontal_wordmark_assets(): void
+    {
+        $this->get(route('home'))
+            ->assertSee('/brand/filesetgo-logo-light-bg.png', false)
+            ->assertSee('/brand/filesetgo-logo-dark-bg.png', false)
+            ->assertSee('width="2018" height="442"', false)
+            ->assertDontSee('<span class="fsg-brand__mark">F</span>', false);
+    }
+
     public function test_footer_presents_the_product_family_without_dead_links(): void
     {
         $html = $this->get(route('home'))->getContent();
 
-        foreach (['File. Set. Go.', 'Site. Set. Go.', 'Brand. Set. Go.', 'Shop. Set. Go.'] as $name) {
+        foreach (['File. Set. Go.', 'Site. Set. Go.', 'Brand. Set. Go.', 'Shop. Set. Go.', 'Mail. Set. Go.'] as $name) {
             $this->assertStringContainsString($name, $html);
         }
 
-        preg_match('/<footer.*?<\/footer>/s', $html, $footer);
-        $this->assertSame(3, substr_count($footer[0] ?? '', 'Coming soon'));
+        $this->assertSame(4, substr_count($html, '<small>Coming soon</small>'));
         $this->assertMatchesRegularExpression('/<span class="fsg-footer__product-name">Site\. Set\. Go\.<\/span>/', $html);
         $this->assertMatchesRegularExpression('/<span class="fsg-footer__product-name">Brand\. Set\. Go\.<\/span>/', $html);
         $this->assertMatchesRegularExpression('/<span class="fsg-footer__product-name">Shop\. Set\. Go\.<\/span>/', $html);
+        $this->assertMatchesRegularExpression('/<span class="fsg-footer__product-name">Mail\. Set\. Go\.<\/span>/', $html);
+        $this->assertDoesNotMatchRegularExpression('/<a[^>]+>Mail\. Set\. Go\.<\/a>/', $html);
+    }
+
+    public function test_prepare_logo_page_is_a_product_entrance_without_a_parallel_upload_flow(): void
+    {
+        $response = $this->get(route('prepare-logo'));
+
+        $response
+            ->assertOk()
+            ->assertSee('Turn one logo into a website-ready logo system.')
+            ->assertSee('From one file to a ready logo system.')
+            ->assertSee('href="'.route('home', ['mode' => 'logo-pack']).'"', false)
+            ->assertDontSee('<input type="file"', false)
+            ->assertDontSee('name="logo-pack-mode"', false);
+    }
+
+    public function test_logo_family_acquisition_pages_launch_the_existing_logo_pack_without_parallel_uploads(): void
+    {
+        $transparentLogo = $this->get(route('transparent-logo'));
+        $faviconGenerator = $this->get(route('favicon-generator'));
+
+        $transparentLogo
+            ->assertOk()
+            ->assertSee('Remove the box around your logo. Keep the logo intact.')
+            ->assertSee('Make my logo transparent')
+            ->assertSee('Needs Review')
+            ->assertSee('href="'.route('home', ['mode' => 'logo-pack']).'"', false)
+            ->assertDontSee('<input type="file"', false)
+            ->assertDontSee('name="logo-pack-mode"', false);
+
+        $faviconGenerator
+            ->assertOk()
+            ->assertSee('Turn the right part of your logo into a favicon people can actually see.')
+            ->assertSee('Create my favicon')
+            ->assertSee('Actual 16 px icon')
+            ->assertSee('Actual 32 px icon')
+            ->assertSee('href="'.route('home', ['mode' => 'logo-pack']).'"', false)
+            ->assertDontSee('<input type="file"', false)
+            ->assertDontSee('name="logo-pack-mode"', false);
+    }
+
+    public function test_image_transformation_pages_use_governed_examples_and_the_existing_quick_fit_entry(): void
+    {
+        $compress = $this->get(route('compress-image'));
+        $webp = $this->get(route('convert-webp'));
+
+        $compress
+            ->assertOk()
+            ->assertSee('Make the image lighter without making it useless.')
+            ->assertSee('440.9 KB')
+            ->assertSee('Under 30 KB')
+            ->assertSee('27.1 KB')
+            ->assertSee('2947 × 1965')
+            ->assertSee('href="'.route('home', ['mode' => 'quick-fit']).'"', false)
+            ->assertDontSee('<input type="file"', false);
+
+        $webp
+            ->assertOk()
+            ->assertSee('Turn your image into a web-ready WebP.')
+            ->assertSee('101.5 KB')
+            ->assertSee('1.9 KB')
+            ->assertSee('File-size change varies by image.')
+            ->assertSee('href="'.route('home', ['mode' => 'quick-fit']).'"', false)
+            ->assertDontSee('<input type="file"', false);
     }
 
     public function test_a_configured_sister_product_becomes_a_real_link(): void

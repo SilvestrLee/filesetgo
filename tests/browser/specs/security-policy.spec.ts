@@ -38,8 +38,7 @@ test.describe('Production security policy (FSG-006R)', () => {
     await expect(page.locator('#mode-tab-guided-fit')).toBeEnabled();
     await expect(page.locator('#mode-tab-logo-pack')).toBeEnabled();
 
-    await page.locator('.fsg-theme > summary').click();
-    await page.getByRole('button', { name: /Dark Always dark/ }).click();
+    await page.locator('[data-theme-toggle]').click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     console_.assertClean();
   });

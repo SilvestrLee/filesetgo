@@ -15,6 +15,8 @@ import type {
  */
 export interface RasterImageSetOutputSpec {
   kind: 'raster';
+  /** Optional named source from `ProcessImageSetOptions.sources`; omitted means the primary file. */
+  source?: string;
   /** Stable, caller-defined identifier (e.g. "asset-a"). Must be unique within one request. */
   id: string;
   /** The output's filename (also its ZIP entry name, if archived). Must be unique within one request. */
@@ -32,6 +34,8 @@ export interface RasterImageSetOutputSpec {
  */
 export interface ContainImageSetOutputSpec {
   kind: 'contain';
+  /** Optional named source from `ProcessImageSetOptions.sources`; omitted means the primary file. */
+  source?: string;
   id: string;
   filename: string;
   output: { format: OutputImageFormat; quality?: number };
@@ -49,6 +53,8 @@ export interface ContainImageSetOutputSpec {
  */
 export interface IcoImageSetOutputSpec {
   kind: 'ico';
+  /** Optional named source from `ProcessImageSetOptions.sources`; omitted means the primary file. */
+  source?: string;
   id: string;
   /** Must end in `.ico`. */
   filename: string;
@@ -67,6 +73,8 @@ export interface ImageSetArchiveOptions {
 
 export interface ProcessImageSetOptions {
   outputs: ImageSetOutputSpec[];
+  /** Additional browser-local sources addressable by output specs. */
+  sources?: Record<string, Blob>;
   archive?: ImageSetArchiveOptions;
   onProgress?: (event: ImageSetProcessingProgress) => void;
 }
@@ -137,6 +145,7 @@ export interface ImageProcessingSetJob {
 export interface SafeImageProcessingSetRequest {
   file: Blob;
   preflight: ImagePreflightResult;
+  sources?: Record<string, { file: Blob; preflight: ImagePreflightResult }>;
   outputs: ImageSetOutputSpec[];
   archive?: ImageSetArchiveOptions;
 }

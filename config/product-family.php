@@ -30,5 +30,12 @@ return [
             'url' => env('SHOP_SET_GO_URL'),
             'contexts' => ['ecommerce'],
         ],
+        'mail' => [
+            'name' => 'Mail. Set. Go.',
+            'description' => 'Email readiness',
+            'status' => 'coming-soon',
+            'url' => env('MAIL_SET_GO_URL'),
+            'contexts' => [],
+        ],
     ],
 ];

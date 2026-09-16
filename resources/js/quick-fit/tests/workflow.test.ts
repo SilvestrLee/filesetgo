@@ -518,3 +518,66 @@ describe('QuickFitWorkflow.reset', () => {
     expect(workflow.getState().status).toBe('idle');
   });
 });
+
+describe('QuickFitWorkflow.invalidateResult (FSG-007-FIT-001 directive §10/§24)', () => {
+  it('reverts a success state back to ready with the same source, releasing the stale result URL', async () => {
+    const core = makeCore();
+    core.preflightImage.mockResolvedValue(preflightReady());
+    const { job } = fakeStandardJob({ status: 'complete', result: standardResult() });
+    core.processImage.mockReturnValue(job);
+    const { workflow, revokeObjectUrl } = makeWorkflow(core);
+
+    await workflow.selectFile(newFile());
+    workflow.run(requirements({ maxWidth: 800 }));
+    await job.result;
+    expect(workflow.getState().status).toBe('success');
+
+    workflow.invalidateResult();
+
+    const state = workflow.getState();
+    expect(state.status).toBe('ready');
+    expect(revokeObjectUrl).toHaveBeenCalledTimes(1);
+    if (state.status === 'ready') {
+      expect(state.source.file.name).toBe('source.jpg');
+    }
+  });
+
+  it('reverts a cancelled state back to ready with the same source', async () => {
+    const core = makeCore();
+    core.preflightImage.mockResolvedValue(preflightReady());
+    const { job } = pendingStandardJob();
+    core.processImage.mockReturnValue(job);
+    const { workflow } = makeWorkflow(core);
+
+    await workflow.selectFile(newFile());
+    workflow.run(requirements({ maxWidth: 800 }));
+    workflow.cancel();
+    await job.result;
+    expect(workflow.getState().status).toBe('cancelled');
+
+    workflow.invalidateResult();
+
+    expect(workflow.getState().status).toBe('ready');
+  });
+
+  it('is a no-op from ready, processing, or idle', async () => {
+    const core = makeCore();
+    core.preflightImage.mockResolvedValue(preflightReady());
+    const { workflow } = makeWorkflow(core);
+
+    workflow.invalidateResult();
+    expect(workflow.getState().status).toBe('idle');
+
+    await workflow.selectFile(newFile());
+    expect(workflow.getState().status).toBe('ready');
+    workflow.invalidateResult();
+    expect(workflow.getState().status).toBe('ready');
+
+    const { job } = pendingStandardJob();
+    core.processImage.mockReturnValue(job);
+    workflow.run(requirements({ maxWidth: 800 }));
+    expect(workflow.getState().status).toBe('processing');
+    workflow.invalidateResult();
+    expect(workflow.getState().status).toBe('processing');
+  });
+});

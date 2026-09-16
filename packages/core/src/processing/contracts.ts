@@ -65,13 +65,47 @@ export interface ResizeOptions {
   allowUpscale?: boolean;
 }
 
+/**
+ * A user-approved source-pixel rectangle to crop before resizing (FSG-007-FIT-001
+ * directive §3/§5). Coordinates are in NORMALIZED (EXIF-oriented, as-displayed)
+ * source-pixel space — the same space `normalizedDimensions` describes.
+ * FileSetGo never derives this automatically; it only ever comes from an
+ * explicit user confirmation upstream (see `isCropRequired` in
+ * `../transforms/crop.ts`).
+ */
+export interface CropRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Requests an EXACT output frame — `width`×`height` is authoritative, never a
+ * bounding box (unlike `ResizeOptions`). Mutually exclusive with `resize`.
+ * When the source's aspect ratio does not match `width/height` within
+ * `isCropRequired`'s tolerance, `crop` is REQUIRED — the worker rejects the
+ * request rather than guessing a crop (FSG-007-FIT-001 directive §3/§10).
+ */
+export interface ExactDimensionsOptions {
+  width: number;
+  height: number;
+  /** Required whenever `isCropRequired(source, width, height)` is true. */
+  crop?: CropRegion;
+  /** Must be explicitly true if reaching `width`x`height` needs upscaling beyond the (cropped) source's own resolution. Never assumed. */
+  allowUpscale?: boolean;
+}
+
 export interface OutputOptions {
   format: OutputImageFormat;
   quality?: number;
 }
 
 export interface ProcessImageOptions {
+  /** Bounding-box resize (aspect-preserving). Mutually exclusive with `exact`. */
   resize?: ResizeOptions;
+  /** Exact output dimensions, with mandatory user-approved crop when required. Mutually exclusive with `resize`. */
+  exact?: ExactDimensionsOptions;
   output: OutputOptions;
   onProgress?: (event: ImageProcessingProgress) => void;
 }
@@ -79,6 +113,7 @@ export interface ProcessImageOptions {
 export interface ProcessImageRequest {
   file: Blob;
   resize?: ResizeOptions;
+  exact?: ExactDimensionsOptions;
   output: OutputOptions;
 }
 
@@ -109,6 +144,8 @@ export interface ProcessedImageResult {
   sourceDimensions: ImageDimensions;
   normalizedDimensions: ImageDimensions;
   resized: boolean;
+  /** Present only when an `exact` request actually applied a user-approved crop. */
+  appliedCrop?: CropRegion;
 }
 
 export interface ImageProcessingComplete {
@@ -143,5 +180,6 @@ export interface SafeImageProcessingRequest {
   file: Blob;
   preflight: ImagePreflightResult;
   resize?: ResizeOptions;
+  exact?: ExactDimensionsOptions;
   output: OutputOptions;
 }

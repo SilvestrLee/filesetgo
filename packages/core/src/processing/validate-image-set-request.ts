@@ -8,6 +8,7 @@ import {
 import { createProcessingError } from './errors';
 import type { ProcessImageSetOptions } from './image-set-contracts';
 import { MAX_PACKAGE_ASSETS } from './image-set-limits';
+import { MAX_PACKAGE_SOURCES } from './image-set-limits';
 
 export interface ValidateImageSetOptionsResult {
   error: FileSetGoProcessingError | undefined;
@@ -62,6 +63,22 @@ export function validateProcessImageSetOptions(
     );
   }
 
+  const sourceEntries = Object.entries(options.sources ?? {});
+
+  if (sourceEntries.length > MAX_PACKAGE_SOURCES) {
+    return invalid('InvalidRequest', `An image set may provide at most ${MAX_PACKAGE_SOURCES} named sources.`);
+  }
+
+  for (const [sourceId, source] of sourceEntries) {
+    if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(sourceId)) {
+      return invalid('InvalidRequest', `Named source id "${sourceId}" is invalid.`);
+    }
+
+    if (!(source instanceof Blob)) {
+      return invalid('InvalidRequest', `Named source "${sourceId}" must be a Blob.`);
+    }
+  }
+
   const seenIds = new Set<string>();
   const seenFilenames = new Set<string>();
 
@@ -72,6 +89,10 @@ export function validateProcessImageSetOptions(
 
     if (spec.filename.trim().length === 0) {
       return invalid('InvalidRequest', 'Every output must have a non-empty filename.');
+    }
+
+    if (spec.source !== undefined && !(spec.source in (options.sources ?? {}))) {
+      return invalid('InvalidRequest', `Output "${spec.id}" references unknown named source "${spec.source}".`);
     }
 
     if (spec.kind === 'raster') {

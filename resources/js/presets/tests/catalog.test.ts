@@ -17,9 +17,9 @@ describe('PRESET_CATALOG', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('starts every preset at revision 1', () => {
+  it('is at revision 2 for every preset (FSG-007-FIT-002 geometry change)', () => {
     for (const preset of PRESET_CATALOG) {
-      expect(preset.revision).toBe(1);
+      expect(preset.revision).toBe(2);
     }
   });
 
@@ -62,16 +62,22 @@ describe('PRESET_CATALOG', () => {
     expect(byId['web.card'].targetBytes).toBe(150 * 1024);
   });
 
-  it('sets the governed dimension bounds', () => {
+  it('sets the governed exact destination geometry (FSG-007-FIT-002)', () => {
     const byId = Object.fromEntries(PRESET_CATALOG.map((preset) => [preset.id, preset.requirements]));
-    expect([byId['web.hero'].maxWidth, byId['web.hero'].maxHeight]).toEqual([1920, 1080]);
-    expect([byId['web.content'].maxWidth, byId['web.content'].maxHeight]).toEqual([1600, 1600]);
-    expect([byId['web.card'].maxWidth, byId['web.card'].maxHeight]).toEqual([800, 800]);
+    expect([byId['web.hero'].maxWidth, byId['web.hero'].maxHeight]).toEqual([1600, 900]);
+    expect([byId['web.content'].maxWidth, byId['web.content'].maxHeight]).toEqual([1200, 800]);
+    expect([byId['web.card'].maxWidth, byId['web.card'].maxHeight]).toEqual([800, 600]);
   });
 
-  it('sets flexible dimension policy for all three initial presets', () => {
+  it('marks every initial preset as an exact destination frame, never a bounding box', () => {
     for (const preset of PRESET_CATALOG) {
-      expect(preset.requirements.dimensionPolicy).toBe('flexible');
+      expect(preset.requirements.exactDimensions).toBe(true);
+    }
+  });
+
+  it('sets hard dimension policy for all three initial presets (an exact frame is never shrunk to hit a byte target)', () => {
+    for (const preset of PRESET_CATALOG) {
+      expect(preset.requirements.dimensionPolicy).toBe('hard');
     }
   });
 

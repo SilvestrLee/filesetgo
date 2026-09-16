@@ -5,6 +5,9 @@
  */
 export const MAX_PACKAGE_ASSETS = 16;
 
+/** Named source overrides stay deliberately small so one set job cannot become an unbounded multi-decode batch. */
+export const MAX_PACKAGE_SOURCES = 4;
+
 /**
  * Maximum sum of completed, uncompressed asset `byteSize` values a single
  * `processImageSet()` request may produce, checked before archiving

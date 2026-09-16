@@ -1,7 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+  approveFullLogoFaviconSource,
   collectConsoleProblems,
   collectRequests,
+  continueGuidedFit,
+  reviewLogoPackBackground,
   gotoApp,
   selectLogoPackBackgroundMode,
   selectMode,
@@ -27,6 +30,7 @@ function assertPrivateProcessingRequests(requests: ObservedRequest[], baseURL: s
 }
 
 async function runTargetSize(page: Page): Promise<void> {
+  await page.locator('#quick-fit-open').click();
   await page.locator('#target-size-value').fill('80');
   await page.locator('#target-size-unit').selectOption('KB');
   await page.locator('#output-format').selectOption('jpeg');
@@ -43,6 +47,7 @@ test.describe('Network boundary / privacy audit (FSG-006R)', () => {
     for (const fixture of ['sample.jpg', 'sample.png', 'sample.webp']) {
       await uploadFile(page, fixture);
       await waitForStatus(page, 'ready');
+      await page.locator('#quick-fit-open').click();
       await page.locator('#output-format').selectOption(fixture.endsWith('.webp') ? 'png' : 'webp');
       await page.locator('#process-button').click();
       await waitForStatus(page, 'success', 30_000);
@@ -74,6 +79,11 @@ test.describe('Network boundary / privacy audit (FSG-006R)', () => {
     await waitForStatus(page, 'ready');
     await selectMode(page, 'guided-fit');
     await page.locator(CARD_PRESET_CARD).click();
+    await continueGuidedFit(page);
+    // sample.jpg (640x480, 4:3) matches Card's exact 4:3 frame but is
+    // smaller than 800x600 on both axes — upscale approval is required
+    // first (FSG-007-FIT-002).
+    await page.locator('#guided-fit-upscale-approve').check();
     await page.locator('#guided-process-button').click();
     await waitForStatus(page, 'success', 30_000);
 
@@ -89,6 +99,7 @@ test.describe('Network boundary / privacy audit (FSG-006R)', () => {
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'original');
+    await approveFullLogoFaviconSource(page);
     await page.locator('#logo-pack-create-button').click();
     await waitForStatus(page, 'success', 30_000);
     await Promise.all([
@@ -108,7 +119,9 @@ test.describe('Network boundary / privacy audit (FSG-006R)', () => {
     await waitForStatus(page, 'ready');
     await selectMode(page, 'logo-pack');
     await selectLogoPackBackgroundMode(page, 'transparent');
+    await reviewLogoPackBackground(page);
     await expect(page.locator('#logo-pack-preview')).toBeVisible({ timeout: 20_000 });
+    await approveFullLogoFaviconSource(page);
     await page.locator('#logo-pack-create-button').click();
     await waitForStatus(page, 'success', 30_000);
     await Promise.all([
@@ -126,6 +139,7 @@ test.describe('Network boundary / privacy audit (FSG-006R)', () => {
     await gotoApp(page);
     await uploadFile(page, 'sample.heic');
     await waitForStatus(page, 'ready');
+    await page.locator('#quick-fit-open').click();
     await page.locator('#process-button').click();
     await waitForStatus(page, 'success', 30_000);
 

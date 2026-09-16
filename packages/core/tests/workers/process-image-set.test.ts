@@ -238,6 +238,49 @@ describe('processImageSetInWorker — multi-output generation', () => {
     expect(bitmapCreateCount).toBe(1);
   });
 
+  it('switches to a named favicon source only for the outputs that reference it', async () => {
+    const primaryFile = new Blob(['primary'], { type: 'image/jpeg' });
+    const faviconFile = new Blob(['favicon'], { type: 'image/png' });
+    const primaryBitmap = new FakeImageBitmap(800, 600);
+    const faviconBitmap = new FakeImageBitmap(256, 256);
+    vi.stubGlobal('createImageBitmap', async (file: Blob) => {
+      bitmapCreateCount += 1;
+      return file === faviconFile ? faviconBitmap : primaryBitmap;
+    });
+
+    const result = await processImageSetInWorker(
+      testRequest({
+        file: primaryFile,
+        sources: {
+          'favicon-source': {
+            file: faviconFile,
+            preflight: testPreflight({ format: 'png', width: 256, height: 256 }),
+          },
+        },
+        outputs: [
+          { kind: 'raster', id: 'header', filename: 'header.png', output: { format: 'png' } },
+          {
+            kind: 'contain',
+            source: 'favicon-source',
+            id: 'favicon',
+            filename: 'favicon.png',
+            output: { format: 'png' },
+            canvas: { width: 32, height: 32 },
+            contentScale: 0.9,
+            allowUpscale: true,
+          },
+        ],
+      }),
+      testHooks().hooks,
+    );
+
+    expect(bitmapCreateCount).toBe(2);
+    expect(asRaster(result.assets[0]).sourceDimensions).toEqual({ width: 800, height: 600 });
+    expect(asRaster(result.assets[1]).sourceDimensions).toEqual({ width: 256, height: 256 });
+    expect(primaryBitmap.closed).toBe(true);
+    expect(faviconBitmap.closed).toBe(true);
+  });
+
   it('decodes a HEIC source exactly once for multiple outputs, and never requests HEIC output', async () => {
     heicDecodeMock.decodeHeic.mockResolvedValue({
       data: new Uint8ClampedArray(800 * 600 * 4),

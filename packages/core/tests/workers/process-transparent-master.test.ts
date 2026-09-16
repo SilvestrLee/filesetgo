@@ -69,25 +69,66 @@ class FakeCanvasContext {
   public setTransform(): void {}
   public resetTransform(): void {}
 
-  public drawImage(source: FakeImageBitmap): void {
-    // Tests that care about pixel content keep source dimensions ==
-    // working dimensions, so this is a direct 1:1 copy — no resampling
-    // needed for these fakes. When a test intentionally uses a larger
-    // source than the bounded working canvas (to prove the dimension
-    // bound itself), buffer lengths won't match; leave the canvas's own
-    // correctly-sized (blank) buffer in place rather than corrupt it —
-    // that test only asserts on `result.width`/`result.height`, not pixels.
-    if (source.data.length === this.buffer.length) {
-      this.buffer = Uint8ClampedArray.from(source.data);
+  public drawImage(source: FakeImageBitmap | FakeOffscreenCanvas, ...args: number[]): void {
+    const sourceData = source instanceof FakeOffscreenCanvas ? source.snapshot() : source.data;
+    let sourceX = 0;
+    let sourceY = 0;
+    let sourceWidth = source.width;
+    let sourceHeight = source.height;
+    let destinationX = 0;
+    let destinationY = 0;
+    let destinationWidth = source.width;
+    let destinationHeight = source.height;
+
+    if (args.length === 2) {
+      [destinationX, destinationY] = args;
+    } else if (args.length === 4) {
+      [destinationX, destinationY, destinationWidth, destinationHeight] = args;
+    } else if (args.length === 8) {
+      [sourceX, sourceY, sourceWidth, sourceHeight, destinationX, destinationY, destinationWidth, destinationHeight] = args;
+    }
+
+    for (let dy = 0; dy < destinationHeight; dy += 1) {
+      const targetY = destinationY + dy;
+
+      if (targetY < 0 || targetY >= this.height) {
+        continue;
+      }
+
+      const sampledY = Math.max(0, Math.min(source.height - 1, sourceY + Math.floor((dy + 0.5) * sourceHeight / destinationHeight)));
+
+      for (let dx = 0; dx < destinationWidth; dx += 1) {
+        const targetX = destinationX + dx;
+
+        if (targetX < 0 || targetX >= this.width) {
+          continue;
+        }
+
+        const sampledX = Math.max(0, Math.min(source.width - 1, sourceX + Math.floor((dx + 0.5) * sourceWidth / destinationWidth)));
+        const sourceOffset = (sampledY * source.width + sampledX) * 4;
+        const targetOffset = (targetY * this.width + targetX) * 4;
+        this.buffer.set(sourceData.slice(sourceOffset, sourceOffset + 4), targetOffset);
+      }
     }
   }
 
-  public getImageData(): FakeImageData {
-    return new FakeImageData(Uint8ClampedArray.from(this.buffer), this.width, this.height);
+  public getImageData(x = 0, y = 0, width = this.width, height = this.height): FakeImageData {
+    const data = new Uint8ClampedArray(width * height * 4);
+
+    for (let row = 0; row < height; row += 1) {
+      const sourceOffset = ((y + row) * this.width + x) * 4;
+      data.set(this.buffer.slice(sourceOffset, sourceOffset + width * 4), row * width * 4);
+    }
+
+    return new FakeImageData(data, width, height);
   }
 
-  public putImageData(imageData: FakeImageData): void {
-    this.buffer = Uint8ClampedArray.from(imageData.data);
+  public putImageData(imageData: FakeImageData, x = 0, y = 0): void {
+    for (let row = 0; row < imageData.height; row += 1) {
+      const sourceOffset = row * imageData.width * 4;
+      const targetOffset = ((y + row) * this.width + x) * 4;
+      this.buffer.set(imageData.data.slice(sourceOffset, sourceOffset + imageData.width * 4), targetOffset);
+    }
   }
 
   public snapshot(): Uint8ClampedArray {
@@ -110,6 +151,10 @@ class FakeOffscreenCanvas {
 
   public getContext(): FakeCanvasContext {
     return this.context;
+  }
+
+  public snapshot(): Uint8ClampedArray {
+    return this.context.snapshot();
   }
 
   public async convertToBlob(options: { type: string }): Promise<Blob> {
@@ -149,6 +194,44 @@ function testRequest(overrides: Partial<SafeTransparentMasterRequest> = {}): Saf
     strength: 'balanced',
     ...overrides,
   };
+}
+
+function setRasterPixel(
+  raster: { data: Uint8ClampedArray | Uint8Array; width: number },
+  x: number,
+  y: number,
+  color: [number, number, number],
+): void {
+  const offset = (y * raster.width + x) * 4;
+  raster.data[offset] = color[0];
+  raster.data[offset + 1] = color[1];
+  raster.data[offset + 2] = color[2];
+  raster.data[offset + 3] = 255;
+}
+
+function fillRasterRect(
+  raster: { data: Uint8ClampedArray | Uint8Array; width: number },
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+  color: [number, number, number],
+): void {
+  for (let y = top; y < bottom; y += 1) {
+    for (let x = left; x < right; x += 1) {
+      setRasterPixel(raster, x, y, color);
+    }
+  }
+}
+
+function encodedAlphaAt(blob: Blob, x: number, y: number): number {
+  const encoded = encodedBlobPixels.get(blob);
+
+  if (encoded === undefined) {
+    throw new Error('Encoded pixel evidence unavailable.');
+  }
+
+  return encoded.data[(y * encoded.width + x) * 4 + 3];
 }
 
 let sourceBitmap: FakeImageBitmap;
@@ -258,6 +341,51 @@ describe('processTransparentMasterInWorker', () => {
     expect(stages).toEqual(expect.arrayContaining(['decoding', 'normalizing', 'resizing', 'optimizing', 'encoding', 'finalizing']));
   });
 
+  for (const strength of ['gentle', 'balanced', 'strong'] as const) {
+    it(`clears an enclosed wordmark counter before VERIFIED in ${strength} mode`, async () => {
+      const raster = createRasterWithForegroundRects(80, 80, [255, 255, 255], [
+        { x0: 14, y0: 12, x1: 66, y1: 68, color: [15, 23, 42] },
+      ]);
+      fillRasterRect(raster, 27, 25, 53, 55, [255, 255, 255]);
+      sourceBitmap = new FakeImageBitmap(80, 80, raster.data);
+
+      const { hooks } = testHooks();
+      const result = await processTransparentMasterInWorker(
+        testRequest({
+          strength,
+          preflight: testPreflight({ width: 80, height: 80 }),
+        }),
+        hooks,
+      );
+
+      expect(result.status).toBe('verified');
+      expect(result.reason).toBeUndefined();
+      expect(encodedAlphaAt(result.blob, Math.floor(result.width / 2), Math.floor(result.height / 2))).toBe(0);
+    });
+  }
+
+  it('preserves an ambiguous background-coloured foreground stroke and refuses VERIFIED', async () => {
+    const raster = createRasterWithForegroundRects(80, 80, [255, 255, 255], [
+      { x0: 12, y0: 12, x1: 68, y1: 68, color: [37, 99, 235] },
+    ]);
+    fillRasterRect(raster, 29, 22, 34, 58, [255, 255, 255]);
+    fillRasterRect(raster, 34, 38, 55, 43, [255, 255, 255]);
+    sourceBitmap = new FakeImageBitmap(80, 80, raster.data);
+
+    const { hooks } = testHooks();
+    const result = await processTransparentMasterInWorker(
+      testRequest({
+        strength: 'balanced',
+        preflight: testPreflight({ width: 80, height: 80 }),
+      }),
+      hooks,
+    );
+
+    expect(result.status).toBe('needs-review');
+    expect(result.reason).toBe('ambiguous-enclosed-background');
+    expect(result.alphaInspection.maxAlpha).toBe(255);
+  });
+
   it('reports "failed" when the encoded output does not actually contain transparency', async () => {
     // An opaque raster with NO real background/foreground distinction (a
     // single flat colour everywhere) has nothing for the flood-fill to
@@ -341,8 +469,11 @@ describe('processTransparentMasterInWorker', () => {
     // Genuinely semi-transparent, not merely "some transparency present"
     // collapsed to a binary mask.
     expect(result.alphaInspection.semiTransparentPixels).toBeGreaterThan(0);
-    expect(result.alphaInspection.minAlpha).toBe(128);
+    // Governed padding adds fully-transparent outer pixels, while the
+    // source's actual semi-transparent content remains at alpha 128.
+    expect(result.alphaInspection.minAlpha).toBe(0);
     expect(result.alphaInspection.maxAlpha).toBe(128);
+    expect(result.safePadding).toBe(2);
   });
 
   it('processes a small/low-resolution source without crashing (fixture matrix §41.15)', async () => {
@@ -357,8 +488,9 @@ describe('processTransparentMasterInWorker', () => {
       hooks,
     );
 
-    expect(result.width).toBe(10);
-    expect(result.height).toBe(10);
+    expect(result.visibleBounds).toMatchObject({ width: 4, height: 4 });
+    expect(result.width).toBe(8);
+    expect(result.height).toBe(8);
     expect(result.status).not.toBe('failed');
   });
 
@@ -379,16 +511,64 @@ describe('processTransparentMasterInWorker', () => {
     expect(result.status).not.toBe('verified');
   });
 
-  it('bounds the working raster to TRANSPARENT_MASTER_MAX_DIMENSION for a larger source', async () => {
-    const large = 2000;
-    sourceBitmap = new FakeImageBitmap(large, large, new Uint8ClampedArray(large * large * 4).fill(255));
+  it('bounds analysis while preserving source-detail dimensions in the final transparent master', async () => {
+    const width = 1400;
+    const height = 700;
+    const data = new Uint8ClampedArray(width * height * 4);
+
+    for (let y = 200; y < 500; y += 1) {
+      for (let x = 100; x < 1300; x += 1) {
+        const offset = (y * width + x) * 4;
+        data[offset] = 20;
+        data[offset + 1] = 70;
+        data[offset + 2] = 180;
+        data[offset + 3] = 255;
+      }
+    }
+
+    sourceBitmap = new FakeImageBitmap(width, height, data);
 
     const { hooks } = testHooks();
     const result = await processTransparentMasterInWorker(
-      testRequest({ preflight: testPreflight({ width: large, height: large }) }),
+      testRequest({ preflight: testPreflight({ width, height }) }),
       hooks,
     );
 
-    expect(Math.max(result.width, result.height)).toBeLessThanOrEqual(TRANSPARENT_MASTER_MAX_DIMENSION);
+    expect(Math.max(result.analysisDimensions.width, result.analysisDimensions.height)).toBe(TRANSPARENT_MASTER_MAX_DIMENSION);
+    expect(result.visibleBounds).toEqual({ left: 100, top: 200, width: 1200, height: 300 });
+    expect(result.width).toBe(1218);
+    expect(result.height).toBe(318);
+    expect(result.foregroundRescaled).toBe(false);
+  });
+
+  it('regression: trims a 1080x1080 oversized transparent canvas to governed bounds plus padding without rescaling', async () => {
+    const width = 1080;
+    const height = 1080;
+    const data = new Uint8ClampedArray(width * height * 4);
+
+    for (let y = 390; y < 690; y += 1) {
+      for (let x = 160; x < 920; x += 1) {
+        const offset = (y * width + x) * 4;
+        data[offset] = 20;
+        data[offset + 1] = 70;
+        data[offset + 2] = 180;
+        data[offset + 3] = 255;
+      }
+    }
+
+    sourceBitmap = new FakeImageBitmap(width, height, data);
+    const { hooks } = testHooks();
+    const result = await processTransparentMasterInWorker(
+      testRequest({ preflight: testPreflight({ width, height }) }),
+      hooks,
+    );
+
+    expect(result.sourceDimensions).toEqual({ width: 1080, height: 1080 });
+    expect(result.visibleBounds).toEqual({ left: 160, top: 390, width: 760, height: 300 });
+    expect(result.safePadding).toBe(9);
+    expect(result.width).toBe(778);
+    expect(result.height).toBe(318);
+    expect(result.canvasTrimmed).toBe(true);
+    expect(result.foregroundRescaled).toBe(false);
   });
 });

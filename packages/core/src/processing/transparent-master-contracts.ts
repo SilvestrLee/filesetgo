@@ -1,7 +1,7 @@
 import type { ImagePreflightResult } from '../preflight/contracts';
 import type { AlphaInspectionResult } from '../transforms/alpha-inspection';
 import type { BackgroundRemovalStrength } from '../transforms/background-removal';
-import type { FileSetGoProcessingError, ImageProcessingProgress } from './contracts';
+import type { FileSetGoProcessingError, ImageDimensions, ImageProcessingProgress } from './contracts';
 
 /**
  * FSG-005C directive §16: a genuine result whose mechanical verification
@@ -35,6 +35,25 @@ export interface TransparentMasterResult {
   format: 'png';
   mimeType: 'image/png';
   byteSize: number;
+  /** Uploaded dimensions before orientation normalization. */
+  sourceDimensions: ImageDimensions;
+  /** Full source-detail canvas after orientation normalization. */
+  normalizedDimensions: ImageDimensions;
+  /** Bounded raster used only to classify/remove the background. */
+  analysisDimensions: ImageDimensions;
+  /** Meaningful alpha bounds on the full-resolution prepared canvas, before safe padding. */
+  visibleBounds?: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+  /** Governed transparent breathing room added around the detected logo bounds. */
+  safePadding: number;
+  /** True when transparent outer canvas was removed. */
+  canvasTrimmed: boolean;
+  /** Always false: trimming changes canvas bounds, never foreground pixel scale. */
+  foregroundRescaled: false;
   /** The ACTUAL encoded output's alpha inspection (directive §24) — not the pre-encode canvas. */
   alphaInspection: AlphaInspectionResult;
   /** True when background removal actually ran (false when the source already had usable transparency and was preserved as-is). */
