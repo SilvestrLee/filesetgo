@@ -85,6 +85,8 @@ test.describe('FSG-007G homepage product maturity', () => {
   test('links the task directory to the governed acquisition routes and Quick Fit intent', async ({ page }) => {
     await gotoApp(page);
 
+    const directory = page.locator('.fsg-home-directory');
+
     const expectedLinks: Array<[string, string]> = [
       ['Prepare a logo', '/prepare-logo-for-website'],
       ['Make a logo transparent', '/transparent-logo-for-website'],
@@ -96,7 +98,11 @@ test.describe('FSG-007G homepage product maturity', () => {
     ];
 
     for (const [name, href] of expectedLinks) {
-      await expect(page.getByRole('link', { name, exact: true })).toHaveAttribute('href', href);
+      const link = directory.getByRole('link', { name, exact: true });
+      const actualHref = await link.getAttribute('href');
+      const resolvedHref = new URL(actualHref ?? '', page.url());
+
+      expect(`${resolvedHref.pathname}${resolvedHref.search}`).toBe(href);
     }
   });
 

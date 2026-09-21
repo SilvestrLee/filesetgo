@@ -135,11 +135,6 @@
                 </div>
                 <div class="fsg-hero__aside">
                     <p>Choose the file. Set the job: exact requirement, website destination or logo pack. Download the validated result.</p>
-                    <ul class="fsg-hero__truths" aria-label="Three ways File. Set. Go. prepares files">
-                        <li>Exact requirements</li>
-                        <li>Website destinations</li>
-                        <li>Complete logo systems</li>
-                    </ul>
                 </div>
             </section>
 

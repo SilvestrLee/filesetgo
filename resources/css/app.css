@@ -8871,7 +8871,7 @@ body.fsg-processing-active > footer.fsg-footer {
 .fsg-home--mature .fsg-hero {
     grid-template-columns: minmax(0, 1.2fr) minmax(20rem, 0.8fr);
     gap: clamp(2rem, 7vw, 7rem);
-    padding-block: clamp(2.75rem, 5.5vw, 4.25rem) clamp(2rem, 4vw, 3rem);
+    padding-block: clamp(3.5rem, 6.5vw, 5.25rem) clamp(3.25rem, 5vw, 4.25rem);
 }
 
 .fsg-home--mature .fsg-hero__brand {
@@ -8885,35 +8885,21 @@ body.fsg-processing-active > footer.fsg-footer {
 }
 
 .fsg-home--mature .fsg-hero__aside {
+    align-self: end;
     max-width: 33rem;
-    padding-bottom: 0.2rem;
+    padding-bottom: 0.45rem;
 }
 
 .fsg-home--mature .fsg-hero__aside > p {
     max-width: 31rem;
     font-size: clamp(1rem, 1.35vw, 1.12rem);
-    line-height: 1.58;
-}
-
-.fsg-hero__truths {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1rem;
-    margin-top: 1.6rem;
-    border-top: 1px solid var(--fsg-line-strong);
-    padding-top: 1rem;
-}
-
-.fsg-hero__truths li {
-    color: var(--fsg-ink);
-    font-size: 0.76rem;
-    font-weight: 720;
-    line-height: 1.35;
+    line-height: 1.72;
 }
 
 .fsg-home--mature .fsg-workspace {
     position: relative;
     z-index: 1;
+    margin-top: clamp(0.65rem, 1.5vw, 1.25rem);
 }
 
 .fsg-home--mature .fsg-workspace__topline {
@@ -9494,11 +9480,6 @@ body.fsg-processing-active > footer.fsg-footer {
         font-size: clamp(3rem, 7vw, 4.25rem);
     }
 
-    .fsg-hero__truths {
-        grid-template-columns: 1fr;
-        gap: 0.5rem;
-    }
-
     .fsg-home-destinations__inner,
     .fsg-home-control {
         grid-template-columns: minmax(15rem, 0.75fr) minmax(26rem, 1.25fr);
@@ -9552,7 +9533,7 @@ body.fsg-processing-active > footer.fsg-footer {
     .fsg-home--mature .fsg-hero {
         grid-template-columns: 1fr;
         gap: 1.25rem;
-        padding-block: 2.15rem 1.75rem;
+        padding-block: 2.75rem 2.35rem;
     }
 
     .fsg-home--mature .fsg-hero h1 {
@@ -9563,17 +9544,6 @@ body.fsg-processing-active > footer.fsg-footer {
 
     .fsg-home--mature .fsg-hero__aside {
         padding-bottom: 0;
-    }
-
-    .fsg-hero__truths {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0.65rem;
-        margin-top: 1rem;
-        padding-top: 0.8rem;
-    }
-
-    .fsg-hero__truths li {
-        font-size: 0.66rem;
     }
 
     .fsg-home-modes,
@@ -9687,11 +9657,6 @@ body.fsg-processing-active > footer.fsg-footer {
 
     .fsg-home--mature .fsg-hero__aside > p {
         font-size: 0.94rem;
-    }
-
-    .fsg-hero__truths {
-        grid-template-columns: 1fr;
-        gap: 0.35rem;
     }
 
     .fsg-home-section-heading h2,

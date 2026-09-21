@@ -74,8 +74,8 @@ test('captures the complete FSG-007G homepage review inventory', async ({ page }
 
   await preparePage(page, 1440, 900);
   await useTheme(page, 'light');
-  await captureViewport(page, '01-desktop-hero.png');
-  await captureRegion(page.locator('.fsg-hero').first(), '02-desktop-hero-workspace-fold.png');
+  await captureRegion(page.locator('.fsg-hero').first(), '01-desktop-hero.png');
+  await captureViewport(page, '02-desktop-hero-workspace-fold.png');
   await captureRegion(page.locator('.fsg-workspace'), '03-desktop-workspace-empty.png');
 
   await uploadFile(page, 'sample.jpg');
