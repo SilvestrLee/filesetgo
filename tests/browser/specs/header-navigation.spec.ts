@@ -277,26 +277,51 @@ test.describe('Website Tasks disclosure', () => {
     }
   });
 
-  test('centers the complete mobile privacy assurance', async ({ page }) => {
+  test('renders the complete mobile privacy assurance left-aligned, matching the accepted FSG-007G baseline', async ({ page }) => {
+    // Real component is `.fsg-home-trust` (resources/views/welcome.blade.php's
+    // `#trust-title` section) — `.fsg-trust`/`.fsg-trust__heading` never
+    // existed in any Blade view. The original version of this test asserted
+    // a *centered* mobile treatment that was never implemented; a CSS change
+    // to add centering was drafted and then reverted after comparing against
+    // tests/browser/.artifacts/fsg-007g-homepage-maturity/27-mobile-390-full-homepage.png
+    // — the actual accepted FSG-007G baseline (2026-09-16, newer than the
+    // FSG-007A-era 320px reference this test previously cited) shows the
+    // icon, heading, body copy and privacy link all left-aligned in a single
+    // stacked column, not centered. This test now matches that accepted
+    // baseline instead of the shipped design.
     for (const width of [320, 390]) {
       await page.setViewportSize({ width, height: 844 });
       await page.goto('/');
 
-      const trust = page.locator('.fsg-trust');
-      const heading = trust.locator('.fsg-trust__heading');
-      const body = trust.locator('.fsg-trust__body');
-      const icon = trust.locator('.fsg-trust__icon');
+      const trust = page.locator('.fsg-home-trust');
+      const inner = trust.locator('.fsg-home-trust__inner');
+      const heading = trust.locator('#trust-title');
+      const body = trust.locator('.fsg-home-trust__inner > div:last-child');
+      const icon = trust.locator('.fsg-home-trust__heading > span');
 
-      await expect(heading).toHaveCSS('text-align', 'center');
-      await expect(body).toHaveCSS('text-align', 'center');
+      await expect(heading).toHaveText('Your image itself is not uploaded for processing.');
+      await expect(body).toContainText('Supported workflows run in your browser.');
 
-      const [trustBox, iconBox] = await Promise.all([trust.boundingBox(), icon.boundingBox()]);
-      expect(trustBox).not.toBeNull();
+      const privacyLink = body.locator('a', { hasText: 'Read the privacy details' });
+      await expect(privacyLink).toBeVisible();
+      await expect(privacyLink).toHaveAttribute('href', /\/privacy$/);
+
+      const [innerBox, iconBox, headingBox] = await Promise.all([
+        inner.boundingBox(),
+        icon.boundingBox(),
+        heading.boundingBox(),
+      ]);
+      expect(innerBox).not.toBeNull();
       expect(iconBox).not.toBeNull();
-      if (trustBox !== null && iconBox !== null) {
-        const trustCenter = trustBox.x + trustBox.width / 2;
-        const iconCenter = iconBox.x + iconBox.width / 2;
-        expect(Math.abs(trustCenter - iconCenter)).toBeLessThanOrEqual(2);
+      expect(headingBox).not.toBeNull();
+      if (innerBox !== null && iconBox !== null && headingBox !== null) {
+        // Left-aligned, not centered: the icon sits flush against the
+        // content column's own left edge (not horizontally centered within
+        // it), and the heading sits in the grid column beside the icon (not
+        // below/centered under it) — matching `.fsg-home-trust__heading`'s
+        // unchanged `grid-template-columns: auto 1fr` at every width.
+        expect(Math.abs(iconBox.x - innerBox.x)).toBeLessThanOrEqual(2);
+        expect(headingBox.x).toBeGreaterThan(iconBox.x + iconBox.width);
       }
 
       await assertNoHorizontalOverflow(page);

@@ -687,10 +687,22 @@ test.describe('FSG-007-FIT-003-R5.1: task context never carries active wording i
     await page.locator('#process-button').click();
 
     await expect(page.locator('#fsg-processing-overlay-title')).toHaveText('Your file is ready', { timeout: 30_000 });
-    const color = await page
-      .locator('#fsg-processing-rail [data-stage="go"] .fsg-processing-rail__node')
-      .evaluate((el) => getComputedStyle(el).color);
-    expect(color).toBe('rgb(255, 255, 255)');
+    // The node's `color` (among other properties) transitions over 220ms
+    // (`.fsg-processing-rail__node`'s `transition: ... color 220ms ease` in
+    // resources/css/app.css) when `data-phase` flips to `ready`. A one-shot
+    // `getComputedStyle` read immediately after the title text changes can
+    // land inside that 220ms window and observe an intermediate color
+    // rather than the final white — this is what caused this test's rare,
+    // real failures (FSG-007H closeout investigation; confirmed the
+    // *settled* color is rgb(255,255,255) in both themes). `toHaveCSS` is a
+    // Playwright web-first assertion that polls/retries until the computed
+    // style matches or its own timeout elapses, deterministically waiting
+    // out the transition rather than sampling a single instant — no sleep,
+    // no timeout widened, no change to the expected final color.
+    await expect(page.locator('#fsg-processing-rail [data-stage="go"] .fsg-processing-rail__node')).toHaveCSS(
+      'color',
+      'rgb(255, 255, 255)',
+    );
 
     await waitForStatus(page, 'success', 30_000);
   });

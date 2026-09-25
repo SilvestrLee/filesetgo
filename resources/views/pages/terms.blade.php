@@ -36,8 +36,14 @@
                 <li>FileSetGo is provided as-is, subject to normal availability. It's a browser-based tool without a service-level guarantee.</li>
             </ol>
             <p class="mt-7 text-sm">
-                FileSetGo's legal entity and jurisdiction details are not yet finalized and are intentionally omitted
-                from this page rather than invented; they will be added here before this reliance would matter commercially.
+                File. Set. Go. is operated by Tsotsia Digitals, a registered business name / sole proprietorship based
+                in Nigeria, not a limited liability company. For privacy questions or requests, contact
+                <a href="mailto:privacy@filesetgo.com" class="fsg-text-ink font-semibold underline decoration-2 underline-offset-4">privacy@filesetgo.com</a>.
+            </p>
+            <p class="mt-4 text-sm">
+                Some details are still being confirmed and are intentionally left out rather than invented: a
+                registered office address, a business registration number, and any additional legal identity. These
+                will be added here once verified.
             </p>
         </section>
 

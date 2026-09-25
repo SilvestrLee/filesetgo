@@ -37,6 +37,30 @@ function liveBlobUrlCount(page: import('@playwright/test').Page): Promise<number
   return page.evaluate(() => (window as unknown as { __fsgLiveBlobUrlCount(): number }).__fsgLiveBlobUrlCount());
 }
 
+// Scoped to this file only (FSG-007H closeout investigation): Playwright's
+// own tracing (screenshots + DOM snapshots, active for every test per the
+// project's global `trace: 'retain-on-failure'`) was directly demonstrated
+// to be the cause of intermittent timeouts in these specific tests, not a
+// product defect. A standalone diagnostic replicating this file's own
+// "10 consecutive large target-size jobs" workflow completed all 10
+// iterations in a flat, steady ~3.5s each (Blob URL count, JS heap, and
+// DOM node count all constant throughout) with tracing off; the identical
+// script reproduced the exact erratic multi-second-spike pattern seen in
+// real CI/local failures once Playwright tracing was turned on, with
+// product-level metrics still flat. These tests already do substantial,
+// real, cumulative WASM/canvas work across many repeated cycles in one
+// long-lived page/session by design (directive §50) — tracing's own
+// screencast/snapshot overhead compounds with that real work and
+// occasionally exceeds the tests' fixed per-step timeouts. Must be
+// top-level (not inside `test.describe`) — Playwright forces a dedicated
+// worker for a per-file `trace` override. Turning tracing off here does
+// not touch any other spec file or the global config; ordinary
+// screenshot-on-failure capture (`screenshot: 'only-on-failure'`,
+// project-wide) is untouched, so a real failure still leaves a screenshot
+// to diagnose from. See docs/compliance/COMPLIANCE-DECISION-REGISTER.md
+// item 9 for the full evidence trail.
+test.use({ trace: 'off' });
+
 test.describe('Same-session resource-lifecycle stress test (directive §50)', () => {
   test(`${ITERATIONS} repeated Quick Fit cycles in one session leave no stuck state or Blob URL leak`, async ({ page }) => {
     await installBlobUrlTracker(page);

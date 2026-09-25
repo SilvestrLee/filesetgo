@@ -118,7 +118,9 @@ This milestone validates or revises provisional safety defaults through real-dev
 
 ## FSG-007 — SEO Acquisition & Public Launch
 
-**Status: ▶ CURRENT.** FSG-006R hardening, the preserved FSG-007 public-launch lineage, and the 8 September 2026 Product Office strategy have been reconciled. **FSG-007A — Complete Front-Facing Website Redesign** remains the governing redesign directive. The active implementation sub-directive is **FSG-007G — Homepage Product Maturity Reconciliation**. FSG-007F remains independently awaiting Product Office visual approval. Public deployment remains blocked pending Product Office visual approval and subsequent launch-quality verification.
+**Status: ▶ CURRENT.** FSG-006R hardening, the preserved FSG-007 public-launch lineage, and the 8 September 2026 Product Office strategy have been reconciled. **FSG-007A — Complete Front-Facing Website Redesign** remains the governing redesign directive. The active implementation sub-directive is **FSG-007G — Homepage Product Maturity Reconciliation**.
+
+**Deployment state (corrected 2026-09-23, FSG-007H closeout):** production (`filesetgo.com`) is live and has been serving public traffic — this line previously read "public deployment remains blocked," which FSG-007H's audit found to be stale relative to the actual deployed state and corrected here rather than left contradicting production. **FSG-007F — Website Image Optimizer** is `IMPLEMENTED / DEPLOYED / VISUAL ACCEPTANCE PENDING`: the page is live, sitemapped, linked, and covered by passing dedicated browser tests, but is **not formally closed** — Product Office visual acceptance is still required. **Final FSG-007 launch certification remains outstanding**: full multi-engine (Chromium/Firefox/WebKit) and mobile-viewport browser recertification against the current deployed state, and formal Product Office visual acceptance of FSG-007F and FSG-007G, have not yet occurred. See `SPRINT_REPORT.md`'s FSG-007H checkpoint and `docs/compliance/COMPLIANCE-DECISION-REGISTER.md` for full evidence.
 
 Deliver:
 

@@ -6,6 +6,13 @@ any actual production deployment, DNS pointing, TLS issuance, or
 search-console verification, all of which are external operational actions
 (directive §58) outside this coding environment.
 
+**Production is live.** For the Hostinger-account-specific deployment shape
+(the split `app/`/`public_html/` directories, the required non-default PHP
+CLI binary, and the production-only `.htaccess` that must survive every
+deploy), see `docs/deployment/PRODUCTION-RUNBOOK.md`, verified directly
+against the production host as part of FSG-007H. This document remains
+correct for the environment-agnostic build/verify steps below.
+
 ## Requirements
 
 - PHP `^8.3` (per `composer.json`; this project's development environment runs PHP 8.5).
