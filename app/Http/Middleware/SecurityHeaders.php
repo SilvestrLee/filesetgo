@@ -18,9 +18,13 @@ use Symfony\Component\HttpFoundation\Response;
  * - `script-src 'self' 'wasm-unsafe-eval'` — application and lazy chunks
  *   are same-origin. The narrow WASM keyword permits the HEIC adapter's
  *   explicit `WebAssembly.compile()`; `'unsafe-eval'` is not allowed.
- * - `style-src 'self'` — Tailwind ships as a built stylesheet; no
- *   inline `<style>` tag or `style=` attribute is used anywhere in the
- *   product surface.
+ * - `style-src 'self' 'nonce-…'` — Tailwind ships as a built stylesheet;
+ *   the one legitimate inline `<style>` block is the `@fonts()` directive's
+ *   self-hosted Instrument Sans `@font-face` rules (FSG-007 closeout §3),
+ *   which Laravel's `Vite::useCspNonce()` tags with a fresh, unguessable
+ *   per-request nonce below — not `'unsafe-inline'`, which would allow any
+ *   inline style. No `style=` attribute is used anywhere in the product
+ *   surface.
  * - `img-src 'self' blob:` — Logo Pack/transparent-preview `<img>` tags
  *   render from `URL.createObjectURL()` Blob URLs.
  * - `connect-src 'self'` — the only `fetch()` in the product is the
@@ -38,6 +42,11 @@ class SecurityHeaders
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // Must run before the view renders: `@fonts()`'s inline
+        // `<style>` tag only gets a `nonce` attribute if Vite already has
+        // one when Blade compiles the response.
+        app(Vite::class)->useCspNonce();
+
         /** @var Response $response */
         $response = $next($request);
 
@@ -45,7 +54,7 @@ class SecurityHeaders
             $response->headers->set('Content-Security-Policy', implode('; ', [
                 "default-src 'self'",
                 "script-src 'self' 'wasm-unsafe-eval'",
-                "style-src 'self'",
+                "style-src 'self' 'nonce-".app(Vite::class)->cspNonce()."'",
                 "img-src 'self' blob:",
                 "font-src 'self'",
                 "connect-src 'self'",

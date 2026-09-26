@@ -37,6 +37,7 @@
             <script type="application/ld+json">{!! json_encode($structuredData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
         @endisset
 
+        @fonts()
         @vite(['resources/css/app.css', 'resources/js/theme.ts'])
         @stack('head')
     </head>

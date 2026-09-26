@@ -258,21 +258,77 @@ test.describe('Website Tasks disclosure', () => {
     await expect(disclosure).not.toHaveAttribute('open', '');
   });
 
-  test('keeps the mobile hero to three deliberate lines at governed widths', async ({ page }) => {
+  test('keeps the mobile hero to three deliberate lines at governed widths', async ({ page }, testInfo) => {
+    // FSG-007 closeout §3 diagnostic instrumentation: this test is
+    // 100%-reproducibly failing on Linux CI (Chromium+Firefox+WebKit) but
+    // has never failed locally on macOS (COMPLIANCE-DECISION-REGISTER.md
+    // item 11). Leading hypothesis: Instrument Sans loads with
+    // `font-display: swap` and no metrically-matched fallback (`fontaine`
+    // is not installed), so the page briefly renders with an unadjusted
+    // fallback font whose metrics may be wide enough to overflow on
+    // Linux's fallback stack even though macOS's fallback happens not to.
+    // Captures full before/after-`document.fonts.ready` geometry so the
+    // decision tree (directive §3) can be resolved from real Linux
+    // evidence rather than guessed. The hard assertions below intentionally
+    // target the settled (post font-ready) state a real user actually
+    // sees — the state before fonts are ready is measured and logged, not
+    // asserted on for line-count/overflow, but the whole-page overflow
+    // check *is* still asserted before fonts are ready, since a real
+    // horizontal scrollbar during the swap window would be a materially
+    // broken page regardless of which font is currently showing.
     for (const width of [320, 375, 390, 430]) {
       await page.setViewportSize({ width, height: 844 });
       await page.goto('/');
 
-      const geometry = await page.locator('.fsg-hero h1').evaluate((heading) => {
+      const captureGeometry = async () => page.locator('.fsg-hero h1').evaluate((heading) => {
         const lines = Array.from(heading.querySelectorAll<HTMLElement>('.fsg-hero__mobile-line'));
+        const firstLineStyle = lines[0] ? getComputedStyle(lines[0]) : null;
         return {
-          lineCount: lines.reduce((count, line) => count + line.getClientRects().length, 0),
-          overflowing: lines.some((line) => line.scrollWidth > line.clientWidth + 1),
+          fontFamily: firstLineStyle?.fontFamily ?? null,
+          fontSize: firstLineStyle?.fontSize ?? null,
+          fontsStatus: document.fonts.status,
+          instrumentSansLoaded: Array.from(document.fonts).some(
+            (fontFace) => fontFace.family.replace(/["']/g, '') === 'Instrument Sans' && fontFace.status === 'loaded',
+          ),
+          lines: lines.map((line) => ({
+            text: line.textContent,
+            clientWidth: line.clientWidth,
+            scrollWidth: line.scrollWidth,
+            rects: line.getClientRects().length,
+          })),
         };
       });
 
-      expect(geometry.lineCount).toBe(3);
-      expect(geometry.overflowing).toBe(false);
+      const before = await captureGeometry();
+      testInfo.annotations.push({
+        type: `hero-diag-w${width}-before-fonts-ready`,
+        description: JSON.stringify(before),
+      });
+      await page.screenshot({ path: testInfo.outputPath(`hero-diag-w${width}-before-fonts-ready.png`) });
+
+      // Directive §3's "materially broken page" check applies to the
+      // fallback-font window too, before we've waited for fonts to settle.
+      await assertNoHorizontalOverflow(page);
+
+      await page.evaluate(() => document.fonts.ready);
+
+      const after = await captureGeometry();
+      testInfo.annotations.push({
+        type: `hero-diag-w${width}-after-fonts-ready`,
+        description: JSON.stringify(after),
+      });
+      await page.screenshot({ path: testInfo.outputPath(`hero-diag-w${width}-after-fonts-ready.png`) });
+
+      const lineCount = after.lines.reduce((count, line) => count + line.rects, 0);
+      const overflowing = after.lines.some((line) => line.scrollWidth > line.clientWidth + 1);
+
+      // eslint-disable-next-line no-console
+      console.log(
+        `[FSG-007-CLOSEOUT hero-diag] width=${width} fontsStatusBefore=${before.fontsStatus} fontsStatusAfter=${after.fontsStatus} instrumentSansLoadedBefore=${before.instrumentSansLoaded} instrumentSansLoadedAfter=${after.instrumentSansLoaded} overflowingBefore=${before.lines.some((line) => line.scrollWidth > line.clientWidth + 1)} overflowingAfter=${overflowing} fontFamilyBefore=${before.fontFamily} fontFamilyAfter=${after.fontFamily}`,
+      );
+
+      expect(lineCount).toBe(3);
+      expect(overflowing).toBe(false);
       await assertNoHorizontalOverflow(page);
     }
   });
